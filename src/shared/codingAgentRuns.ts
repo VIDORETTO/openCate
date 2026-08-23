@@ -43,6 +43,7 @@ export interface CodingAgentLaunch {
 export type CodingAgentRunStatus =
   | 'starting'
   | 'working'
+  | 'stalled'
   | 'waiting'
   | 'ready'
   | 'stopped'
@@ -54,7 +55,15 @@ export interface CodingAgentRuntimeState {
   terminalFailed: boolean
   agentState?: 'notRunning' | 'running' | 'waitingForInput' | 'finished'
   agentPresent?: boolean
+  /** Epoch milliseconds of the last observed PTY output. Omitted means unknown,
+   *  never stale: callers must not invent a timestamp they did not observe. */
+  lastOutputAt?: number
 }
+
+/** A working agent with no output for this long is surfaced as stalled rather
+ *  than silently continuing to shimmer. Generous enough to cover long tool runs
+ *  and slow remote links, while still turning "no news" into an explicit state. */
+export const CODING_AGENT_STALLED_AFTER_MS = 5 * 60_000
 
 /** One status policy shared by the renderer supervisor and the cross-window
  * discovery report. Keeping this pure prevents detached-worker waits from
@@ -62,6 +71,7 @@ export interface CodingAgentRuntimeState {
 export function deriveCodingAgentRunStatus(
   run: CodingAgentRun,
   runtime: CodingAgentRuntimeState,
+  now = Date.now(),
 ): CodingAgentRunStatus {
   if (run.stoppedAt) return 'stopped'
   if (run.endedAt) return run.exitCode === 0 ? 'ready' : 'failed'
@@ -69,7 +79,10 @@ export function deriveCodingAgentRunStatus(
   if (!runtime.terminalStarted) return 'starting'
   if (!runtime.terminalAlive) return 'ready'
   switch (runtime.agentState) {
-    case 'running': return 'working'
+    case 'running':
+      return runtime.lastOutputAt !== undefined && now - runtime.lastOutputAt >= CODING_AGENT_STALLED_AFTER_MS
+        ? 'stalled'
+        : 'working'
     case 'waitingForInput': return 'waiting'
     case 'finished': return 'ready'
     case 'notRunning':

@@ -114,6 +114,11 @@ export function CodingAgentCard({ msg }: { msg: ToolMessage; shimmer?: boolean }
           >
             {title}
           </span>
+          {canonicalStatus === 'stalled' && (
+            <span className="flex-shrink-0 rounded-full bg-surface-3 px-1.5 text-[9px] uppercase tracking-wide text-secondary">
+              Stalled
+            </span>
+          )}
           {canonicalStatus === 'waiting' && (
             <span className="cate-await-indicator shrink-0" aria-label="awaiting input">
               <span className="cate-await-dot" style={{ backgroundColor: '#c08a5a' }} />

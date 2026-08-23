@@ -15,6 +15,7 @@ import { useAppStore } from '../../stores/appStore'
 import { useStatusStore } from '../../stores/statusStore'
 import { selectAgentInfoByPanel } from '../../hooks/useAgentPanelInfo'
 import { terminalRegistry } from '../terminal/terminalRegistry'
+import { getLastTerminalActivity } from '../terminal/activityHistory'
 import { peekCanvasStoreForPanel, getAllCanvasStores } from '../../stores/canvasStore'
 import { getLiveNodeDockLayout } from '../../panels/nodeDockRegistry'
 import { buildColdStartCanvasChildOwners, partitionWorkspacePanels } from '../../sidebar/partitionWorkspacePanels'
@@ -29,7 +30,10 @@ import {
   useCateAgentStore,
 } from '../../../cateAgent/renderer/cateAgentStore'
 import { useChatsStore } from '../../stores/chatsStore'
-import { deriveCodingAgentRunStatus } from '../../../shared/codingAgentRuns'
+import {
+  CODING_AGENT_STALLED_AFTER_MS,
+  deriveCodingAgentRunStatus,
+} from '../../../shared/codingAgentRuns'
 
 let cleanup: (() => void) | null = null
 
@@ -59,6 +63,20 @@ function statusSignature(): string {
       const name = terminal.agentPresent ? terminal.agentName ?? '' : ''
       parts.push(`${wsId}:${id}:${terminal.agentState}:${name}`)
       if (terminal.listeningPorts.length) parts.push(`${wsId}:p:${id}`)
+    }
+  }
+  // Coding-agent runs need periodic re-reporting even when the agent state is
+  // unchanged, so a quiet run can cross the stall threshold in other windows.
+  // The epoch changes only at the next check, so a constant lastOutputAt can
+  // still produce a signature change exactly when the threshold is crossed.
+  for (const ws of useAppStore.getState().workspaces) {
+    for (const [panelId, panel] of Object.entries(ws.panels)) {
+      if (!panel.codingAgentRun || panel.type !== 'terminal') continue
+      const lastOutputAt = getLastTerminalActivity(panelId)
+      const phase = lastOutputAt !== undefined && Date.now() - lastOutputAt >= CODING_AGENT_STALLED_AFTER_MS
+        ? 'stalled'
+        : 'live'
+      parts.push(`${ws.id}:a:${panelId}:${lastOutputAt ?? 'none'}:${phase}`)
     }
   }
   return parts.sort().join('|')
@@ -156,6 +174,7 @@ export function setupWindowPanelSync(): () => void {
                 terminalFailed: terminalFailure !== null,
                 agentState: workerAgent?.state,
                 agentPresent: Boolean(workerAgent?.name),
+                lastOutputAt: getLastTerminalActivity(p.id),
               })
             : undefined,
           hasPorts: withPorts.has(p.id),
@@ -213,6 +232,12 @@ export function setupWindowPanelSync(): () => void {
     schedule()
   })
   const unsubscribeTerminalFailure = terminalRegistry.subscribeFailure(schedule)
+  const stallTimer = setInterval(() => {
+    const sig = statusSignature()
+    if (sig === lastStatusSig) return
+    lastStatusSig = sig
+    schedule()
+  }, CODING_AGENT_STALLED_AFTER_MS)
 
   cleanup = () => {
     unsubscribeApp()
@@ -221,6 +246,7 @@ export function setupWindowPanelSync(): () => void {
     unsubscribeChats()
     unsubscribeStatus()
     unsubscribeTerminalFailure()
+    clearInterval(stallTimer)
     for (const unsub of canvasSubs.values()) unsub()
     canvasSubs.clear()
     if (timer) clearTimeout(timer)

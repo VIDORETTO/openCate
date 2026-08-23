@@ -89,7 +89,7 @@ const { activeWindow, windowsById, windowPanelList, windowPanelListener, revealW
     focused?: boolean
     codingAgentRunId?: string
     codingAgentOwnerPanelId?: string
-    codingAgentStatus?: 'starting' | 'working' | 'waiting' | 'ready' | 'stopped' | 'failed'
+    codingAgentStatus?: 'starting' | 'working' | 'stalled' | 'waiting' | 'ready' | 'stopped' | 'failed'
   }> },
   windowPanelListener: { value: null as (() => void) | null },
   revealWindowPanel: vi.fn(() => true),
@@ -665,13 +665,23 @@ describe('dispatchCateInvoke — Cate Agent orchestration boundary', () => {
     }, 'cate.codingAgent.wait', { runIds: ['run-a', 'run-b'] })
 
     expect(windowPanelListener.value).toBeTypeOf('function')
-    windowPanelList.value[1].codingAgentStatus = 'ready'
+    windowPanelList.value[1].codingAgentStatus = 'stalled'
     windowPanelListener.value!()
 
     await expect(waiting).resolves.toMatchObject({
       timedOut: false,
       changedRunIds: ['run-b'],
     })
+    expect(await dispatchCateInvoke({
+      extensionId: 'cate-agent',
+      workspaceId: WS,
+      panelId: 'supervisor-1',
+      caller: 'cate-agent',
+      grantedScopes: [...CATE_AGENT_GRANTED_SCOPES],
+      forward: vi.fn(async () => [{ id: 'run-b', panelId: 'worker-b', status: 'stalled' }]),
+    }, 'cate.codingAgent.list', {})).toEqual([
+      { id: 'run-b', panelId: 'worker-b', status: 'stalled' },
+    ])
     expect(windowPanelListener.value).toBeNull()
   })
 })

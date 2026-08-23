@@ -16,6 +16,8 @@ export interface ActivitySnapshot {
   bucketStartedAt: number[]
   bytes: number[]
   events: number[]
+  /** Epoch milliseconds of the last observed output burst; 0 means none yet. */
+  lastOutputAt: number
   updatedAt: number
   version: number
 }
@@ -28,6 +30,8 @@ interface ActivityBucket {
 
 interface ActivityHistoryState {
   buckets: Array<ActivityBucket | undefined>
+  /** Epoch milliseconds of the last output burst; 0 means none yet. */
+  lastOutputAt: number
   /** Index of the oldest occupied slot (when count > 0). */
   head: number
   count: number
@@ -44,6 +48,7 @@ const EMPTY_SNAPSHOT: ActivitySnapshot = {
   bucketStartedAt: [],
   bytes: [],
   events: [],
+  lastOutputAt: 0,
   updatedAt: 0,
   version: 0,
 }
@@ -51,6 +56,7 @@ const EMPTY_SNAPSHOT: ActivitySnapshot = {
 function emptyState(): ActivityHistoryState {
   return {
     buckets: new Array<ActivityBucket | undefined>(ACTIVITY_HISTORY_BUCKETS).fill(undefined),
+    lastOutputAt: 0,
     head: 0,
     count: 0,
     snapshot: EMPTY_SNAPSHOT,
@@ -124,6 +130,7 @@ function buildSnapshot(state: ActivityHistoryState, updatedAt: number): Activity
     bucketStartedAt: ordered.map((bucket) => bucket.startedAt),
     bytes: ordered.map((bucket) => bucket.bytes),
     events: ordered.map((bucket) => bucket.events),
+    lastOutputAt: state.lastOutputAt,
     updatedAt,
     version: state.version,
   }
@@ -137,7 +144,8 @@ function publishIfChanged(state: ActivityHistoryState, timestamp: number): void 
     previous.updatedAt !== 0 &&
     timestamp - previous.updatedAt < ACTIVITY_BUCKET_MS &&
     previous.bytes.every((value, index) => value === next.bytes[index]) &&
-    previous.events.every((value, index) => value === next.events[index])
+    previous.events.every((value, index) => value === next.events[index]) &&
+    previous.lastOutputAt === next.lastOutputAt
 
   if (unchanged) return
 
@@ -158,6 +166,7 @@ export function noteTerminalActivity(
 
   const state = getState(panelId)
   rotateToTime(state, timestamp)
+  state.lastOutputAt = timestamp
   const bucket = latestBucket(state)
   if (!bucket) return
 
@@ -181,6 +190,12 @@ export function subscribeActivity(panelId: string, listener: () => void): () => 
 
 export function getActivitySnapshot(panelId: string): ActivitySnapshot {
   return histories.get(panelId)?.snapshot ?? EMPTY_SNAPSHOT
+}
+
+/** Last observed output time without subscribing or creating a history. */
+export function getLastTerminalActivity(panelId: string): number | undefined {
+  const timestamp = histories.get(panelId)?.lastOutputAt ?? 0
+  return timestamp > 0 ? timestamp : undefined
 }
 
 /** Remove history when a terminal is disposed (or its last reader goes away). */

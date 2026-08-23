@@ -3,6 +3,7 @@ import {
   ACTIVITY_BUCKET_MS,
   ACTIVITY_HISTORY_BUCKETS,
   clearActivityHistory,
+  getLastTerminalActivity,
   getActivitySnapshot,
   noteTerminalActivity,
   resetActivityHistoriesForTests,
@@ -31,6 +32,8 @@ describe('terminal activity history', () => {
     expect(snapshot.bytes).toEqual([20])
     expect(snapshot.events).toEqual([2])
     expect(snapshot.bucketStartedAt).toEqual([BASE_TIME])
+    expect(snapshot.lastOutputAt).toBe(BASE_TIME + ACTIVITY_BUCKET_MS - 1)
+    expect(getLastTerminalActivity('p1')).toBe(BASE_TIME + ACTIVITY_BUCKET_MS - 1)
   })
 
   it('creates chronological buckets and keeps the circular buffer bounded', () => {
@@ -79,6 +82,13 @@ describe('terminal activity history', () => {
     expect(getActivitySnapshot('p1').bytes).toEqual([])
     expect(listener).toHaveBeenCalledTimes(1)
     unsubscribe()
+  })
+
+  it('reports no last-output timestamp for unknown or output-free histories', () => {
+    expect(getLastTerminalActivity('unknown')).toBeUndefined()
+    subscribeActivity('empty', () => {})
+    expect(getActivitySnapshot('empty').lastOutputAt).toBe(0)
+    expect(getLastTerminalActivity('empty')).toBeUndefined()
   })
 })
 

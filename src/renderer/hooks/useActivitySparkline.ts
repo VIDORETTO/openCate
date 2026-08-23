@@ -15,6 +15,7 @@ const EMPTY_SNAPSHOT: ActivitySnapshot = {
   bucketStartedAt: [],
   bytes: [],
   events: [],
+  lastOutputAt: 0,
   updatedAt: 0,
   version: 0,
 }
@@ -52,4 +53,19 @@ export function useActivitySparkline(panelId: string | undefined): ActivityPoint
     () => normalizeActivityPoints(snapshot.bytes, snapshot.events),
     [snapshot],
   )
+}
+
+export function useLastTerminalActivity(panelId: string | undefined): number | undefined {
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => (
+      panelId ? subscribeActivity(panelId, onStoreChange) : () => {}
+    ),
+    [panelId],
+  )
+  const getSnapshot = useCallback(
+    () => (panelId ? getActivitySnapshot(panelId) : EMPTY_SNAPSHOT),
+    [panelId],
+  )
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  return snapshot.lastOutputAt > 0 ? snapshot.lastOutputAt : undefined
 }

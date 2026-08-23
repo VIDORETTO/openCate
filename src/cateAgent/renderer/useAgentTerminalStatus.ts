@@ -17,6 +17,7 @@ import {
   deriveCodingAgentRunStatus,
   type CodingAgentRunStatus,
 } from '../../shared/codingAgentRuns'
+import { useLastTerminalActivity } from '../../renderer/hooks/useActivitySparkline'
 
 // Lines that are pure box-drawing / prompt chrome carry no progress info — skip them
 // when hunting for the meaningful status line near the bottom of the screen.
@@ -62,6 +63,10 @@ export function useAgentTerminalStatus(wsId: string, panelId: string): AgentTerm
     () => null,
   )
   const entry = terminalRegistry.getEntry(panelId)
+  const lastOutputAt = useLastTerminalActivity(panelId)
+  // Re-evaluate on a slow glance cadence even when stores are quiet, so a
+  // working run crosses the stall threshold without needing another event.
+  const [now, setNow] = useState(() => Date.now())
   const runStatus = run
     ? deriveCodingAgentRunStatus(run, {
         terminalStarted: entry !== undefined,
@@ -69,13 +74,16 @@ export function useAgentTerminalStatus(wsId: string, panelId: string): AgentTerm
         terminalFailed: failure !== null,
         agentState: runtime?.agentState,
         agentPresent: runtime?.agentPresent === true || Boolean(runtime?.agentName),
-      })
+        lastOutputAt,
+      }, now)
     : null
   const [line, setLine] = useState<string | null>(null)
   useEffect(() => {
     let alive = true
     const tick = (): void => {
-      if (alive) setLine(sampleStatusLine(panelId))
+      if (!alive) return
+      setLine(sampleStatusLine(panelId))
+      setNow(Date.now())
     }
     tick()
     const id = setInterval(tick, 1200)
@@ -91,6 +99,7 @@ export function codingAgentStatusLabel(status: CodingAgentRunStatus): string {
   switch (status) {
     case 'starting': return 'Starting…'
     case 'working': return 'Working…'
+    case 'stalled': return 'Stalled — no recent output'
     case 'waiting': return 'Waiting for input'
     case 'ready': return 'Finished'
     case 'stopped': return 'Stopped'

@@ -145,6 +145,17 @@ describe('coding agent launch presentation', () => {
     expect(title?.textContent).toBe('Test reliability')
   })
 
+  it('stops shimmering and labels a working run with no recent output as stalled', () => {
+    terminalStatus.runStatus = 'stalled'
+
+    act(() => root.render(<CodingAgentCard msg={message()} />))
+
+    const terminalLink = host.querySelector<HTMLElement>('[data-coding-agent-terminal-link]')!
+    expect(terminalLink.title).toContain('Stalled')
+    expect(terminalLink.textContent).toContain('Stalled')
+    expect(terminalLink.querySelector('.cate-notif-pulse')).toBeNull()
+  })
+
   it('offers review, apply, keep, and discard when an isolated worker finishes', async () => {
     terminalStatus.runStatus = 'ready'
     reviewCodingAgentWorktree.mockResolvedValue({

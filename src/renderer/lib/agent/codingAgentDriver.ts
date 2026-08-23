@@ -1,6 +1,7 @@
 import { useAppStore } from '../../stores/appStore'
 import { useStatusStore } from '../../stores/statusStore'
 import { useSettingsStore } from '../../stores/settingsStore'
+import { getLastTerminalActivity } from '../terminal/activityHistory'
 import { terminalRegistry } from '../terminal/terminalRegistry'
 import { terminalBufferTail } from '../terminal/terminalBuffer'
 import { submitTerminalText } from '../terminal/terminalDriver'
@@ -75,6 +76,7 @@ function runStatus(workspaceId: string, panelId: string, run: CodingAgentRun): C
     terminalFailed: failure !== null,
     agentState: runtime?.agentState,
     agentPresent: runtime?.agentPresent === true || Boolean(runtime?.agentName),
+    lastOutputAt: getLastTerminalActivity(panelId),
   })
 }
 

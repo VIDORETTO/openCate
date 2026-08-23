@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { AGENTS } from './agents'
 import {
+  CODING_AGENT_STALLED_AFTER_MS,
   codingAgentCommand,
   codingAgentSupportsFollowUp,
+  deriveCodingAgentRunStatus,
   parseCodingAgentId,
 } from './codingAgentRuns'
 
@@ -48,5 +50,40 @@ describe('codingAgentCommand', () => {
     expect(() => codingAgentCommand({ agentId: 'pi', prompt: '   ' })).toThrow(
       'A coding-agent prompt is required',
     )
+  })
+})
+
+describe('deriveCodingAgentRunStatus', () => {
+  const run = {
+    id: 'run-1',
+    agentId: 'codex' as const,
+    panelId: 'panel-1',
+    ownerPanelId: 'owner-1',
+    prompt: 'Implement it',
+    createdAt: 1,
+  }
+  const runtime = {
+    terminalStarted: true,
+    terminalAlive: true,
+    terminalFailed: false,
+    agentState: 'running' as const,
+  }
+
+  it('keeps a working agent active without an observed output timestamp', () => {
+    expect(deriveCodingAgentRunStatus(run, runtime, 1_000)).toBe('working')
+  })
+
+  it('marks a running agent stalled after the explicit no-output threshold', () => {
+    const observed = deriveCodingAgentRunStatus(
+      run,
+      { ...runtime, lastOutputAt: 0 },
+      CODING_AGENT_STALLED_AFTER_MS,
+    )
+    expect(observed).toBe('stalled')
+  })
+
+  it('does not invent staleness for waiting or completed runs', () => {
+    expect(deriveCodingAgentRunStatus(run, { ...runtime, agentState: 'waitingForInput' }, 999_999_999_999)).toBe('waiting')
+    expect(deriveCodingAgentRunStatus({ ...run, endedAt: 2, exitCode: 0 }, runtime, 999_999_999_999)).toBe('ready')
   })
 })

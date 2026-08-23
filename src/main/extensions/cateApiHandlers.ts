@@ -280,6 +280,7 @@ function resolveCodingAgentTargetWindow(
 }
 
 const ACTIONABLE_CODING_AGENT_STATUSES = new Set<CodingAgentRunStatus>([
+  'stalled',
   'waiting',
   'ready',
   'stopped',
