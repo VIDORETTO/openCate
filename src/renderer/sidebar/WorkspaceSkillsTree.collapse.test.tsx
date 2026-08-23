@@ -22,8 +22,19 @@ const ROWS: InstalledSkill[] = [
 let host: HTMLDivElement
 let root: Root
 
+// Some test runtimes expose an incomplete or unavailable Storage API. Route
+// setup access through helpers so persistence can be prepared without assuming
+// the host implementation is complete.
+const memoryStore = new Map<string, string>()
+const storageSet = (key: string, value: string): void => {
+  try { localStorage.setItem(key, value) } catch { memoryStore.set(key, value) }
+}
+const storageClear = (): void => {
+  try { localStorage.clear() } catch { memoryStore.clear() }
+}
+
 beforeEach(() => {
-  localStorage.clear()
+  storageClear()
   useTreeCollapseStore.setState({ collapsed: new Set() })
   host = document.createElement('div')
   document.body.appendChild(host)
@@ -88,7 +99,7 @@ describe('WorkspaceSkillsTree collapse persistence', () => {
   })
 
   it('restores collapse state written by a previous session', async () => {
-    localStorage.setItem('cate.sidebar.treeCollapsed', JSON.stringify(['w1:skills:claude-code']))
+    storageSet('cate.sidebar.treeCollapsed', JSON.stringify(['w1:skills:claude-code']))
     useTreeCollapseStore.setState({ collapsed: new Set(['w1:skills:claude-code']) })
 
     await mount('w1')

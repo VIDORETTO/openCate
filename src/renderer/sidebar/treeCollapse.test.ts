@@ -4,9 +4,31 @@ import { canvasKey, skillAgentKey, skillsKey, toggleCollapsed, useTreeCollapseSt
 
 const STORAGE_KEY = 'cate.sidebar.treeCollapsed'
 
+// Node's experimental localStorage is present but incomplete when Vitest runs
+// this pure store in Node without --localstorage-file. Replace it with the tiny
+// in-memory API the production store expects so persistence can be observed.
+class MemoryStorage {
+  private readonly values = new Map<string, string>()
+  getItem = (key: string): string | null => this.values.get(String(key)) ?? null
+  setItem = (key: string, value: string): void => {
+    this.values.set(String(key), String(value))
+  }
+  clear = (): void => {
+    this.values.clear()
+  }
+}
+
+Object.defineProperty(globalThis, 'localStorage', {
+  configurable: true,
+  writable: true,
+  value: new MemoryStorage(),
+})
+const storageGet = (key: string): string | null => localStorage.getItem(key)
+const storageClear = (): void => { localStorage.clear() }
+
 describe('treeCollapse', () => {
   beforeEach(() => {
-    localStorage.clear()
+    storageClear()
     useTreeCollapseStore.setState({ collapsed: new Set() })
   })
 
@@ -27,8 +49,8 @@ describe('treeCollapse', () => {
 
   it('writes collapsed keys to localStorage so they survive a restart', () => {
     toggleCollapsed(skillsKey('w1'))
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')).toEqual(['w1:skills'])
+    expect(JSON.parse(storageGet(STORAGE_KEY) ?? '[]')).toEqual(['w1:skills'])
     toggleCollapsed(skillsKey('w1'))
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')).toEqual([])
+    expect(JSON.parse(storageGet(STORAGE_KEY) ?? '[]')).toEqual([])
   })
 })
