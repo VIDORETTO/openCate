@@ -24,6 +24,7 @@ import { CommandPalette } from './CommandPalette'
 import { WindowTypeContext } from '../stores/WindowTypeContext'
 import { useUIStore } from '../stores/uiStore'
 import { useAppStore } from '../stores/appStore'
+import { useStatusStore } from '../stores/statusStore'
 import { useWindowPanelStore } from '../stores/windowPanelStore'
 import { getOrCreateWorkspaceDockStore } from '../lib/workspace/dockRegistry'
 import { createDefaultDockState } from '../stores/dockStore'
@@ -208,6 +209,62 @@ describe('CommandPalette in the main window', () => {
     const stack = state.zones.center.layout && state.zones.center.layout.type === 'tabs' ? state.zones.center.layout : null
     expect(stack).toBeTruthy()
     expect(stack!.activeIndex).toBe(0)
+  })
+
+  it('cycles focus through agents that need attention', () => {
+    useAppStore.setState({
+      workspaces: [{
+        id: 'ws-A',
+        name: 'Proj',
+        color: '',
+        rootPath: '/tmp/p',
+        panels: {
+          'wait-1': { id: 'wait-1', type: 'terminal', title: 'Waiting One', isDirty: false },
+          'done-1': { id: 'done-1', type: 'terminal', title: 'Finished One', isDirty: false },
+          'run-1': { id: 'run-1', type: 'terminal', title: 'Running One', isDirty: false },
+        },
+      } as never],
+      selectedWorkspaceId: 'ws-A',
+    })
+
+    // Status entries are keyed directly by panelId here; resolvePanelId falls
+    // back to the raw key when there is no PTY mapping.
+    const base = { activity: { type: 'idle' } as const, agentName: null, agentPresent: true, listeningPorts: [], cwd: '' }
+    useStatusStore.setState({
+      workspaces: {
+        'ws-A': {
+          terminals: {
+            'wait-1': { ...base, agentState: 'waitingForInput' },
+            'done-1': { ...base, agentState: 'finished' },
+            'run-1': { ...base, agentState: 'running' },
+          },
+        },
+      },
+    })
+
+    getOrCreateWorkspaceDockStore('ws-A').getState().restoreSnapshot({
+      zones: {
+        ...createDefaultDockState(),
+        center: {
+          position: 'center',
+          visible: true,
+          size: 0,
+          layout: { type: 'tabs', id: 'stack-attention', panelIds: ['wait-1', 'done-1', 'run-1'], activeIndex: 0 },
+        },
+      },
+    })
+
+    renderPalette('main')
+
+    const commandRow = rowWithText('Focus Next Attention Terminal')
+    expect(commandRow).toBeTruthy()
+    act(() => { commandRow!.click() })
+
+    const state = getOrCreateWorkspaceDockStore('ws-A').getState()
+    const stack = state.zones.center.layout && state.zones.center.layout.type === 'tabs' ? state.zones.center.layout : null
+    // Canonical ordering is type then title: Finished One (done-1) precedes
+    // Waiting One (wait-1). Running One is excluded.
+    expect(stack?.activeIndex).toBe(1)
   })
 
   it('cycles focus through terminals sharing a tag via the @tag query', () => {

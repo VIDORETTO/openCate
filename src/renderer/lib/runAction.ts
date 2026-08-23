@@ -27,6 +27,8 @@ import { getFocusedLeafPanelId, requestPanelRename } from './focusedPanel'
 import { getActivePanelId } from './activePanel'
 import { revealPanel } from './workspace/panelReveal'
 import { sortWorkspacePanels } from '../sidebar/sortWorkspacePanels'
+import { useStatusStore } from '../stores/statusStore'
+import { terminalRegistry } from './terminal/terminalRegistry'
 
 /**
  * Ensures the workspace has a rootPath before proceeding.
@@ -222,6 +224,29 @@ export async function runAction(
           const next = starred[(activeIndex + 1) % starred.length]
           void revealPanel(ws.id, next.id, { retry: true })
         }
+      }
+      break
+    }
+    case 'focusNextAttentionTerminal': {
+      // Cycle through agents that need action (waiting or finished), using the
+      // same canonical panel ordering as the sidebar. Focusing a panel clears
+      // its transient attention state, so the queue naturally drains.
+      const ws = appStore().workspaces.find((w) => w.id === appStore().selectedWorkspaceId)
+      if (!ws) break
+      const sorted = sortWorkspacePanels(Object.values(ws.panels), ws.worktrees, ws.rootPath)
+      const attention = new Set<string>()
+      const terminals = useStatusStore.getState().workspaces[ws.id]?.terminals ?? {}
+      for (const [key, terminal] of Object.entries(terminals)) {
+        if (terminal.agentState === 'waitingForInput' || terminal.agentState === 'finished') {
+          attention.add(terminalRegistry.panelIdForPty(key) ?? key)
+        }
+      }
+      const queue = sorted.filter((p) => p.type === 'terminal' && attention.has(p.id))
+      if (queue.length > 0) {
+        const activeId = getActivePanelId()
+        const activeIndex = activeId ? queue.findIndex((p) => p.id === activeId) : -1
+        const next = queue[(activeIndex + 1) % queue.length]
+        void revealPanel(ws.id, next.id, { retry: true })
       }
       break
     }

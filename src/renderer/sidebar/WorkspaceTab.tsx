@@ -282,6 +282,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
     orphanCanvasChildren,
     freePanels,
     stashedPanels,
+    attentionQueue,
     orderedPanels,
   } =
     useWorkspacePanelTree(workspace.id)
@@ -1060,6 +1061,41 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
             </>
           )}
           {freePanels.map((p) => renderPanelRow(p))}
+          {attentionQueue.length > 0 && (
+            <>
+              <div className="flex items-center gap-1.5 h-6 mt-1 pl-7 pr-2 text-[11px] uppercase tracking-wide text-muted opacity-70">
+                <span className="truncate">Needs attention</span>
+                <span className="flex-shrink-0 rounded-full bg-surface-3 px-1.5 text-[10px] text-secondary">
+                  {attentionQueue.length}
+                </span>
+              </div>
+              {attentionQueue.map(({ panel, reason }) => {
+                const label = panelRowLabel(panel)
+                return (
+                  <button
+                    key={panel.id}
+                    className={`group/panel mx-1.5 my-0.5 rounded-lg flex items-center gap-1.5 h-7 pr-2 text-[13px] text-left min-w-0 focus:outline-none pl-7 ${
+                      reason === 'waitingForInput' ? 'text-primary' : 'text-muted hover:text-primary'
+                    } hover:bg-hover`}
+                    onClick={(e) => handlePanelClick(e, panel.id)}
+                    onContextMenu={(e) => handlePanelContextMenu(e, panel.id, label)}
+                    title={reason === 'waitingForInput'
+                      ? `${label} — waiting for input`
+                      : `${label} — finished`}
+                  >
+                    <span
+                      className="flex-shrink-0 w-1.5 h-1.5 rounded-full"
+                      style={{ backgroundColor: reason === 'waitingForInput' ? AWAIT_COLOR : '#34c759' }}
+                    />
+                    <span className="truncate min-w-0 flex-1">{label}</span>
+                    <span className="flex-shrink-0 text-[10px] uppercase tracking-wide opacity-70">
+                      {reason === 'waitingForInput' ? 'Input' : 'Done'}
+                    </span>
+                  </button>
+                )
+              })}
+            </>
+          )}
           {stashedPanels.length > 0 && (
             <>
               <div className="flex items-center gap-1.5 h-6 mt-1 pl-7 pr-2 text-[11px] uppercase tracking-wide text-muted opacity-70">

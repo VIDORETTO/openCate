@@ -242,6 +242,8 @@ export function useShortcuts(windowCanvasStore?: StoreApi<CanvasStore>): void {
       // even while a terminal/editor/input is focused — it's the gesture for
       // hopping between starred agent terminals without touching the mouse.
       if (action === 'focusNextStarredTerminal' && e.repeat) return
+      // The attention queue uses the same terminal-hopping contract.
+      if (action === 'focusNextAttentionTerminal' && e.repeat) return
 
       // Cmd+Arrow navigation / Shift+Arrow panning.
       if (NAVIGATE_ACTIONS.has(action) || PAN_ACTIONS.has(action)) {

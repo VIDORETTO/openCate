@@ -14,6 +14,8 @@ import { useMemo, useState, useCallback, useEffect } from 'react'
 import { useShallow } from 'zustand/shallow'
 import type { PanelState } from '../../../shared/types'
 import { useAppStore } from '../../stores/appStore'
+import { useStatusStore } from '../../stores/statusStore'
+import { terminalRegistry } from '../../lib/terminal/terminalRegistry'
 import { getOrCreateCanvasStoreForPanel } from '../../stores/canvasStore'
 import {
   getCanvasSnapshotForPanel,
@@ -42,6 +44,8 @@ export interface WorkspacePanelTree {
   freePanels: PanelState[]
   /** User-parked panels kept alive but excluded from the normal overview. */
   stashedPanels: PanelState[]
+  /** Terminal panels whose agent needs attention, in overview order. */
+  attentionQueue: Array<{ panel: PanelState; reason: 'waitingForInput' | 'finished' }>
   /** Flat list in the overview's render order, ghosts/detached excluded. */
   orderedPanels: PanelState[]
 }
@@ -146,6 +150,20 @@ export function useWorkspacePanelTree(workspaceId: string): WorkspacePanelTree {
   const { canvasPanels, childrenByCanvas, orphanCanvasChildren, freePanels, stashedPanels } =
     partitionWorkspacePanels(panelList, canvasChildOwners, dockPlacedIds)
 
+  // Agent status lives in the status store keyed by ptyId; the tree is keyed by
+  // panelId. Derive the attention queue here so the sidebar and any action that
+  // cycles through it share one ordering and one definition of "needs action".
+  const statusTerminals = useStatusStore((s) => s.workspaces[workspaceId]?.terminals)
+  const attentionByPanelId = new Map<string, 'waitingForInput' | 'finished'>()
+  for (const [key, terminal] of Object.entries(statusTerminals ?? {})) {
+    if (terminal.agentState !== 'waitingForInput' && terminal.agentState !== 'finished') continue
+    attentionByPanelId.set(terminalRegistry.panelIdForPty(key) ?? key, terminal.agentState)
+  }
+  const attentionQueue = panelList.flatMap((panel) => {
+    const reason = panel.type === 'terminal' ? attentionByPanelId.get(panel.id) : undefined
+    return reason ? [{ panel, reason }] : []
+  })
+
   // Flatten to the overview's render order: each canvas followed by its
   // children, then orphaned canvas children, then docked free panels.
   const orderedPanels: PanelState[] = []
@@ -163,6 +181,7 @@ export function useWorkspacePanelTree(workspaceId: string): WorkspacePanelTree {
     orphanCanvasChildren,
     freePanels,
     stashedPanels,
+    attentionQueue,
     orderedPanels,
   }
 }

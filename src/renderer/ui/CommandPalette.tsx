@@ -30,6 +30,7 @@ import {
   ArrowUUpRight,
   CaretLeft,
   CaretRight,
+  ChatText,
 } from '@phosphor-icons/react'
 import { CateLogo } from './CateLogo'
 import { browserPanelUrl, SHORTCUT_DISPLAY_NAMES, type PanelType, type MenuActionId, type ShortcutAction } from '../../shared/types'
@@ -87,6 +88,7 @@ const RedoIcon = () => <ArrowUUpRight size={ICON_SIZE} />
 const PreviousWorkspaceIcon = () => <CaretLeft size={ICON_SIZE} />
 const NextWorkspaceIcon = () => <CaretRight size={ICON_SIZE} />
 const StarIcon = () => <Star weight="fill" size={ICON_SIZE} />
+const ChatTextIcon = () => <ChatText size={ICON_SIZE} />
 
 // -----------------------------------------------------------------------------
 // Result types
@@ -226,6 +228,7 @@ export const CommandPalette: React.FC = () => {
         },
       },
       { id: 'focusNextStarredTerminal', title: 'Focus Next Starred Terminal', icon: <StarIcon />, action: run('focusNextStarredTerminal') },
+      { id: 'focusNextAttentionTerminal', title: 'Focus Next Attention Terminal', icon: <ChatTextIcon />, action: run('focusNextAttentionTerminal') },
       { id: 'previousWorkspace', title: shortcutTitle('previousWorkspace'), icon: <PreviousWorkspaceIcon />, action: run('previousWorkspace') },
       { id: 'nextWorkspace', title: shortcutTitle('nextWorkspace'), icon: <NextWorkspaceIcon />, action: run('nextWorkspace') },
       { id: 'reloadWorkspace', title: 'Reload Workspace from Disk', icon: <ReloadIcon />, action: run('reloadWorkspace') },
