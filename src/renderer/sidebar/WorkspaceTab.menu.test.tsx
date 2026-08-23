@@ -356,12 +356,16 @@ describe('panel-row context menu', () => {
 
     expect(showContextMenu).toHaveBeenCalledTimes(1) // no bubbling into the workspace menu
     const items = lastMenuItems()
-    expect(items).toEqual([
+    // Terminal rows prepend metadata actions to the shared row menu.
+    expect(items.slice(-4)).toEqual([
       { id: 'rename', label: 'Rename' },
       { id: 'move-window', label: 'Move into New Window' },
       { type: 'separator' },
       { id: 'close', label: 'Close' },
     ])
+    expect(items[0]).toEqual({ id: 'star', label: 'Star Terminal' })
+    expect(items.map((item) => item.label)).toContain('Set Color')
+    expect(items.map((item) => item.id)).toEqual(expect.arrayContaining(['tag-work', 'tag-experiment']))
   })
 
   it("'close' on a running terminal routes through the confirm flow", async () => {

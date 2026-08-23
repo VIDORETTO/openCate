@@ -476,6 +476,12 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
     e.stopPropagation()
     if (!window.electronAPI) return
     const panel = useAppStore.getState().workspaces.find((ws) => ws.id === workspace.id)?.panels[panelId]
+    const items: NativeContextMenuItem[] = [
+      { id: 'rename', label: 'Rename' },
+      { id: 'move-window', label: 'Move into New Window' },
+      { type: 'separator' },
+      { id: 'close', label: 'Close' },
+    ]
     if (panel?.type === 'terminal') {
       const metadataItems: NativeContextMenuItem[] = [
         { id: 'star', label: panel.starred ? 'Unstar Terminal' : 'Star Terminal' },
@@ -494,34 +500,43 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
         { id: 'tag-experiment', label: panel.tags?.includes('experiment') ? "Remove Tag 'Experiment'" : "Tag 'Experiment'" },
         { type: 'separator' as const },
       ]
-      const metadataId = await window.electronAPI.showContextMenu(metadataItems)
-      if (metadataId) {
-        const app = useAppStore.getState()
-        if (metadataId === 'star') app.setPanelStarred(workspace.id, panelId, !panel.starred)
-        else if (metadataId.startsWith('accent:')) app.setPanelAccentColor(workspace.id, panelId, metadataId.slice(7))
-        else if (metadataId === 'tag-work') app.setPanelTags(workspace.id, panelId, panel.tags?.includes('work') ? (panel.tags ?? []).filter(t => t !== 'work') : [...(panel.tags ?? []), 'work'])
-        else if (metadataId === 'tag-experiment') app.setPanelTags(workspace.id, panelId, panel.tags?.includes('experiment') ? (panel.tags ?? []).filter(t => t !== 'experiment') : [...(panel.tags ?? []), 'experiment'])
-        return
-      }
+      items.unshift(...metadataItems)
     }
-    // Mirror the dock tab menu, limited to actions that apply to a flat sidebar
-    // list (Split / Close-Others / Close-to-the-Right are dock-stack-relative
-    // and have no meaning here).
-    const id = await window.electronAPI.showContextMenu([
-      { id: 'rename', label: 'Rename' },
-      { id: 'move-window', label: 'Move into New Window' },
-      { type: 'separator' },
-      { id: 'close', label: 'Close' },
-    ])
+    // One native menu keeps metadata and row actions together; showing them as
+    // two sequential popups would make dismissal of the first reveal unrelated
+    // actions. Split / Close-Others / Close-to-the-Right are dock-relative and
+    // have no meaning in this flat sidebar list.
+    const id = await window.electronAPI.showContextMenu(items)
     switch (id) {
       case 'rename':
         beginPanelRename(panelId, currentTitle)
         break
+      case 'star': {
+        const app = useAppStore.getState()
+        app.setPanelStarred(workspace.id, panelId, !panel?.starred)
+        break
+      }
+      case 'tag-work':
+      case 'tag-experiment': {
+        const tag = id === 'tag-work' ? 'work' : 'experiment'
+        const tags = panel?.tags ?? []
+        useAppStore.getState().setPanelTags(
+          workspace.id,
+          panelId,
+          tags.includes(tag) ? tags.filter((value) => value !== tag) : [...tags, tag],
+        )
+        break
+      }
       case 'move-window':
         void movePanelToNewWindow(workspace.id, panelId)
         break
       case 'close':
         handleClosePanel(panelId)
+        break
+      default:
+        if (id?.startsWith('accent:') && panel) {
+          useAppStore.getState().setPanelAccentColor(workspace.id, panelId, id.slice(7))
+        }
         break
     }
   }, [beginPanelRename, handleClosePanel, workspace.id])
