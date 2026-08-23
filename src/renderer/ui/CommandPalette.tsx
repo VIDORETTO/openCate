@@ -25,6 +25,7 @@ import {
   PuzzlePiece,
   X,
   Selection,
+  Star,
   ArrowUUpLeft,
   ArrowUUpRight,
   CaretLeft,
@@ -99,6 +100,8 @@ interface PanelResult {
   title: string
   type: PanelType
   secondary: string
+  /** Terminal-only user star marker, shown alongside tags for fleet discovery. */
+  starred?: boolean
   /** Set when the panel lives in another window — activating it focuses that
    *  window instead of revealing locally. */
   inOtherWindow?: boolean
@@ -278,6 +281,7 @@ export const CommandPalette: React.FC = () => {
         title,
         type: panel.type,
         secondary: panel.filePath ?? browserPanelUrl(panel) ?? panel.type,
+        starred: panel.starred,
         tags: panel.tags,
       })
     }
@@ -565,6 +569,9 @@ export const CommandPalette: React.FC = () => {
                       >
                         <PanelIcon type={panel.type} />
                         <span className="text-[13px] text-primary flex-1 truncate">{panel.title}</span>
+                        {!!panel.starred && (
+                          <Star weight="fill" size={10} className="shrink-0 text-amber-400" aria-label="Starred" />
+                        )}
                         {!!panel.tags?.length && (
                           <span className="shrink-0 max-w-[32%] truncate rounded-full bg-surface-3 px-1.5 text-[9px] text-secondary">
                             {panel.tags.join(' · ')}
