@@ -244,6 +244,9 @@ export function useShortcuts(windowCanvasStore?: StoreApi<CanvasStore>): void {
       if (action === 'focusNextStarredTerminal' && e.repeat) return
       // The attention queue uses the same terminal-hopping contract.
       if (action === 'focusNextAttentionTerminal' && e.repeat) return
+      // Worktree hopping follows the same contract so a held chord cannot race
+      // revealPanel while cycling an isolated agent fleet.
+      if (action === 'focusNextWorktreeTerminal' && e.repeat) return
 
       // Cmd+Arrow navigation / Shift+Arrow panning.
       if (NAVIGATE_ACTIONS.has(action) || PAN_ACTIONS.has(action)) {

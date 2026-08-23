@@ -29,6 +29,7 @@ import { useWindowPanelStore } from '../stores/windowPanelStore'
 import { getOrCreateWorkspaceDockStore } from '../lib/workspace/dockRegistry'
 import { createDefaultDockState } from '../stores/dockStore'
 import { recordRecentFile } from '../lib/fs/recentFiles'
+import { useActivePanelStore } from '../lib/activePanel'
 import type { CateWindowType, WindowPanelInfo } from '../../shared/types'
 
 let host: HTMLDivElement
@@ -319,6 +320,53 @@ describe('CommandPalette in the main window', () => {
     const stack = state.zones.center.layout && state.zones.center.layout.type === 'tabs' ? state.zones.center.layout : null
     expect(stack).toBeTruthy()
     expect(stack!.activeIndex).toBe(0)
+  })
+
+  it('cycles focus through terminals in the active worktree', () => {
+    useAppStore.setState({
+      workspaces: [{
+        id: 'ws-A',
+        name: 'Proj',
+        color: '',
+        rootPath: '/tmp/p',
+        worktrees: [
+          { id: 'wt-feature', path: '/tmp/p-feature', color: '#4a8ad0', label: 'feature' },
+        ],
+        panels: {
+          'wt-1': { id: 'wt-1', type: 'terminal', title: 'Work One', isDirty: false, worktreeId: 'wt-main' },
+          'wt-2': { id: 'wt-2', type: 'terminal', title: 'Work Two', isDirty: false, worktreeId: 'wt-main' },
+          'feature-1': { id: 'feature-1', type: 'terminal', title: 'Feature One', isDirty: false, worktreeId: 'wt-feature' },
+        },
+      } as never],
+      selectedWorkspaceId: 'ws-A',
+    })
+
+    getOrCreateWorkspaceDockStore('ws-A').getState().restoreSnapshot({
+      zones: {
+        ...createDefaultDockState(),
+        center: {
+          position: 'center',
+          visible: true,
+          size: 0,
+          layout: { type: 'tabs', id: 'stack-worktree', panelIds: ['feature-1', 'wt-1', 'wt-2'], activeIndex: 1 },
+        },
+      },
+    })
+    useActivePanelStore.setState({ activePanelId: 'wt-1' })
+
+    renderPalette('main')
+
+    const commandRow = rowWithText('Focus Next Worktree Terminal')
+    expect(commandRow).toBeTruthy()
+    act(() => { commandRow!.click() })
+    expect(useUIStore.getState().showCommandPalette).toBe(false)
+
+    // The active terminal is wt-1; wt-2 shares its worktree and feature-1 is
+    // excluded even though all three are adjacent in the dock tab stack.
+    const state = getOrCreateWorkspaceDockStore('ws-A').getState()
+    const stack = state.zones.center.layout && state.zones.center.layout.type === 'tabs' ? state.zones.center.layout : null
+    expect(stack).toBeTruthy()
+    expect(stack!.activeIndex).toBe(2)
   })
 })
 

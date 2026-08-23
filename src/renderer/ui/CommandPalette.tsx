@@ -73,6 +73,7 @@ const SidebarIcon = () => <Sidebar size={ICON_SIZE} />
 const FolderOpenIcon = () => <FolderOpen size={ICON_SIZE} />
 const SearchIcon = () => <MagnifyingGlass size={ICON_SIZE} />
 const LayersIcon = () => <Stack size={ICON_SIZE} />
+const StackIcon = LayersIcon
 const ZoomResetIcon = () => <MagnifyingGlass size={ICON_SIZE} />
 const ZoomToFitIcon = () => <ArrowsOutSimple size={ICON_SIZE} />
 const ZoomSelectionIcon = () => <Selection size={ICON_SIZE} />
@@ -229,6 +230,7 @@ export const CommandPalette: React.FC = () => {
       },
       { id: 'focusNextStarredTerminal', title: 'Focus Next Starred Terminal', icon: <StarIcon />, action: run('focusNextStarredTerminal') },
       { id: 'focusNextAttentionTerminal', title: 'Focus Next Attention Terminal', icon: <ChatTextIcon />, action: run('focusNextAttentionTerminal') },
+      { id: 'focusNextWorktreeTerminal', title: 'Focus Next Worktree Terminal', icon: <StackIcon />, action: run('focusNextWorktreeTerminal') },
       { id: 'previousWorkspace', title: shortcutTitle('previousWorkspace'), icon: <PreviousWorkspaceIcon />, action: run('previousWorkspace') },
       { id: 'nextWorkspace', title: shortcutTitle('nextWorkspace'), icon: <NextWorkspaceIcon />, action: run('nextWorkspace') },
       { id: 'reloadWorkspace', title: 'Reload Workspace from Disk', icon: <ReloadIcon />, action: run('reloadWorkspace') },

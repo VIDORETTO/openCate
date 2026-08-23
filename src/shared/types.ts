@@ -684,6 +684,7 @@ export const SHORTCUT_DEFINITIONS = {
   focusPrevious: { label: 'Focus Previous Panel', shortcut: storedShortcut('\t', { shift: true, control: true }) },
   focusNextStarredTerminal: { label: 'Focus Next Starred Terminal', shortcut: storedShortcut(' ', { control: true, shift: true }) },
   focusNextAttentionTerminal: { label: 'Focus Next Attention Terminal', shortcut: storedShortcut('i', { control: true, shift: true }) },
+  focusNextWorktreeTerminal: { label: 'Focus Next Worktree Terminal', shortcut: storedShortcut('o', { control: true, shift: true }) },
   saveFile: { label: 'Save File', shortcut: storedShortcut('s', { command: true }) },
   renamePanel: { label: 'Rename Focused Panel', shortcut: storedShortcut('r', { command: true }) },
   zoomToFit: { label: 'Zoom to Fit', shortcut: storedShortcut('1', { command: true }) },

@@ -227,6 +227,29 @@ export async function runAction(
       }
       break
     }
+
+    case 'focusNextWorktreeTerminal': {
+      // Cycle through terminals tagged with the ACTIVE terminal's worktree.
+      // With no active worktree this is intentionally a no-op rather than a
+      // surprise "all terminals" cycle. Canonical ordering matches the sidebar.
+      const ws = appStore().workspaces.find((w) => w.id === appStore().selectedWorkspaceId)
+      if (!ws) break
+
+      const activeId = getActivePanelId()
+      if (!activeId) break
+      const activePanel = ws.panels[activeId]
+      if (activePanel?.type !== 'terminal' || !activePanel.worktreeId) break
+
+      const sorted = sortWorkspacePanels(Object.values(ws.panels), ws.worktrees, ws.rootPath)
+      const queue = sorted.filter((p) => p.type === 'terminal' && p.worktreeId === activePanel.worktreeId)
+      if (queue.length > 0) {
+        const activeIndex = queue.findIndex((p) => p.id === activeId)
+        const next = queue[(activeIndex + 1) % queue.length]
+        void revealPanel(ws.id, next.id, { retry: true })
+      }
+      break
+    }
+
     case 'focusNextAttentionTerminal': {
       // Cycle through agents that need action (waiting or finished), using the
       // same canonical panel ordering as the sidebar. Focusing a panel clears
