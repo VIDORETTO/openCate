@@ -17,7 +17,7 @@ import { act } from 'react'
 
 vi.mock('../lib/logger', () => ({ default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }))
 vi.mock('../lib/terminal/terminalRegistry', () => ({
-  terminalRegistry: { entries: () => [], panelIdForPty: () => null, getEntry: vi.fn(), has: () => false },
+  terminalRegistry: { entries: () => [], panelIdForPty: vi.fn(() => null), getEntry: vi.fn(), has: () => false },
 }))
 
 import { CommandPalette } from './CommandPalette'
@@ -26,6 +26,7 @@ import { useUIStore } from '../stores/uiStore'
 import { useAppStore } from '../stores/appStore'
 import { useStatusStore } from '../stores/statusStore'
 import { useWindowPanelStore } from '../stores/windowPanelStore'
+import { terminalRegistry } from '../lib/terminal/terminalRegistry'
 import { getOrCreateWorkspaceDockStore } from '../lib/workspace/dockRegistry'
 import { createDefaultDockState } from '../stores/dockStore'
 import { recordRecentFile } from '../lib/fs/recentFiles'
@@ -363,6 +364,102 @@ describe('CommandPalette in the main window', () => {
 
     // The active terminal is wt-1; wt-2 shares its worktree and feature-1 is
     // excluded even though all three are adjacent in the dock tab stack.
+    const state = getOrCreateWorkspaceDockStore('ws-A').getState()
+    const stack = state.zones.center.layout && state.zones.center.layout.type === 'tabs' ? state.zones.center.layout : null
+    expect(stack).toBeTruthy()
+    expect(stack!.activeIndex).toBe(2)
+  })
+
+  it('cycles focus through terminals running the queried agent', () => {
+    useAppStore.setState({
+      workspaces: [{
+        id: 'ws-A',
+        name: 'Proj',
+        color: '',
+        rootPath: '/tmp/p',
+        panels: {
+          'codex-run': {
+            id: 'codex-run',
+            type: 'terminal',
+            title: 'Codex Mission',
+            isDirty: false,
+            codingAgentRun: { agentId: 'codex' },
+          },
+          'claude-session': {
+            id: 'claude-session',
+            type: 'terminal',
+            title: 'Claude Restored',
+            isDirty: false,
+            agentSession: { agentId: 'claude-code', sessionId: 'session-1', cwd: '/tmp/p' },
+          },
+          'grok-live': { id: 'grok-live', type: 'terminal', title: 'Grok Live', isDirty: false },
+          'shell-1': { id: 'shell-1', type: 'terminal', title: 'Plain Shell', isDirty: false },
+        },
+      } as never],
+      selectedWorkspaceId: 'ws-A',
+    })
+
+    // Live process detection reports a display name keyed by PTY; the palette
+    // must resolve that key back to the stable panel id.
+    useStatusStore.setState({
+      workspaces: {
+        'ws-A': {
+          terminals: {
+            'pty-grok': {
+              activity: { type: 'idle' } as const,
+              agentState: 'running',
+              agentName: 'Grok',
+              agentPresent: true,
+              listeningPorts: [],
+              cwd: '',
+            },
+          },
+        },
+      },
+    })
+    // The palette reads through the registry barrel, which is mocked for this
+    // component test. Teach the mock the live PTY → panel mapping.
+    vi.mocked(terminalRegistry.panelIdForPty).mockImplementation((ptyId) => (
+      ptyId === 'pty-grok' ? 'grok-live' : null
+    ))
+
+    getOrCreateWorkspaceDockStore('ws-A').getState().restoreSnapshot({
+      zones: {
+        ...createDefaultDockState(),
+        center: {
+          position: 'center',
+          visible: true,
+          size: 0,
+          layout: {
+            type: 'tabs',
+            id: 'stack-agent',
+            panelIds: ['claude-session', 'grok-live', 'codex-run', 'shell-1'],
+            activeIndex: 0,
+          },
+        },
+      },
+    })
+    useActivePanelStore.setState({ activePanelId: 'claude-session' })
+
+    renderPalette('main')
+
+    const input = host.querySelector('input')
+    expect(input).toBeTruthy()
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+      setter.call(input, '#cod')
+      input!.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    const cycleRow = rowWithText("agent 'cod'")
+    expect(cycleRow).toBeTruthy()
+    expect(host.textContent).toContain('Cycle through 2')
+
+    act(() => { cycleRow!.click() })
+    expect(useUIStore.getState().showCommandPalette).toBe(false)
+
+    // Canonical sidebar ordering selects Codex Mission first even though the
+    // live Grok tab sits beside the active Claude tab. Plain Shell is excluded.
     const state = getOrCreateWorkspaceDockStore('ws-A').getState()
     const stack = state.zones.center.layout && state.zones.center.layout.type === 'tabs' ? state.zones.center.layout : null
     expect(stack).toBeTruthy()

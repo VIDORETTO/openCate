@@ -120,7 +120,7 @@ export function codingAgentCommand(
   }
 }
 
-export function codingAgentDisplayName(agentId: AgentId): string {
+export function codingAgentDisplayName(agentId: string): string {
   return AGENTS.find((agent) => agent.id === agentId)?.displayName ?? agentId
 }
 

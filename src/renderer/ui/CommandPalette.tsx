@@ -33,7 +33,7 @@ import {
   ChatText,
 } from '@phosphor-icons/react'
 import { CateLogo } from './CateLogo'
-import { browserPanelUrl, SHORTCUT_DISPLAY_NAMES, type PanelType, type MenuActionId, type ShortcutAction } from '../../shared/types'
+import { browserPanelUrl, SHORTCUT_DISPLAY_NAMES, type PanelState, type PanelType, type MenuActionId, type ShortcutAction } from '../../shared/types'
 import { isNavigablePanelType } from '../../shared/panels'
 import { isRemoteRuntimeConnection } from '../../shared/runtimeConnection'
 import { PaletteDialogShell } from './Modal'
@@ -51,6 +51,9 @@ import { revealPanel } from '../lib/workspace/panelReveal'
 import { openFileAsPanel } from '../lib/fs/fileRouting'
 import { getRecentFiles, recordRecentFile } from '../lib/fs/recentFiles'
 import { pathDisplayName, relativeDisplayPath } from '../lib/fs/displayPath'
+import { useStatusStore } from '../stores/statusStore'
+import { terminalRegistry } from '../lib/terminal/terminalRegistry'
+import { codingAgentDisplayName } from '../../shared/codingAgentRuns'
 
 // -----------------------------------------------------------------------------
 // Command definitions
@@ -90,6 +93,30 @@ const PreviousWorkspaceIcon = () => <CaretLeft size={ICON_SIZE} />
 const NextWorkspaceIcon = () => <CaretRight size={ICON_SIZE} />
 const StarIcon = () => <Star weight="fill" size={ICON_SIZE} />
 const ChatTextIcon = () => <ChatText size={ICON_SIZE} />
+
+/** Stable + observed identities for the `#agent` cycle mode. Membership is
+ *  derived from canonical registry records or live process detection — never
+ *  from a second source of user-managed metadata. */
+function panelAgentIdentities(
+  panel: Pick<PanelState, 'id' | 'type' | 'codingAgentRun' | 'agentSession'>,
+  liveNames: ReadonlyMap<string, string>,
+): string[] {
+  return [
+    panel.codingAgentRun?.agentId,
+    panel.agentSession?.agentId,
+    liveNames.get(panel.id),
+  ].filter(Boolean) as string[]
+}
+
+function panelMatchesAgentQuery(
+  panel: Parameters<typeof panelAgentIdentities>[0],
+  liveNames: ReadonlyMap<string, string>,
+  query: string,
+): boolean {
+  return panelAgentIdentities(panel, liveNames).some((identity) => (
+    identity.toLowerCase().includes(query) || codingAgentDisplayName(identity).toLowerCase().includes(query)
+  ))
+}
 
 // -----------------------------------------------------------------------------
 // Result types
@@ -133,11 +160,20 @@ interface TagCycleResult {
   count: number
 }
 
+/** A dynamic action row for cycling through terminals running the same agent.
+ *  Rendered when the query starts with `#`, so `#cod` matches both the stable
+ *  registry id (`codex`) and its display name (`Codex`). */
+interface AgentCycleResult {
+  agentQuery: string
+  count: number
+}
+
 // A single navigable entry in the flat list, used for keyboard selection.
 type FlatItem =
   | { kind: 'command'; command: CommandItem }
   | { kind: 'workspace'; workspace: WorkspaceResult }
   | { kind: 'tag-cycle'; tagCycle: TagCycleResult }
+  | { kind: 'agent-cycle'; agentCycle: AgentCycleResult }
   | { kind: 'panel'; panel: PanelResult }
   | { kind: 'file'; file: FileResult }
 
@@ -154,6 +190,7 @@ export const CommandPalette: React.FC = () => {
   const canvasApi = useOptionalCanvasStoreApi()
   // Detached windows have no sidebar, so sidebar toggles are hidden there.
   const isMainWindow = useContext(WindowTypeContext) === 'main'
+  const statusTerminals = useStatusStore((s) => s.workspaces[selectedWorkspaceId]?.terminals)
 
   // The reinstall command is only meaningful for a remote (ssh/wsl) workspace.
   const isRemoteWorkspace = useAppStore((s) => {
@@ -278,6 +315,27 @@ export const CommandPalette: React.FC = () => {
     return terminals.length > 0 ? { tag: tagQuery, count: terminals.length } : null
   }, [orderedPanels, tagQuery])
 
+  // Agent names are observed live through hooks/process detection and keyed by
+  // PTY. Resolve those keys to the tree's stable panel ids once per render.
+  const agentNameByPanelId = useMemo(() => {
+    const names = new Map<string, string>()
+    for (const [ptyId, terminal] of Object.entries(statusTerminals ?? {})) {
+      if (!terminal.agentName) continue
+      names.set(terminalRegistry.panelIdForPty(ptyId) ?? ptyId, terminal.agentName)
+    }
+    return names
+  }, [statusTerminals])
+
+  const agentCycleResult = useMemo<AgentCycleResult | null>(() => {
+    const agentQuery = query.startsWith('#') ? query.slice(1) : ''
+    if (!agentQuery) return null
+    const terminals = orderedPanels.filter((panel) => {
+      if (panel.type !== 'terminal') return false
+      return panelMatchesAgentQuery(panel, agentNameByPanelId, agentQuery)
+    })
+    return terminals.length > 0 ? { agentQuery, count: terminals.length } : null
+  }, [agentNameByPanelId, orderedPanels, query])
+
   // Commands matched by title (empty query → all).
   const filteredCommands = useMemo(() => {
     if (!query) return allCommands
@@ -381,12 +439,14 @@ export const CommandPalette: React.FC = () => {
   const visibleWorkspaces = openFileTargetPanelId ? [] : filteredWorkspaces
   const visiblePanels = openFileTargetPanelId ? [] : filteredPanels
   const visibleTagCycle = tagCycleResult
+  const visibleAgentCycle = agentCycleResult
   const flatItems = useMemo<FlatItem[]>(() => [
     ...(visibleTagCycle ? [{ kind: 'tag-cycle', tagCycle: visibleTagCycle } as FlatItem] : openFileTargetPanelId ? [] : filteredCommands.map((command) => ({ kind: 'command', command }) as FlatItem)),
+    ...(visibleAgentCycle && !visibleTagCycle ? [{ kind: 'agent-cycle', agentCycle: visibleAgentCycle } as FlatItem] : []),
     ...(openFileTargetPanelId ? [] : filteredWorkspaces.map((workspace) => ({ kind: 'workspace', workspace }) as FlatItem)),
     ...(openFileTargetPanelId ? [] : filteredPanels.map((panel) => ({ kind: 'panel', panel }) as FlatItem)),
     ...displayedFiles.map((file) => ({ kind: 'file', file }) as FlatItem),
-  ], [openFileTargetPanelId, visibleTagCycle, filteredCommands, filteredWorkspaces, filteredPanels, displayedFiles])
+  ], [openFileTargetPanelId, visibleTagCycle, visibleAgentCycle, filteredCommands, filteredWorkspaces, filteredPanels, displayedFiles])
 
   const totalItems = flatItems.length
 
@@ -481,11 +541,31 @@ export const CommandPalette: React.FC = () => {
             void revealPanel(selectedWorkspaceId, next.id, { retry: true })
           }
         }
+      } else if (item.kind === 'agent-cycle') {
+        // Same terminal-hopping contract as tag cycles, but membership comes
+        // from the canonical agent registry/live process name rather than user
+        // metadata. Stable ids and display names are both accepted.
+        const agentQuery = item.agentCycle.agentQuery
+        const app = useAppStore.getState()
+        const ws = app.workspaces.find((w) => w.id === selectedWorkspaceId)
+        if (ws) {
+          const sorted = sortWorkspacePanels(Object.values(ws.panels), ws.worktrees, ws.rootPath)
+          const matching = sorted.filter((panel) => {
+            if (panel.type !== 'terminal') return false
+            return panelMatchesAgentQuery(panel, agentNameByPanelId, agentQuery)
+          })
+          if (matching.length > 0) {
+            const activeId = getActivePanelId()
+            const activeIndex = activeId ? matching.findIndex((p) => p.id === activeId) : -1
+            const next = matching[(activeIndex + 1) % matching.length]
+            void revealPanel(selectedWorkspaceId, next.id, { retry: true })
+          }
+        }
       } else {
         openFile(item.file)
       }
     },
-    [close, focusPanelById, openFile],
+    [close, focusPanelById, openFile, agentNameByPanelId, selectedWorkspaceId],
   )
 
   // Arrow/Enter/Escape are handled on the search input's own onKeyDown (see the
@@ -498,7 +578,8 @@ export const CommandPalette: React.FC = () => {
 
   // Section boundaries within the flat list.
   const tagCycleStart = 0
-  const workspaceStart = tagCycleStart + (visibleTagCycle ? 1 : 0) + visibleCommands.length
+  const agentCycleStart = tagCycleStart + (visibleTagCycle ? 1 : 0)
+  const workspaceStart = agentCycleStart + (visibleAgentCycle && !visibleTagCycle ? 1 : 0) + visibleCommands.length
   const panelStart = workspaceStart + visibleWorkspaces.length
   const fileStart = panelStart + visiblePanels.length
   const filesLabel = query ? 'Files' : 'Recent Files'
@@ -568,6 +649,24 @@ export const CommandPalette: React.FC = () => {
                     <span className="shrink-0 text-secondary"><StarIcon /></span>
                     <span className="text-[13px] text-primary flex-1 truncate">
                       Cycle through {visibleTagCycle.count} terminal{visibleTagCycle.count === 1 ? '' : 's'} tagged '{visibleTagCycle.tag}'
+                    </span>
+                  </Row>
+                </>
+              )}
+
+              {/* Agent cycle — `#agent` query mode */}
+              {visibleAgentCycle && !visibleTagCycle && (
+                <>
+                  <SectionHeader>Agent Cycle</SectionHeader>
+                  <Row
+                    ref={agentCycleStart === selectedIndex ? selectedRowRef : undefined}
+                    selected={agentCycleStart === selectedIndex}
+                    onClick={() => activate({ kind: 'agent-cycle', agentCycle: visibleAgentCycle })}
+                    onMouseEnter={() => setSelectedIndex(agentCycleStart)}
+                  >
+                    <span className="shrink-0 text-secondary"><AgentIcon /></span>
+                    <span className="text-[13px] text-primary flex-1 truncate">
+                      Cycle through {visibleAgentCycle.count} terminal{visibleAgentCycle.count === 1 ? '' : 's'} for agent '{visibleAgentCycle.agentQuery}'
                     </span>
                   </Row>
                 </>
