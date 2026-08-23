@@ -90,6 +90,13 @@ export async function saveSession(): Promise<void> {
       for (const id of collectPanelIdsFromDockState(dockSnapshot.zones)) placedPanelIds.add(id)
     }
 
+    // Stashed panels are intentionally absent from both layout projections, but
+    // their records and live-content facts still belong to the session. Add them
+    // after placed ids so they survive restart without being re-placed.
+    for (const panel of Object.values(workspace.panels)) {
+      if (panel.stashed) placedPanelIds.add(panel.id)
+    }
+
     // One record per placed panel + scrollback for every terminal, keyed by the
     // (restore-stable) panel id so replay finds it on the next launch.
     let panels: Record<string, PanelState> | undefined

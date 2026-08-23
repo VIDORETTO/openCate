@@ -108,6 +108,8 @@ interface PanelResult {
   /** Set when the panel lives in another window — activating it focuses that
    *  window instead of revealing locally. */
   inOtherWindow?: boolean
+  /** Set for user-parked panels; activation restores then reveals them. */
+  stashed?: boolean
   /** Terminal-only user tags, shown for fleet discovery. */
   tags?: string[]
 }
@@ -248,7 +250,7 @@ export const CommandPalette: React.FC = () => {
   // dock store. So a panel docked or on a secondary canvas still appears, ghosts
   // (placed nowhere) and panels detached into other windows don't, and the order
   // mirrors the overview's tree.
-  const { panels, orderedPanels } = useWorkspacePanelTree(selectedWorkspaceId)
+  const { panels, orderedPanels, stashedPanels } = useWorkspacePanelTree(selectedWorkspaceId)
 
   // Panels that live in OTHER windows for this workspace (bidirectional: the main
   // window sees detached panels, and a detached window sees the main window's).
@@ -297,7 +299,7 @@ export const CommandPalette: React.FC = () => {
   // then panels living in other windows (labelled "Other window").
   const filteredPanels = useMemo<PanelResult[]>(() => {
     const results: PanelResult[] = []
-    for (const panel of orderedPanels) {
+    for (const panel of [...orderedPanels, ...stashedPanels]) {
       if (!isNavigablePanelType(panel.type)) continue
       const title = panel.title ?? panel.type
       const searchable = [title, ...(panel.tags ?? [])].join(' ').toLowerCase()
@@ -309,6 +311,7 @@ export const CommandPalette: React.FC = () => {
         secondary: panel.filePath ?? browserPanelUrl(panel) ?? panel.type,
         starred: panel.starred,
         tags: panel.tags,
+        stashed: panel.stashed,
       })
     }
     for (const panel of otherWindowPanels) {
@@ -447,9 +450,16 @@ export const CommandPalette: React.FC = () => {
       } else if (item.kind === 'workspace') {
         void useAppStore.getState().selectWorkspace(item.workspace.id)
       } else if (item.kind === 'panel') {
-        // A panel in another window: ask main to focus that window and reveal it.
-        if (item.panel.inOtherWindow) void window.electronAPI.focusWindowPanel(item.panel.panelId)
-        else focusPanelById(item.panel.panelId)
+        // Other-window panels focus their owning window; stashed panels are
+        // restored through the normal placement path before being revealed.
+        if (item.panel.inOtherWindow) {
+          void window.electronAPI.focusWindowPanel(item.panel.panelId)
+        } else if (item.panel.stashed) {
+          useAppStore.getState().unstashPanel(selectedWorkspaceId, item.panel.panelId)
+          void revealPanel(selectedWorkspaceId, item.panel.panelId, { retry: true })
+        } else {
+          focusPanelById(item.panel.panelId)
+        }
       } else if (item.kind === 'tag-cycle') {
         // Cycle to the next terminal with the given tag, starting after the
         // currently active panel (wrapping). Reads panel state at call time.
@@ -639,7 +649,7 @@ export const CommandPalette: React.FC = () => {
                             {panel.tags.join(' · ')}
                           </span>
                         )}
-                        <span className="text-[11px] text-muted capitalize">{panel.inOtherWindow ? 'Other window' : panel.type}</span>
+                        <span className="text-[11px] text-muted capitalize">{panel.inOtherWindow ? 'Other window' : panel.stashed ? 'Stashed' : panel.type}</span>
                       </Row>
                     )
                   })}

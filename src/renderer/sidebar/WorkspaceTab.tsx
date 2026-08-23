@@ -275,7 +275,15 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
   // dock store, multi-canvas/dock-aware and ghost-filtered. The Cmd+K palette
   // reads the exact same source (see useWorkspacePanelTree), so the overview and
   // the palette can never disagree about which panels exist or where they live.
-  const { panels, canvasPanels, childrenByCanvas, orphanCanvasChildren, freePanels, orderedPanels } =
+  const {
+    panels,
+    canvasPanels,
+    childrenByCanvas,
+    orphanCanvasChildren,
+    freePanels,
+    stashedPanels,
+    orderedPanels,
+  } =
     useWorkspacePanelTree(workspace.id)
 
   // Panels living in other (detached) windows for this workspace — they dropped
@@ -477,6 +485,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
     if (!window.electronAPI) return
     const panel = useAppStore.getState().workspaces.find((ws) => ws.id === workspace.id)?.panels[panelId]
     const items: NativeContextMenuItem[] = [
+      { id: 'stash', label: 'Stash' },
       { id: 'rename', label: 'Rename' },
       { id: 'move-window', label: 'Move into New Window' },
       { type: 'separator' },
@@ -508,6 +517,9 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
     // have no meaning in this flat sidebar list.
     const id = await window.electronAPI.showContextMenu(items)
     switch (id) {
+      case 'stash':
+        useAppStore.getState().stashPanel(workspace.id, panelId)
+        break
       case 'rename':
         beginPanelRename(panelId, currentTitle)
         break
@@ -541,6 +553,30 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
     }
   }, [beginPanelRename, handleClosePanel, workspace.id])
 
+  const handleStashedClick = useCallback(async (e: React.MouseEvent, panelId: string) => {
+    e.stopPropagation()
+    await focusWorkspacePanel(workspace.id, panelId)
+  }, [workspace.id])
+
+  const handleStashedContextMenu = useCallback(async (e: React.MouseEvent, panelId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!window.electronAPI) return
+    const id = await window.electronAPI.showContextMenu([
+      { id: 'restore', label: 'Restore' },
+      { type: 'separator' },
+      { id: 'close', label: 'Close' },
+    ])
+    switch (id) {
+      case 'restore':
+        useAppStore.getState().unstashPanel(workspace.id, panelId)
+        break
+      case 'close':
+        handleClosePanel(panelId)
+        break
+    }
+  }, [handleClosePanel, workspace.id])
+
   // Context menu for rows hosted in ANOTHER window: cross-window actions only
   // (reveal there / close there, behind the owner's confirm gates). Without
   // this the right-click bubbles into the workspace menu, which reads as a
@@ -562,8 +598,9 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
 
   // Local panels plus panels in detached windows — drives the expand toggle and
   // the count badge so a workspace whose only panels are detached still expands.
-  // Counts what the tree actually renders (orderedPanels excludes ghost records;
-  // the raw ws.panels registry can contain more).
+  // Counts what the tree actually renders (orderedPanels excludes ghosts and
+  // stashed panels; the latter are rendered in their own section below). The
+  // raw ws.panels registry can contain more.
   const treeCount = orderedPanels.length + detachedCount
 
   const handlePanelClick = useCallback(async (e: React.MouseEvent, panelId: string) => {
@@ -790,6 +827,60 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
     )
   }
 
+  const renderStashedRow = (p: PanelState) => {
+    const label = panelRowLabel(p)
+    const isRenaming = renamingPanelId === p.id
+    if (isWorktreePanelType(p.type)) {
+      const info = agentInfoByPanel[p.id]
+      return (
+        <TerminalPanelRow
+          key={p.id}
+          panel={p}
+          indent={false}
+          agentState={info?.state}
+          agentLogo={info?.logo}
+          hasPorts={(portsByPanel[p.id]?.length ?? 0) > 0}
+          worktreeColor={worktreeColorFor(p.id)}
+          onClick={(e) => handleStashedClick(e, p.id)}
+          rename={{
+            renameValue: isRenaming ? panelRenameValue : null,
+            onRenameChange: setPanelRenameValue,
+            onRenameSubmit: () => handlePanelRenameSubmit(p.id),
+            onRenameCancel: () => setRenamingPanelId(null),
+            onBeginRename: () => beginPanelRename(p.id, label),
+            onContextMenu: (e) => handleStashedContextMenu(e, p.id),
+          }}
+        />
+      )
+    }
+
+    const Icon = PANEL_ICONS[p.type] ?? SquaresFour
+    const hasPorts = (portsByPanel[p.id]?.length ?? 0) > 0
+    return (
+      <button
+        key={p.id}
+        className="group/panel mx-1.5 my-0.5 rounded-lg flex items-center gap-1.5 h-7 pl-7 pr-2 text-[13px] text-muted hover:text-primary hover:bg-hover text-left min-w-0 focus:outline-none"
+        onClick={(e) => handleStashedClick(e, p.id)}
+        onContextMenu={(e) => handleStashedContextMenu(e, p.id)}
+        onMouseDown={(e) => { if (isMiddleClick(e)) e.preventDefault() }}
+        onAuxClick={(e) => {
+          if (isMiddleClick(e)) {
+            e.preventDefault()
+            e.stopPropagation()
+            handleClosePanel(p.id)
+          }
+        }}
+        title={`${label} — stashed`}
+      >
+        <Icon size={11} className="flex-shrink-0 opacity-60" />
+        <span className="truncate min-w-0 flex-1">{label}</span>
+        {hasPorts && (
+          <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-orange-400" title="Live content preserved" />
+        )}
+      </button>
+    )
+  }
+
   // Canvas parent row — like a panel row, but with a disclosure caret that folds
   // its children. A leaf canvas (no children) keeps an empty caret-width gutter
   // so its icon stays aligned with sibling canvas rows. Rendered as a div (not a
@@ -969,6 +1060,14 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
             </>
           )}
           {freePanels.map((p) => renderPanelRow(p))}
+          {stashedPanels.length > 0 && (
+            <>
+              <div className="flex items-center gap-1.5 h-6 mt-1 pl-7 pr-2 text-[11px] uppercase tracking-wide text-muted opacity-70">
+                <span className="truncate">Stashed</span>
+              </div>
+              {stashedPanels.map(renderStashedRow)}
+            </>
+          )}
           {detachedCount > 0 && (
             <>
               <div className="flex items-center gap-1.5 h-6 pl-7 pr-2 text-[11px] uppercase tracking-wide text-muted opacity-70">

@@ -348,7 +348,7 @@ describe('workspace context menu', () => {
 // ---------------------------------------------------------------------------
 
 describe('panel-row context menu', () => {
-  it('offers exactly Rename / Move into New Window / separator / Close', async () => {
+  it('offers Stash then Rename / Move into New Window / separator / Close', async () => {
     const ws = seed(makeWorkspace([panel('t1', 'terminal')]))
     await renderTab(ws)
 
@@ -357,7 +357,8 @@ describe('panel-row context menu', () => {
     expect(showContextMenu).toHaveBeenCalledTimes(1) // no bubbling into the workspace menu
     const items = lastMenuItems()
     // Terminal rows prepend metadata actions to the shared row menu.
-    expect(items.slice(-4)).toEqual([
+    expect(items.slice(-5)).toEqual([
+      { id: 'stash', label: 'Stash' },
       { id: 'rename', label: 'Rename' },
       { id: 'move-window', label: 'Move into New Window' },
       { type: 'separator' },
@@ -366,6 +367,20 @@ describe('panel-row context menu', () => {
     expect(items[0]).toEqual({ id: 'star', label: 'Star Terminal' })
     expect(items.map((item) => item.label)).toContain('Set Color')
     expect(items.map((item) => item.id)).toEqual(expect.arrayContaining(['tag-work', 'tag-experiment']))
+  })
+
+  it("'stash' removes the panel from this window's dock and keeps its record", async () => {
+    const ws = seed(makeWorkspace([panel('t1', 'terminal')]))
+    const dock = createDockStore()
+    dock.getState().dockPanel('t1', 'center')
+    registerWorkspaceDockStore(WS, dock)
+    showContextMenu.mockResolvedValueOnce('stash')
+    await renderTab(ws)
+
+    await rightClick(byText('t1'))
+
+    expect(panelsOf()['t1']).toMatchObject({ id: 't1', type: 'terminal', stashed: true })
+    expect(dock.getState().zones.center.layout).toBeNull()
   })
 
   it("'close' on a running terminal routes through the confirm flow", async () => {
@@ -547,5 +562,28 @@ describe('collapsed badge', () => {
     const badge = Array.from(host.querySelectorAll('span')).find((el) => el.className.includes('text-[10px]'))
     expect(badge).toBeTruthy()
     expect(badge!.textContent).toBe('2') // NOT 3 — the ghost is excluded
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Stashed section
+// ---------------------------------------------------------------------------
+
+describe('stashed section', () => {
+  it('renders parked panels separately from the live tree', async () => {
+    const ws = seed(makeWorkspace([
+      panel('cv', 'canvas'),
+      panel('live', 'terminal'),
+      panel('parked', 'terminal', { stashed: true }),
+    ]))
+    const dock = createDockStore()
+    dock.getState().dockPanel('cv', 'center')
+    dock.getState().dockPanel('live', 'center')
+    registerWorkspaceDockStore(WS, dock)
+
+    await renderTab(ws)
+
+    expect(byText('Stashed')).toBeTruthy()
+    expect(byText('parked')).toBeTruthy()
   })
 })

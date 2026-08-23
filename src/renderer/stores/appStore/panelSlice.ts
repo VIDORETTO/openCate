@@ -49,6 +49,8 @@ type PanelSliceActions = Pick<
   | 'setPanelStarred'
   | 'setPanelTags'
   | 'setPanelAccentColor'
+  | 'stashPanel'
+  | 'unstashPanel'
   | 'updateBrowserActiveTabUrl'
   | 'updatePanelTabs'
   | 'updatePanelProxy'
@@ -310,6 +312,52 @@ export function createPanelSlice(set: AppSet, get: AppGet): PanelSliceActions {
         if (panel.accentColor === normalized) return panel
         return { ...panel, accentColor: normalized }
       })
+    },
+
+    stashPanel(workspaceId, panelId) {
+      const ws = get().workspaces.find((w) => w.id === workspaceId)
+      const panel = ws?.panels[panelId]
+      if (!panel || panel.stashed) return
+
+      // Remove only the visual placement. This deliberately skips
+      // teardownPanelFamily/terminalRegistry.dispose — that is the difference
+      // between stash and close.
+      const dockStore = getOrCreateWorkspaceDockStore(workspaceId)
+      try {
+        const location = resolvePanelLocation(workspaceId, panelId)
+        if (location?.kind === 'dock') {
+          dockStore.getState().undockPanel(panelId)
+        } else if (location?.kind === 'canvas') {
+          getCanvasOpsById(location.canvasPanelId)?.removeNodeForPanel(panelId)
+        }
+      } catch (error) {
+        log.error('Failed to remove panel from dock/canvas during stash:', error)
+      }
+
+      clearActivePanelIfMatches(panelId)
+      setPanelField(set, workspaceId, panelId, (current) => ({ ...current, stashed: true }))
+    },
+
+    unstashPanel(workspaceId, panelId, placement = { target: 'auto' }, position) {
+      const ws = get().workspaces.find((w) => w.id === workspaceId)
+      const panel = ws?.panels[panelId]
+      if (!panel?.stashed) return
+
+      // Clear first so partitioning/save treat this as a normal placed panel in
+      // the same commit as its re-placement.
+      setPanelField(set, workspaceId, panelId, (current) => {
+        if (!current.stashed) return current
+        const { stashed: _stashed, ...rest } = current
+        return rest
+      })
+      addAndPlacePanel(
+        set,
+        get,
+        workspaceId,
+        get().workspaces.find((w) => w.id === workspaceId)!.panels[panelId],
+        placement,
+        position,
+      )
     },
 
     updateBrowserActiveTabUrl(workspaceId, panelId, url) {

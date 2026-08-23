@@ -40,6 +40,8 @@ export interface WorkspacePanelTree {
   orphanCanvasChildren: PanelState[]
   /** Docked panels that sit beside the canvases. */
   freePanels: PanelState[]
+  /** User-parked panels kept alive but excluded from the normal overview. */
+  stashedPanels: PanelState[]
   /** Flat list in the overview's render order, ghosts/detached excluded. */
   orderedPanels: PanelState[]
 }
@@ -141,7 +143,7 @@ export function useWorkspacePanelTree(workspaceId: string): WorkspacePanelTree {
   const dockPlacedIds = dockSnapshot ? new Set(
     Object.values(dockSnapshot.zones).flatMap((zone) => collectPanelIds(zone.layout)),
   ) : null
-  const { canvasPanels, childrenByCanvas, orphanCanvasChildren, freePanels } =
+  const { canvasPanels, childrenByCanvas, orphanCanvasChildren, freePanels, stashedPanels } =
     partitionWorkspacePanels(panelList, canvasChildOwners, dockPlacedIds)
 
   // Flatten to the overview's render order: each canvas followed by its
@@ -153,5 +155,14 @@ export function useWorkspacePanelTree(workspaceId: string): WorkspacePanelTree {
   }
   orderedPanels.push(...orphanCanvasChildren, ...freePanels)
 
-  return { panels, panelList, canvasPanels, childrenByCanvas, orphanCanvasChildren, freePanels, orderedPanels }
+  return {
+    panels,
+    panelList,
+    canvasPanels,
+    childrenByCanvas,
+    orphanCanvasChildren,
+    freePanels,
+    stashedPanels,
+    orderedPanels,
+  }
 }

@@ -379,6 +379,11 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
     canvasApi.getState().togglePin(nodeId)
   }, [nodeId])
 
+  const handleStashActivePanel = useCallback(() => {
+    const panelId = activeLeafPanelId(dockStoreApi.getState().zones.center.layout)
+    if (panelId) useAppStore.getState().stashPanel(wsId, panelId)
+  }, [dockStoreApi, wsId])
+
   // Walk the layout to the currently active leaf panel so the worktree pill
   // reflects the visible tab when this node hosts multiple panels.
   const activePanel = useMemo(() => {
@@ -611,6 +616,7 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
       const id = await window.electronAPI.showContextMenu([
         { id: 'maximize', label: maximized ? 'Restore' : 'Maximize' },
         { id: 'pin', label: node?.isPinned ? 'Unlock' : 'Lock' },
+        { id: 'stash', label: 'Stash Active Panel' },
         { type: 'separator' },
         { id: 'front', label: 'Move to Front' },
         { id: 'back', label: 'Move to Back' },
@@ -620,12 +626,13 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
       switch (id) {
         case 'maximize': handleToggleMaximize(); break
         case 'pin': handleTogglePin(); break
+        case 'stash': handleStashActivePanel(); break
         case 'front': canvasApi.getState().moveToFront(nodeId); break
         case 'back': canvasApi.getState().moveToBack(nodeId); break
         case 'close': handleClose(); break
       }
     },
-    [maximized, node?.isPinned, handleToggleMaximize, handleTogglePin, handleClose, canvasApi, nodeId],
+    [maximized, node?.isPinned, handleToggleMaximize, handleTogglePin, handleStashActivePanel, handleClose, canvasApi, nodeId],
   )
 
   // --- Computed styles -------------------------------------------------------

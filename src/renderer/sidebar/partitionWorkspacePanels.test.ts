@@ -79,6 +79,25 @@ describe('partitionWorkspacePanels', () => {
     expect(freePanels).toHaveLength(0)
   })
 
+  // Stash is deliberately separate from the ghost rule: a parked panel remains
+  // discoverable even after its visual placement is gone.
+  it('lists a stashed panel separately from ghosts and normal panels', () => {
+    const panels = [
+      panel('canvasA', 'canvas'),
+      panel('live', 'terminal'),
+      panel('parked', 'terminal'),
+      panel('ghost', 'terminal'),
+    ]
+    ;(panels.find((p) => p.id === 'parked') as PanelLike).stashed = true
+    const owners = new Map<string, string>()
+    const dockPlaced = new Set(['canvasA', 'live'])
+
+    const { freePanels, stashedPanels } = partitionWorkspacePanels(panels, owners, dockPlaced)
+
+    expect(freePanels.map((p) => p.id)).toEqual(['live'])
+    expect(stashedPanels.map((p) => p.id)).toEqual(['parked'])
+  })
+
   it('does NOT drop unplaced panels when dock placement is unknown (cold start)', () => {
     const panels = [panel('canvasA', 'canvas'), panel('term1', 'terminal')]
     const owners = new Map<string, string>()

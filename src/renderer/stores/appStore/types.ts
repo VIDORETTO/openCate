@@ -121,6 +121,17 @@ export interface AppStoreActions {
   setPanelTags: (wsId: string, panelId: string, tags: string[]) => void
   /** Set or clear a terminal accent color. Empty string clears the override. */
   setPanelAccentColor: (wsId: string, panelId: string, color: string) => void
+  /** Remove a panel from its dock/canvas placement without disposing its live
+   *  content (notably a terminal's PTY). The panel remains in `ws.panels`. */
+  stashPanel: (workspaceId: string, panelId: string) => void
+  /** Clear the stash marker and place the panel again through the normal
+   *  dock/canvas placement path. */
+  unstashPanel: (
+    workspaceId: string,
+    panelId: string,
+    placement?: PanelPlacement,
+    position?: Point,
+  ) => void
   updateBrowserActiveTabUrl: (workspaceId: string, panelId: string, url: string) => void
   /** Browser panels only: persist the sole navigation authority. */
   updatePanelTabs: (workspaceId: string, panelId: string, tabs: BrowserTab[], activeTabId: string) => void

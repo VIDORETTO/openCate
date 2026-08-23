@@ -10,6 +10,9 @@
 export interface PanelLike {
   id: string
   type: string
+  /** Optional machine-local marker; when true the panel is listed separately
+   *  from live canvas/dock panels even before it has been removed visually. */
+  stashed?: boolean
 }
 
 import type { DockLayoutNode } from '../../shared/types'
@@ -53,6 +56,8 @@ export interface WorkspacePanelPartition<P extends PanelLike> {
   orphanCanvasChildren: P[]
   /** Docked panels that sit beside the canvases (not on any canvas). */
   freePanels: P[]
+  /** Panels deliberately parked by the user; their live content may remain. */
+  stashedPanels: P[]
 }
 
 /**
@@ -78,8 +83,13 @@ export function partitionWorkspacePanels<P extends PanelLike>(
   const childrenByCanvas: Record<string, P[]> = {}
   const orphanCanvasChildren: P[] = []
   const freePanels: P[] = []
+  const stashedPanels: P[] = []
   for (const p of panelList) {
     if (p.type === 'canvas') continue
+    if (p.stashed) {
+      stashedPanels.push(p)
+      continue
+    }
     const owner = canvasChildOwners.get(p.id)
     if (owner) {
       // Nest the child under the canvas that actually hosts it. Fall back to
@@ -92,5 +102,5 @@ export function partitionWorkspacePanels<P extends PanelLike>(
     }
     // else: ghost — in workspace.panels but referenced by no canvas or dock.
   }
-  return { canvasPanels, childrenByCanvas, orphanCanvasChildren, freePanels }
+  return { canvasPanels, childrenByCanvas, orphanCanvasChildren, freePanels, stashedPanels }
 }

@@ -128,6 +128,11 @@ export interface PanelState {
   starred?: boolean
   tags?: string[]
   accentColor?: string
+  /** Machine-local "keep it alive, but off my canvas" marker. A stashed panel
+   *  stays in `ws.panels` (so its PTY/xterm/agent state survives) while being
+   *  removed from the dock/canvas layout; restoring clears the marker and asks
+   *  the normal placement path for a new home. */
+  stashed?: boolean
   /** Terminal panels only: bumped to force the PTY to be re-spawned in place
    *  (e.g. when switching the terminal to another worktree's checkout). The
    *  registry entry is disposed and `TerminalPanel`'s create effect re-runs at
@@ -1115,6 +1120,9 @@ export interface ProjectSessionPanel {
   starred?: boolean
   tags?: string[]
   accentColor?: string
+  /** Machine-local stash marker. Kept out of workspace.json so one developer's
+   *  "parked terminals" do not become part of a shared project layout. */
+  stashed?: boolean
 }
 
 // -----------------------------------------------------------------------------

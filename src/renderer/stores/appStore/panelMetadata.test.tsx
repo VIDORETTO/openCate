@@ -68,6 +68,7 @@ describe('terminal panel metadata', () => {
     useAppStore.getState().setPanelStarred('ws', id, true)
     useAppStore.getState().setPanelTags('ws', id, ['release'])
     useAppStore.getState().setPanelAccentColor('ws', id, '#6bbf5c')
+    useAppStore.getState().stashPanel('ws', id)
 
     const wsState = useAppStore.getState().workspaces[0]
     const sessionFile = buildSessionFile({
@@ -81,6 +82,7 @@ describe('terminal panel metadata', () => {
       starred: true,
       tags: ['release'],
       accentColor: '#6bbf5c',
+      stashed: true,
     })
 
     const restored = projectFilesToSnapshot({
@@ -96,6 +98,7 @@ describe('terminal panel metadata', () => {
       starred: true,
       tags: ['release'],
       accentColor: '#6bbf5c',
+      stashed: true,
     })
   })
 })
