@@ -102,6 +102,8 @@ interface PanelResult {
   /** Set when the panel lives in another window — activating it focuses that
    *  window instead of revealing locally. */
   inOtherWindow?: boolean
+  /** Terminal-only user tags, shown for fleet discovery. */
+  tags?: string[]
 }
 
 interface WorkspaceResult {
@@ -269,12 +271,14 @@ export const CommandPalette: React.FC = () => {
     for (const panel of orderedPanels) {
       if (!isNavigablePanelType(panel.type)) continue
       const title = panel.title ?? panel.type
-      if (query && !title.toLowerCase().includes(query)) continue
+      const searchable = [title, ...(panel.tags ?? [])].join(' ').toLowerCase()
+      if (query && !searchable.includes(query)) continue
       results.push({
         panelId: panel.id,
         title,
         type: panel.type,
         secondary: panel.filePath ?? browserPanelUrl(panel) ?? panel.type,
+        tags: panel.tags,
       })
     }
     for (const panel of otherWindowPanels) {
@@ -561,6 +565,11 @@ export const CommandPalette: React.FC = () => {
                       >
                         <PanelIcon type={panel.type} />
                         <span className="text-[13px] text-primary flex-1 truncate">{panel.title}</span>
+                        {!!panel.tags?.length && (
+                          <span className="shrink-0 max-w-[32%] truncate rounded-full bg-surface-3 px-1.5 text-[9px] text-secondary">
+                            {panel.tags.join(' · ')}
+                          </span>
+                        )}
                         <span className="text-[11px] text-muted capitalize">{panel.inOtherWindow ? 'Other window' : panel.type}</span>
                       </Row>
                     )
