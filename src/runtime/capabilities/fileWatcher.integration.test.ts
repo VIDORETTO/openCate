@@ -165,7 +165,10 @@ describe('createWatchPool — real @parcel/watcher', () => {
   // into a directory symlink that points OUTSIDE the watched root — changes
   // under `linked/` are not reported. This asserts only that the symlink's
   // presence is harmless; it is not a claim that symlinked subtrees are watched.
-  it('keeps watching real files when an external directory symlink is present', async () => {
+  // The fixture needs a directory symlink, which Windows can only create with
+  // elevated privileges or Developer Mode. Skip there; the watcher behavior
+  // remains covered on POSIX.
+  it.skipIf(process.platform === 'win32')('keeps watching real files when an external directory symlink is present', async () => {
     root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'cate-pw-')))
     const ext = await realpath(await mkdtemp(path.join(os.tmpdir(), 'cate-pw-ext-')))
     extraDirs.push(ext)

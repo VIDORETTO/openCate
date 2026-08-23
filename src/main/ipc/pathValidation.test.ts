@@ -127,7 +127,10 @@ describe('pathValidation', () => {
       )
     })
 
-    test('still rejects a symlink that escapes the root, even for a missing leaf', async () => {
+    // Windows requires elevated privileges (or Developer Mode) to create
+    // symlinks; without them `fs.symlink` fails with EPERM before the test can
+    // assert anything. The behavior under test is POSIX-specific setup, so skip.
+    test.skipIf(process.platform === 'win32')('still rejects a symlink that escapes the root, even for a missing leaf', async () => {
       // An existing symlink inside the root points outside it; a not-yet-created
       // child under that symlink must resolve through it and be denied.
       const link = path.join(rootDir, 'escape')
@@ -228,7 +231,7 @@ describe('pathValidation', () => {
   // rejected), and an EXISTING symlink as the final segment is rejected
   // outright so a write can't follow it out of the validated location.
   describe('symlink write/creation targets', () => {
-    test('rejects creation through a symlinked dir inside the root that points outside', async () => {
+    test.skipIf(process.platform === 'win32')('rejects creation through a symlinked dir inside the root that points outside', async () => {
       const link = path.join(rootDir, 'escape-dir')
       await fs.symlink(outsideDir, link)
       await expect(
@@ -236,7 +239,7 @@ describe('pathValidation', () => {
       ).rejects.toThrow(/outside allowed directories/)
     })
 
-    test('rejects an existing symlink file as the creation target (out-of-root link)', async () => {
+    test.skipIf(process.platform === 'win32')('rejects an existing symlink file as the creation target (out-of-root link)', async () => {
       const real = path.join(outsideDir, 'real.txt')
       await fs.writeFile(real, 'data')
       const link = path.join(rootDir, 'link.txt')
@@ -246,7 +249,7 @@ describe('pathValidation', () => {
       )
     })
 
-    test('rejects an existing symlink file as the creation target (in-root link)', async () => {
+    test.skipIf(process.platform === 'win32')('rejects an existing symlink file as the creation target (in-root link)', async () => {
       const real = path.join(rootDir, 'real.txt')
       await fs.writeFile(real, 'data')
       const link = path.join(rootDir, 'link.txt')

@@ -59,7 +59,9 @@ describe('buildDaemonRuntime FileHost path validation', () => {
     expect(await runtime.vcs.isRepo(root, { scopeId: 'test' })).toBe(false)
   })
 
-  test('writeFile onto an existing symlink rejects (no write-through escape)', async () => {
+  // Creating the fixture symlink requires elevated privileges or Developer
+  // Mode on Windows. Skip there rather than fail before exercising validation.
+  test.skipIf(process.platform === 'win32')('writeFile onto an existing symlink rejects (no write-through escape)', async () => {
     const real = path.join(root, 'real.txt')
     await fs.writeFile(real, 'target')
     const link = path.join(root, 'link.txt')
