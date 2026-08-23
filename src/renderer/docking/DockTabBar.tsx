@@ -8,7 +8,7 @@
 import React from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { PanelState, PanelType, DockTabStack as DockTabStackType } from '../../shared/types'
-import { X } from '@phosphor-icons/react'
+import { X, Star } from '@phosphor-icons/react'
 import { useDragStore, useTabSourceVisibility } from '../drag'
 import { PANEL_REGISTRY, getPanelDef } from '../panels/registry'
 import { useAppStore } from '../stores/appStore'
@@ -189,6 +189,9 @@ export function DockTabBar(props: DockTabBarProps) {
         const isActive = i === stack.activeIndex
         const panel = getPanel(panelId)
         const panelType = (panel?.type ?? 'editor') as PanelType
+        const terminalAccent = panel?.type === 'terminal'
+          ? (panel.accentColor ?? worktreeColorByPanel[panelId])
+          : undefined
         const pill = (
           <TabPill
             key={panelId}
@@ -265,8 +268,25 @@ export function DockTabBar(props: DockTabBarProps) {
             ) : (
               <span
                 className={`truncate flex-1 min-w-0 ${agentInfoByPanel[panelId]?.state === 'running' ? 'cate-notif-pulse' : ''}`}
-                style={worktreeTitleStyle(worktreeColorByPanel[panelId], agentInfoByPanel[panelId]?.state === 'running')}
+                style={worktreeTitleStyle(terminalAccent ?? worktreeColorByPanel[panelId], agentInfoByPanel[panelId]?.state === 'running')}
               >{getPanelTitle(panelId)}</span>
+            )}
+            {panel?.type === 'terminal' && !!panel.starred && (
+              <Star
+                weight="fill"
+                size={compact ? 9 : 10}
+                className="shrink-0"
+                style={{ color: terminalAccent || 'var(--activity-orange)' }}
+                aria-label="Starred terminal"
+              />
+            )}
+            {panel?.type === 'terminal' && !!panel.tags?.length && !compact && (
+              <span
+                className="shrink-0 max-w-[38%] truncate rounded-full px-1.5 text-[9px]"
+                style={terminalAccent ? { backgroundColor: `${terminalAccent}22`, color: terminalAccent } : undefined}
+              >
+                {panel.tags.join(' · ')}
+              </span>
             )}
             {agentInfoByPanel[panelId]?.state === 'waitingForInput' && (
               <span className="cate-await-indicator shrink-0" aria-label="awaiting input">

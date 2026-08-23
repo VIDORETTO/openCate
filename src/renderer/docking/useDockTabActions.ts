@@ -14,6 +14,8 @@ import type { DockStore } from '../stores/dockStore'
 import { getPanelDef } from '../panels/registry'
 import { setActivePanel } from '../lib/activePanel'
 import { useMultiNodeSelection } from '../canvas/useMultiNodeSelection'
+import { ACCENT_COLOR_NAMES } from '../../shared/colors'
+import { WORKSPACE_COLORS } from '../stores/appStore'
 import type { NativeContextMenuItem } from '../../shared/electron-api'
 import {
   RENAME_PANEL_EVENT,
@@ -209,6 +211,33 @@ export function useDockTabActions(params: DockTabActionsParams) {
       const hasOthers = stack.panelIds.length > 1
       const hasRight = idx >= 0 && idx < stack.panelIds.length - 1
       const panel = getPanelLocal(panelId)
+      const terminalMetadata = panel?.type === 'terminal'
+        ? { starred: !!panel.starred, tags: panel.tags ?? [], accentColor: panel.accentColor }
+        : null
+      const terminalMetadataItems: NativeContextMenuItem[] = panel?.type === 'terminal'
+        ? [
+            { id: 'metadata:star', label: panel.starred ? 'Unstar Terminal' : 'Star Terminal' },
+            {
+              label: 'Set Color',
+              submenu: [
+                { id: 'metadata:color:', label: 'Default' + (!panel.accentColor ? ' ✓' : ''), enabled: !!panel.accentColor },
+                ...WORKSPACE_COLORS.map((color) => ({
+                  id: `metadata:color:${color}`,
+                  label: (ACCENT_COLOR_NAMES[color] || color) + (color === panel.accentColor ? ' ✓' : ''),
+                  enabled: color !== panel.accentColor,
+                })),
+              ],
+            },
+            {
+              label: 'Tags',
+              submenu: ['work', 'experiment', 'review', 'long-running'].map((tag) => ({
+                id: `metadata:tag:${tag}`,
+                label: (panel.tags?.includes(tag) ? 'Remove ' : 'Add ') + tag,
+              })),
+            },
+            { type: 'separator' },
+          ]
+        : []
       const menu: NativeContextMenuItem[] = [
         ...(panel?.type === 'terminal'
           ? [
@@ -216,6 +245,7 @@ export function useDockTabActions(params: DockTabActionsParams) {
               { type: 'separator' },
             ] as NativeContextMenuItem[]
           : []),
+        ...terminalMetadataItems,
         { id: 'rename', label: 'Rename' },
         { type: 'separator' },
         { id: 'close', label: 'Close', accelerator: 'Cmd+W' },
@@ -229,6 +259,24 @@ export function useDockTabActions(params: DockTabActionsParams) {
         { id: 'move-window', label: 'Move into New Window' },
       ]
       const id = await window.electronAPI.showContextMenu(menu)
+      if (id?.startsWith('metadata:')) {
+        const wsId = workspaceId ?? useAppStore.getState().selectedWorkspaceId
+        if (wsId) {
+          const app = useAppStore.getState()
+          const [, kind, value] = id.split(':')
+          if (kind === 'star') app.setPanelStarred(wsId, panelId, !terminalMetadata?.starred)
+          else if (kind === 'color') app.setPanelAccentColor(wsId, panelId, value ?? '')
+          else if (kind === 'tag') {
+            const tags = terminalMetadata?.tags ?? []
+            app.setPanelTags(
+              wsId,
+              panelId,
+              tags.includes(value) ? tags.filter((tag) => tag !== value) : [...tags, value],
+            )
+          }
+        }
+        return
+      }
       switch (id) {
         case 'reset-terminal-rendering': {
           const { terminalRegistry } = await import('../lib/terminal/terminalRegistry')
@@ -265,7 +313,7 @@ export function useDockTabActions(params: DockTabActionsParams) {
           break
       }
     },
-    [stack.panelIds, onClosePanel, getPanelLocal, moveTabToNewWindow, splitWithType, showMultiSelectionMenu, showCloseAll, beginRename],
+    [stack.panelIds, workspaceId, onClosePanel, getPanelLocal, moveTabToNewWindow, splitWithType, showMultiSelectionMenu, showCloseAll, beginRename],
   )
 
   // Tab-bar (empty-area) context menu — split/new menus. Returns a handler
