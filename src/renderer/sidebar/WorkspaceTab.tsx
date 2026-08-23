@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { useShallow } from 'zustand/shallow'
-import { CaretRight, Terminal as TerminalIcon, Folder, FolderPlus, SquaresFour, DotsThree, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { CaretRight, Terminal as TerminalIcon, Folder, FolderPlus, SquaresFour, DotsThree, Star, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { browserPanelUrl, type WorkspaceState, type PanelType, type PanelState, type WindowPanelInfo } from '../../shared/types'
 import { isWorktreePanelType } from '../../shared/panels'
 import { useStatusStore } from '../stores/statusStore'
@@ -101,7 +101,7 @@ export interface PanelRenameProps {
 export { panelRowLabel }
 
 export interface TerminalPanelRowProps {
-  panel: Pick<PanelState, 'id' | 'type' | 'title' | 'filePath' | 'tabs' | 'activeTabId'>
+  panel: Pick<PanelState, 'id' | 'type' | 'title' | 'filePath' | 'tabs' | 'activeTabId' | 'starred' | 'tags' | 'accentColor'>
   indent: boolean
   agentState: AgentState | undefined
   agentLogo?: string | null
@@ -129,6 +129,7 @@ export const TerminalPanelRow: React.FC<TerminalPanelRowProps> = ({ panel, inden
   const isAwaiting = agentState === 'waitingForInput'
   const agentLogo = panel.type === 'terminal' ? agentLogoProp : null
   const isRenaming = rename?.renameValue != null
+  const rowAccent = panel.accentColor ?? worktreeColor
 
   return (
     <button
@@ -169,10 +170,24 @@ export const TerminalPanelRow: React.FC<TerminalPanelRowProps> = ({ panel, inden
       ) : (
         <span
           className={`truncate min-w-0 flex-1 ${isRunning ? 'cate-notif-pulse' : ''}`}
-          style={worktreeTitleStyle(worktreeColor, isRunning)}
+          style={worktreeTitleStyle(rowAccent, isRunning)}
           onDoubleClick={(e) => { e.stopPropagation(); rename?.onBeginRename() }}
         >
           {label}
+        </span>
+      )}
+      {!!panel.starred && (
+        <Star
+          weight="fill"
+          size={10}
+          className="flex-shrink-0"
+          style={{ color: rowAccent || 'var(--activity-orange)' }}
+          aria-label="Starred"
+        />
+      )}
+      {!!panel.tags?.length && (
+        <span className="flex-shrink-0 max-w-[38%] truncate rounded-full px-1.5 text-[9px]" style={rowAccent ? { backgroundColor: `${rowAccent}22`, color: rowAccent } : undefined}>
+          {panel.tags.join(' · ')}
         </span>
       )}
       {isAwaiting ? (
@@ -460,6 +475,35 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
     e.preventDefault()
     e.stopPropagation()
     if (!window.electronAPI) return
+    const panel = useAppStore.getState().workspaces.find((ws) => ws.id === workspace.id)?.panels[panelId]
+    if (panel?.type === 'terminal') {
+      const metadataItems: NativeContextMenuItem[] = [
+        { id: 'star', label: panel.starred ? 'Unstar Terminal' : 'Star Terminal' },
+        {
+          label: 'Set Color',
+          submenu: [
+            { id: 'accent:', label: 'Default' + (!panel.accentColor ? ' ✓' : ''), enabled: !!panel.accentColor },
+            ...WORKSPACE_COLORS.map((color) => ({
+              id: `accent:${color}`,
+              label: (ACCENT_COLOR_NAMES[color] || color) + (color === panel.accentColor ? ' ✓' : ''),
+              enabled: color !== panel.accentColor,
+            })),
+          ],
+        },
+        { id: 'tag-work', label: panel.tags?.includes('work') ? "Remove Tag 'Work'" : "Tag 'Work'" },
+        { id: 'tag-experiment', label: panel.tags?.includes('experiment') ? "Remove Tag 'Experiment'" : "Tag 'Experiment'" },
+        { type: 'separator' as const },
+      ]
+      const metadataId = await window.electronAPI.showContextMenu(metadataItems)
+      if (metadataId) {
+        const app = useAppStore.getState()
+        if (metadataId === 'star') app.setPanelStarred(workspace.id, panelId, !panel.starred)
+        else if (metadataId.startsWith('accent:')) app.setPanelAccentColor(workspace.id, panelId, metadataId.slice(7))
+        else if (metadataId === 'tag-work') app.setPanelTags(workspace.id, panelId, panel.tags?.includes('work') ? (panel.tags ?? []).filter(t => t !== 'work') : [...(panel.tags ?? []), 'work'])
+        else if (metadataId === 'tag-experiment') app.setPanelTags(workspace.id, panelId, panel.tags?.includes('experiment') ? (panel.tags ?? []).filter(t => t !== 'experiment') : [...(panel.tags ?? []), 'experiment'])
+        return
+      }
+    }
     // Mirror the dock tab menu, limited to actions that apply to a flat sidebar
     // list (Split / Close-Others / Close-to-the-Right are dock-stack-relative
     // and have no meaning here).

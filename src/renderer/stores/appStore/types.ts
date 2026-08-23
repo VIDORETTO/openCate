@@ -115,6 +115,12 @@ export interface AppStoreActions {
   /** User-initiated rename. Marks the panel as user-overridden so OSC updates
    *  no longer fight the chosen name. */
   renamePanelByUser: (workspaceId: string, panelId: string, title: string) => void
+  /** Toggle the terminal's starred quick-focus marker. */
+  setPanelStarred: (wsId: string, panelId: string, starred: boolean) => void
+  /** Replace a terminal's tags with a normalized, de-duplicated list. */
+  setPanelTags: (wsId: string, panelId: string, tags: string[]) => void
+  /** Set or clear a terminal accent color. Empty string clears the override. */
+  setPanelAccentColor: (wsId: string, panelId: string, color: string) => void
   updateBrowserActiveTabUrl: (workspaceId: string, panelId: string, url: string) => void
   /** Browser panels only: persist the sole navigation authority. */
   updatePanelTabs: (workspaceId: string, panelId: string, tabs: BrowserTab[], activeTabId: string) => void

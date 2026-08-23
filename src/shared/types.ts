@@ -122,6 +122,12 @@ export interface PanelState {
    *  tab so that subsequent OSC-0/1/2 title escapes from the running agent
    *  no longer overwrite the chosen name. */
   titleUserOverridden?: boolean
+  /** User-curated terminal metadata. Starred terminals form a quick-focus set;
+   * tags and accent color make large agent fleets recognizable and searchable.
+   * Additive fields: sessions created before this feature omit them safely. */
+  starred?: boolean
+  tags?: string[]
+  accentColor?: string
   /** Terminal panels only: bumped to force the PTY to be re-spawned in place
    *  (e.g. when switching the terminal to another worktree's checkout). The
    *  registry entry is disposed and `TerminalPanel`'s create effect re-runs at
@@ -1103,6 +1109,11 @@ export interface ProjectSessionPanel {
    *  deliberately excluded; restoring may resume a stamped CLI session but
    *  never repeats the original task. */
   codingAgentRun?: CodingAgentRun
+  /** User-curated terminal organization metadata. Machine-local on purpose:
+   * one developer's starred fleet/tags should not leak into a shared project. */
+  starred?: boolean
+  tags?: string[]
+  accentColor?: string
 }
 
 // -----------------------------------------------------------------------------

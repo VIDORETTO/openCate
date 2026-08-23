@@ -46,6 +46,9 @@ type PanelSliceActions = Pick<
   | 'updatePanelTitle'
   | 'updatePanelTitleFromAgent'
   | 'renamePanelByUser'
+  | 'setPanelStarred'
+  | 'setPanelTags'
+  | 'setPanelAccentColor'
   | 'updateBrowserActiveTabUrl'
   | 'updatePanelTabs'
   | 'updatePanelProxy'
@@ -283,6 +286,30 @@ export function createPanelSlice(set: AppSet, get: AppGet): PanelSliceActions {
 
     renamePanelByUser(workspaceId, panelId, title) {
       setPanelField(set, workspaceId, panelId, (panel) => ({ ...panel, title, titleUserOverridden: true }))
+    },
+
+    setPanelStarred(wsId, panelId, starred) {
+      setPanelField(set, wsId, panelId, (panel) => {
+        if (panel.starred === starred) return panel
+        return { ...panel, starred }
+      })
+    },
+
+    setPanelTags(wsId, panelId, tags) {
+      const unique = [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))]
+      setPanelField(set, wsId, panelId, (panel) => {
+        if (unique.length === 0 && !panel.tags) return panel
+        if (panel.tags?.length === unique.length && panel.tags.every((tag, i) => tag === unique[i])) return panel
+        return { ...panel, tags: unique.length ? unique : undefined }
+      })
+    },
+
+    setPanelAccentColor(wsId, panelId, color) {
+      const normalized = /^#[0-9a-f]{6}$/i.test(color.trim()) ? color.trim().toLowerCase() : undefined
+      setPanelField(set, wsId, panelId, (panel) => {
+        if (panel.accentColor === normalized) return panel
+        return { ...panel, accentColor: normalized }
+      })
     },
 
     updateBrowserActiveTabUrl(workspaceId, panelId, url) {
