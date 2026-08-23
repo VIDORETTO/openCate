@@ -33,6 +33,7 @@ import { canvasKey, toggleCollapsed, useTreeCollapseStore } from './treeCollapse
 import { Tooltip } from '../ui/Tooltip'
 import { useActiveChatWorktreeByPanel } from '../../cateAgent/renderer/cateAgentStore'
 import { ActivitySparkline } from '../canvas/ActivitySparkline'
+import { codingAgentDisplayName, type CodingAgentRun } from '../../shared/codingAgentRuns'
 
 // Stable empty map so the ports selector returns a referentially-constant value
 // when a workspace has no status entry (a fresh `{}` each render would defeat
@@ -102,7 +103,7 @@ export interface PanelRenameProps {
 export { panelRowLabel }
 
 export interface TerminalPanelRowProps {
-  panel: Pick<PanelState, 'id' | 'type' | 'title' | 'filePath' | 'tabs' | 'activeTabId' | 'starred' | 'tags' | 'accentColor'>
+  panel: Pick<PanelState, 'id' | 'type' | 'title' | 'filePath' | 'tabs' | 'activeTabId' | 'starred' | 'tags' | 'accentColor'> & Partial<Pick<PanelState, 'agentSession' | 'codingAgentRun'>>
   indent: boolean
   agentState: AgentState | undefined
   agentLogo?: string | null
@@ -124,6 +125,38 @@ export interface TerminalPanelRowProps {
 
 const AWAIT_COLOR = '#c08a5a'
 
+/** Durable stashed-agent facts. Live status remains the owner window's job;
+ *  these badges survive restart and do not invent transient process state. */
+export type StashedAgentIndicator = {
+  label: string
+  color: string
+  title: string
+}
+
+export function deriveStashedAgentIndicator(
+  panel: {
+    agentSession?: PanelState['agentSession']
+    codingAgentRun?: Pick<CodingAgentRun, 'endedAt' | 'exitCode' | 'stoppedAt'>
+  },
+): StashedAgentIndicator | null {
+  if (panel.codingAgentRun) {
+    if (panel.codingAgentRun.stoppedAt) return { label: 'Stopped', color: '#8e8e93', title: 'Stashed coding-agent mission stopped' }
+    if (panel.codingAgentRun.exitCode != null && panel.codingAgentRun.exitCode !== 0) {
+      return { label: 'Failed', color: '#ff453a', title: 'Stashed coding-agent mission failed' }
+    }
+    if (panel.codingAgentRun.endedAt) return { label: 'Ready', color: '#34c759', title: 'Stashed coding-agent mission ready' }
+    return { label: 'Mission', color: '#34c759', title: 'Stashed coding-agent mission retained' }
+  }
+
+  const session = panel.agentSession
+  if (!session?.sessionId) return null
+  return {
+    label: 'Session',
+    color: 'var(--focus-blue)',
+    title: `Retained ${codingAgentDisplayName(session.agentId as never)} CLI session`,
+  }
+}
+
 export const TerminalPanelRow: React.FC<TerminalPanelRowProps> = ({ panel, indent, agentState, agentLogo: agentLogoProp, hasPorts, activityHistoryId, worktreeColor, onClick, onClose, rename, titleHint, onContextMenu }) => {
   const Icon = PANEL_ICONS[panel.type] ?? TerminalIcon
   const label = panelRowLabel(panel)
@@ -133,6 +166,7 @@ export const TerminalPanelRow: React.FC<TerminalPanelRowProps> = ({ panel, inden
   const agentLogo = panel.type === 'terminal' ? agentLogoProp : null
   const isRenaming = rename?.renameValue != null
   const rowAccent = panel.accentColor ?? worktreeColor
+  const stashedIndicator = deriveStashedAgentIndicator(panel)
 
   return (
     <button
@@ -200,6 +234,19 @@ export const TerminalPanelRow: React.FC<TerminalPanelRowProps> = ({ panel, inden
       ) : !isRunning && hasPorts ? (
         <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-muted opacity-50" />
       ) : null}
+      {stashedIndicator && !isRenaming && (
+        <span
+          aria-label={stashedIndicator.title}
+          className="flex-shrink-0 rounded-full px-1.5 text-[9px] uppercase tracking-wide"
+          style={{
+            backgroundColor: `color-mix(in srgb, ${stashedIndicator.color} 18%, transparent)`,
+            color: stashedIndicator.color,
+          }}
+          title={stashedIndicator.title}
+        >
+          {stashedIndicator.label}
+        </span>
+      )}
       {panel.type === 'terminal' && !!activityHistoryId && !isRenaming && (
         <ActivitySparkline
           panelId={activityHistoryId}

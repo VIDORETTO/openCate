@@ -53,7 +53,7 @@ vi.mock('../lib/terminal/terminalRegistry', () => ({
     getEntry: () => undefined,
   },
 }))
-import { WorkspaceTab } from './WorkspaceTab'
+import { WorkspaceTab, deriveStashedAgentIndicator } from './WorkspaceTab'
 import { useAppStore } from '../stores/appStore'
 import { useStatusStore } from '../stores/statusStore'
 import { useWindowPanelStore } from '../stores/windowPanelStore'
@@ -585,5 +585,52 @@ describe('stashed section', () => {
 
     expect(byText('Stashed')).toBeTruthy()
     expect(byText('parked')).toBeTruthy()
+  })
+
+  it('shows durable retained-session and mission badges without inventing live status', () => {
+    const session = deriveStashedAgentIndicator({
+      agentSession: { agentId: 'claude-code', sessionId: 'session-1', cwd: '/repo' },
+    })
+    expect(session).toMatchObject({ label: 'Session' })
+
+    const activeMission = deriveStashedAgentIndicator({
+      codingAgentRun: { stoppedAt: undefined },
+    })
+    expect(activeMission).toMatchObject({ label: 'Mission' })
+
+    const readyMission = deriveStashedAgentIndicator({
+      codingAgentRun: { endedAt: 1, exitCode: 0 },
+    })
+    expect(readyMission).toMatchObject({ label: 'Ready' })
+
+    const failedMission = deriveStashedAgentIndicator({
+      codingAgentRun: { endedAt: 1, exitCode: 2 },
+    })
+    expect(failedMission).toMatchObject({ label: 'Failed' })
+
+    const stoppedMission = deriveStashedAgentIndicator({
+      codingAgentRun: { stoppedAt: 1, endedAt: undefined, exitCode: 0 },
+    })
+    expect(stoppedMission).toMatchObject({ label: 'Stopped' })
+
+    expect(deriveStashedAgentIndicator({})).toBeNull()
+  })
+
+  it('renders a retained CLI session badge on a stashed terminal row', async () => {
+    const ws = seed(makeWorkspace([
+      panel('cv', 'canvas'),
+      panel('parked-agent', 'terminal', {
+        stashed: true,
+        agentSession: { agentId: 'claude-code', sessionId: 'session-1', cwd: '/tmp/proj' },
+      }),
+    ]))
+
+    const dock = createDockStore()
+    dock.getState().dockPanel('cv', 'center')
+    registerWorkspaceDockStore(WS, dock)
+
+    await renderTab(ws)
+
+    expect(byText('Session')).toBeTruthy()
   })
 })
