@@ -43,6 +43,8 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { useOptionalCanvasStoreApi } from '../stores/CanvasStoreContext'
 import { WindowTypeContext } from '../stores/WindowTypeContext'
 import { runAction } from '../lib/runAction'
+import { getActivePanelId } from '../lib/activePanel'
+import { sortWorkspacePanels } from '../sidebar/sortWorkspacePanels'
 import { useWorkspacePanelTree } from '../lib/workspace/useWorkspacePanelTree'
 import { revealPanel } from '../lib/workspace/panelReveal'
 import { openFileAsPanel } from '../lib/fs/fileRouting'
@@ -118,10 +120,19 @@ interface WorkspaceResult {
   isCurrent: boolean
 }
 
+/** A dynamic action row for cycling through terminals that share a tag.
+ *  Rendered when the query starts with `@`, so `@work` means "cycle through
+ *  every terminal tagged `work`" without needing a dedicated command per tag. */
+interface TagCycleResult {
+  tag: string
+  count: number
+}
+
 // A single navigable entry in the flat list, used for keyboard selection.
 type FlatItem =
   | { kind: 'command'; command: CommandItem }
   | { kind: 'workspace'; workspace: WorkspaceResult }
+  | { kind: 'tag-cycle'; tagCycle: TagCycleResult }
   | { kind: 'panel'; panel: PanelResult }
   | { kind: 'file'; file: FileResult }
 
@@ -247,6 +258,19 @@ export const CommandPalette: React.FC = () => {
 
   const query = searchText.trim().toLowerCase()
 
+  // `@tag` mode: when the query starts with `@`, the rest is a tag name and the
+  // palette offers a single "Cycle through N tagged terminals" action instead of
+  // the usual command/workspace/panel list.
+  const tagQuery = query.startsWith('@') ? query.slice(1) : ''
+
+  const tagCycleResult = useMemo<TagCycleResult | null>(() => {
+    if (!tagQuery) return null
+    const terminals = orderedPanels.filter(
+      (p) => p.type === 'terminal' && (p.tags ?? []).some((t) => t.toLowerCase().includes(tagQuery)),
+    )
+    return terminals.length > 0 ? { tag: tagQuery, count: terminals.length } : null
+  }, [orderedPanels, tagQuery])
+
   // Commands matched by title (empty query → all).
   const filteredCommands = useMemo(() => {
     if (!query) return allCommands
@@ -348,12 +372,13 @@ export const CommandPalette: React.FC = () => {
   const visibleCommands = openFileTargetPanelId ? [] : filteredCommands
   const visibleWorkspaces = openFileTargetPanelId ? [] : filteredWorkspaces
   const visiblePanels = openFileTargetPanelId ? [] : filteredPanels
+  const visibleTagCycle = tagCycleResult
   const flatItems = useMemo<FlatItem[]>(() => [
-    ...(openFileTargetPanelId ? [] : filteredCommands.map((command) => ({ kind: 'command', command }) as FlatItem)),
+    ...(visibleTagCycle ? [{ kind: 'tag-cycle', tagCycle: visibleTagCycle } as FlatItem] : openFileTargetPanelId ? [] : filteredCommands.map((command) => ({ kind: 'command', command }) as FlatItem)),
     ...(openFileTargetPanelId ? [] : filteredWorkspaces.map((workspace) => ({ kind: 'workspace', workspace }) as FlatItem)),
     ...(openFileTargetPanelId ? [] : filteredPanels.map((panel) => ({ kind: 'panel', panel }) as FlatItem)),
     ...displayedFiles.map((file) => ({ kind: 'file', file }) as FlatItem),
-  ], [openFileTargetPanelId, filteredCommands, filteredWorkspaces, filteredPanels, displayedFiles])
+  ], [openFileTargetPanelId, visibleTagCycle, filteredCommands, filteredWorkspaces, filteredPanels, displayedFiles])
 
   const totalItems = flatItems.length
 
@@ -425,6 +450,22 @@ export const CommandPalette: React.FC = () => {
         // A panel in another window: ask main to focus that window and reveal it.
         if (item.panel.inOtherWindow) void window.electronAPI.focusWindowPanel(item.panel.panelId)
         else focusPanelById(item.panel.panelId)
+      } else if (item.kind === 'tag-cycle') {
+        // Cycle to the next terminal with the given tag, starting after the
+        // currently active panel (wrapping). Reads panel state at call time.
+        const tag = item.tagCycle.tag
+        const app = useAppStore.getState()
+        const ws = app.workspaces.find((w) => w.id === selectedWorkspaceId)
+        if (ws) {
+          const sorted = sortWorkspacePanels(Object.values(ws.panels), ws.worktrees, ws.rootPath)
+          const tagged = sorted.filter((p) => p.type === 'terminal' && (p.tags ?? []).some((t) => t.toLowerCase().includes(tag)))
+          if (tagged.length > 0) {
+            const activeId = getActivePanelId()
+            const activeIndex = activeId ? tagged.findIndex((p) => p.id === activeId) : -1
+            const next = tagged[(activeIndex + 1) % tagged.length]
+            void revealPanel(selectedWorkspaceId, next.id, { retry: true })
+          }
+        }
       } else {
         openFile(item.file)
       }
@@ -441,7 +482,8 @@ export const CommandPalette: React.FC = () => {
   if (!showCommandPalette) return null
 
   // Section boundaries within the flat list.
-  const workspaceStart = visibleCommands.length
+  const tagCycleStart = 0
+  const workspaceStart = tagCycleStart + (visibleTagCycle ? 1 : 0) + visibleCommands.length
   const panelStart = workspaceStart + visibleWorkspaces.length
   const fileStart = panelStart + visiblePanels.length
   const filesLabel = query ? 'Files' : 'Recent Files'
@@ -498,6 +540,24 @@ export const CommandPalette: React.FC = () => {
             </div>
           ) : (
             <>
+              {/* Tag cycle — `@tag` query mode */}
+              {visibleTagCycle && (
+                <>
+                  <SectionHeader>Tag Cycle</SectionHeader>
+                  <Row
+                    ref={0 === selectedIndex ? selectedRowRef : undefined}
+                    selected={0 === selectedIndex}
+                    onClick={() => activate({ kind: 'tag-cycle', tagCycle: visibleTagCycle })}
+                    onMouseEnter={() => setSelectedIndex(0)}
+                  >
+                    <span className="shrink-0 text-secondary"><StarIcon /></span>
+                    <span className="text-[13px] text-primary flex-1 truncate">
+                      Cycle through {visibleTagCycle.count} terminal{visibleTagCycle.count === 1 ? '' : 's'} tagged '{visibleTagCycle.tag}'
+                    </span>
+                  </Row>
+                </>
+              )}
+
               {/* Commands */}
               {visibleCommands.length > 0 && (
                 <>
