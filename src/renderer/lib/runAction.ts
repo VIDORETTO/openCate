@@ -24,6 +24,9 @@ import { closePanelWithConfirm } from './closePanelWithConfirm'
 import { activeDockPanelId } from '../../shared/collectPanelIds'
 import { seedAgentPanelWithWorktreeChat } from '../../cateAgent/renderer/seedWorktreeChat'
 import { getFocusedLeafPanelId, requestPanelRename } from './focusedPanel'
+import { getActivePanelId } from './activePanel'
+import { revealPanel } from './workspace/panelReveal'
+import { sortWorkspacePanels } from '../sidebar/sortWorkspacePanels'
 
 /**
  * Ensures the workspace has a rootPath before proceeding.
@@ -203,6 +206,23 @@ export async function runAction(
       const canvas = canvasStore()
       const prev = canvas?.previousNode()
       if (prev) canvas?.focusNode(prev)
+      break
+    }
+    case 'focusNextStarredTerminal': {
+      // Cycle to the next terminal in the workspace marked with a user star,
+      // starting after the currently active panel (wrapping). With no starred
+      // terminals this is a no-op; with exactly one it re-focuses it.
+      const ws = appStore().workspaces.find((w) => w.id === appStore().selectedWorkspaceId)
+      if (ws) {
+        const sorted = sortWorkspacePanels(Object.values(ws.panels), ws.worktrees, ws.rootPath)
+        const starred = sorted.filter((p) => p.type === 'terminal' && p.starred)
+        if (starred.length > 0) {
+          const activeId = getActivePanelId()
+          const activeIndex = activeId ? starred.findIndex((p) => p.id === activeId) : -1
+          const next = starred[(activeIndex + 1) % starred.length]
+          void revealPanel(ws.id, next.id, { retry: true })
+        }
+      }
       break
     }
     case 'saveFile':

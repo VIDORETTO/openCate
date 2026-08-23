@@ -222,6 +222,7 @@ export function buildApplicationMenu(): void {
       submenu: [
         { ...actionMeta('focusNext'), label: 'Next Panel', click: dispatch('focusNext') },
         { ...actionMeta('focusPrevious'), label: 'Previous Panel', click: dispatch('focusPrevious') },
+        { ...actionMeta('focusNextStarredTerminal'), label: 'Next Starred Terminal', click: dispatch('focusNextStarredTerminal') },
         { type: 'separator' },
         { ...actionMeta('previousWorkspace'), click: dispatch('previousWorkspace') },
         { ...actionMeta('nextWorkspace'), click: dispatch('nextWorkspace') },

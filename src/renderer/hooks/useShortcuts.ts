@@ -238,6 +238,11 @@ export function useShortcuts(windowCanvasStore?: StoreApi<CanvasStore>): void {
       // doesn't flicker between tools.
       if (action === 'toggleTool' && e.repeat) return
 
+      // Focus Next Starred Terminal (⌃⇧Space by default) intentionally works
+      // even while a terminal/editor/input is focused — it's the gesture for
+      // hopping between starred agent terminals without touching the mouse.
+      if (action === 'focusNextStarredTerminal' && e.repeat) return
+
       // Cmd+Arrow navigation / Shift+Arrow panning.
       if (NAVIGATE_ACTIONS.has(action) || PAN_ACTIONS.has(action)) {
         // Let an open overlay own the arrow keys.

@@ -43,8 +43,6 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { useOptionalCanvasStoreApi } from '../stores/CanvasStoreContext'
 import { WindowTypeContext } from '../stores/WindowTypeContext'
 import { runAction } from '../lib/runAction'
-import { getActivePanelId } from '../lib/activePanel'
-import { sortWorkspacePanels } from '../sidebar/sortWorkspacePanels'
 import { useWorkspacePanelTree } from '../lib/workspace/useWorkspacePanelTree'
 import { revealPanel } from '../lib/workspace/panelReveal'
 import { openFileAsPanel } from '../lib/fs/fileRouting'
@@ -214,7 +212,7 @@ export const CommandPalette: React.FC = () => {
           try { window.electronAPI?.trackFeatureUsed?.('onboarding_replayed') } catch { /* noop */ }
         },
       },
-      { id: 'focusNextStarredTerminal', title: 'Focus Next Starred Terminal', icon: <StarIcon />, action: () => focusNextStarredTerminal(selectedWorkspaceId) },
+      { id: 'focusNextStarredTerminal', title: 'Focus Next Starred Terminal', icon: <StarIcon />, action: run('focusNextStarredTerminal') },
       { id: 'previousWorkspace', title: shortcutTitle('previousWorkspace'), icon: <PreviousWorkspaceIcon />, action: run('previousWorkspace') },
       { id: 'nextWorkspace', title: shortcutTitle('nextWorkspace'), icon: <NextWorkspaceIcon />, action: run('nextWorkspace') },
       { id: 'reloadWorkspace', title: 'Reload Workspace from Disk', icon: <ReloadIcon />, action: run('reloadWorkspace') },
@@ -387,29 +385,6 @@ export const CommandPalette: React.FC = () => {
     (panelId: string) => { void revealPanel(selectedWorkspaceId, panelId, { retry: true }) },
     [selectedWorkspaceId],
   )
-
-  // Cycle to the next terminal in the workspace marked with a user star,
-  // starting after the currently active panel (wrapping). With no starred
-  // terminals this is a no-op; with exactly one it re-focuses it. Reads
-  // panel state at call time (not render time) so it can be referenced from
-  // `allCommands` before `orderedPanels` is derived below.
-  const focusNextStarredTerminal = useCallback((workspaceId: string) => {
-    const app = useAppStore.getState()
-    const ws = app.workspaces.find((w) => w.id === workspaceId)
-    if (!ws) return
-
-    // Rebuild the canonical overview order from the same primitives that
-    // useWorkspacePanelTree uses for its sorted list.
-    const sorted = sortWorkspacePanels(Object.values(ws.panels), ws.worktrees, ws.rootPath)
-
-    const starred = sorted.filter((p) => p.type === 'terminal' && p.starred)
-    if (starred.length === 0) return
-
-    const activeId = getActivePanelId()
-    const activeIndex = activeId ? starred.findIndex((p) => p.id === activeId) : -1
-    const next = starred[(activeIndex + 1) % starred.length]
-    void revealPanel(workspaceId, next.id, { retry: true })
-  }, [])
 
   const openFile = useCallback(
     (file: FileResult) => {
