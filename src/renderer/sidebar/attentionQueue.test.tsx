@@ -103,6 +103,7 @@ describe('sidebar attention queue', () => {
     expect(host.textContent).toContain('Needs attention')
     expect(host.textContent).toContain('Input')
     expect(host.textContent).toContain('Done')
+    expect(host.textContent).toContain('1 running · 1 input · 1 done')
     const labels = Array.from(host.querySelectorAll('[title$="waiting for input"], [title$="finished"]'))
       .map((element) => element.getAttribute('title'))
     expect(labels).toHaveLength(2)

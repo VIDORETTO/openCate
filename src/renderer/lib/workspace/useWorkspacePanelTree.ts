@@ -15,6 +15,7 @@ import { useShallow } from 'zustand/shallow'
 import type { PanelState } from '../../../shared/types'
 import { useAppStore } from '../../stores/appStore'
 import { useStatusStore } from '../../stores/statusStore'
+import { isWorktreePanelType } from '../../../shared/panels'
 import { terminalRegistry } from '../../lib/terminal/terminalRegistry'
 import { getOrCreateCanvasStoreForPanel } from '../../stores/canvasStore'
 import {
@@ -44,7 +45,8 @@ export interface WorkspacePanelTree {
   freePanels: PanelState[]
   /** User-parked panels kept alive but excluded from the normal overview. */
   stashedPanels: PanelState[]
-  /** Terminal panels whose agent needs attention, in overview order. */
+  /** Worktree-bound panels (terminal/agent) whose agent needs attention, in
+   *  overview order. Stashed panels are included because their PTY stays alive. */
   attentionQueue: Array<{ panel: PanelState; reason: 'waitingForInput' | 'finished' }>
   /** Flat list in the overview's render order, ghosts/detached excluded. */
   orderedPanels: PanelState[]
@@ -159,8 +161,12 @@ export function useWorkspacePanelTree(workspaceId: string): WorkspacePanelTree {
     if (terminal.agentState !== 'waitingForInput' && terminal.agentState !== 'finished') continue
     attentionByPanelId.set(terminalRegistry.panelIdForPty(key) ?? key, terminal.agentState)
   }
-  const attentionQueue = panelList.flatMap((panel) => {
-    const reason = panel.type === 'terminal' ? attentionByPanelId.get(panel.id) : undefined
+  const attentionQueue = [...panelList].flatMap((panel) => {
+    // Stashed panels keep their PTY alive but are parked separately by the
+    // partitioner; they still belong in the attention queue when actionable.
+    if (!panel.stashed && panel.type !== 'terminal') return []
+    if (panel.stashed && !isWorktreePanelType(panel.type)) return []
+    const reason = isWorktreePanelType(panel.type) ? attentionByPanelId.get(panel.id) : undefined
     return reason ? [{ panel, reason }] : []
   })
 

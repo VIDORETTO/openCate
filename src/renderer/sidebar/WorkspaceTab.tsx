@@ -34,6 +34,7 @@ import { Tooltip } from '../ui/Tooltip'
 import { useActiveChatWorktreeByPanel } from '../../cateAgent/renderer/cateAgentStore'
 import { ActivitySparkline } from '../canvas/ActivitySparkline'
 import { codingAgentDisplayName, type CodingAgentRun } from '../../shared/codingAgentRuns'
+import { buildWorkspaceDigest, formatWorkspaceDigest } from './workspaceDigest'
 
 // Stable empty map so the ports selector returns a referentially-constant value
 // when a workspace has no status entry (a fresh `{}` each render would defeat
@@ -366,6 +367,17 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
     }
     return { detachedCanvases: canvases, detachedChildrenByCanvas: childrenByCanvas, detachedTopLevel: topLevel, detachedCount: otherWindowPanels.length }
   }, [otherWindowPanels])
+
+  // Compact status digest: aggregates live local + stashed + detached terminal/
+  // agent signals into one derived summary line. No new state is created here.
+  const workspaceDigest = useMemo(() => buildWorkspaceDigest({
+    attentionQueue,
+    stashedPanels,
+    orderedPanels,
+    agentInfoByPanel,
+    detachedPanels: otherWindowPanels,
+  }), [attentionQueue, stashedPanels, orderedPanels, agentInfoByPanel, otherWindowPanels])
+  const workspaceDigestText = formatWorkspaceDigest(workspaceDigest)
 
   // worktrees ignored by useWorkspaceList's equality fn → workspace.worktrees
   // is stale. Subscribe directly so the per-row accent updates as worktrees
@@ -1101,6 +1113,11 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
       {/* Tree of canvases + panels (when expanded) */}
       {isExpanded && treeCount > 0 && (
         <div className="flex flex-col">
+          {workspaceDigestText && (
+            <div className="mx-1.5 my-0.5 flex h-6 items-center gap-1 pl-7 pr-2 text-[11px] text-muted opacity-70" data-testid="workspace-digest">
+              <span className="truncate">{workspaceDigestText}</span>
+            </div>
+          )}
           {canvasPanels.map((cp) => {
             const children = childrenByCanvas[cp.id] || []
             const collapsed = isCanvasCollapsed(cp.id)
