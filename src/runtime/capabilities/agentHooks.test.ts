@@ -422,7 +422,9 @@ describe('agentHooks capability', () => {
   test('prepareWorkspace never touches the user home dir or a non-absolute cwd', async () => {
     // ~/.codex and ~/.claude are the CLIs' USER-GLOBAL config dirs — writing
     // agent files there is exactly the policy isRepoLocalCwd enforces.
-    const home = os.homedir()
+    const home = tmpDir('fake-home')
+    const realHomedir = os.homedir()
+    const homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(home)
     expect(isRepoLocalCwd(home, home)).toBe(false)
     expect(isRepoLocalCwd(home + path.sep, home)).toBe(false) // trailing-slash spelling
     expect(isRepoLocalCwd('', home)).toBe(false)
@@ -441,6 +443,7 @@ describe('agentHooks capability', () => {
     const cwd = tmpDir('ws-guard')
     await cap.prepareWorkspace(cwd, forceOn)
     expect(existsSync(path.join(cwd, '.codex', 'hooks.json'))).toBe(true)
+    homedirSpy.mockRestore()
   })
 
   test('prepareWorkspace leaves other files in .pi/extensions alone and reclaims a drifted cate-hook.ts', async () => {
