@@ -190,6 +190,29 @@ describe('workspace.json + session.json round-trip', () => {
     expect(JSON.stringify(wsFile)).not.toContain(agentSession.sessionId)
   })
 
+  it('round-trips terminal star/tag/color metadata through session.json only', () => {
+    const { snapshot } = buildSnapshot()
+    const starred = true
+    const tags = ['work', 'experiment']
+    const accentColor = '#ff8800'
+    snapshot.panels!['term-1'] = { ...snapshot.panels!['term-1'], starred, tags, accentColor }
+
+    const wsText = JSON.stringify(buildWorkspaceFile(snapshot, ROOT, ''))
+    const sessFile = throughDisk(buildSessionFile(snapshot))
+    const restored = projectFilesToSnapshot(throughDisk(buildWorkspaceFile(snapshot, ROOT, '')), sessFile, ROOT)
+
+    // Metadata survives restore so the user's fleet organization persists.
+    expect(restored.panels!['term-1'].starred).toBe(starred)
+    expect(restored.panels!['term-1'].tags).toEqual(tags)
+    expect(restored.panels!['term-1'].accentColor).toBe(accentColor)
+
+    // It is machine-local: never in the committed workspace.json, only session.json.
+    expect(wsText).not.toContain('"starred"')
+    expect(wsText).not.toContain('work')
+    expect(wsText).not.toContain(accentColor)
+    expect(sessFile.panels['term-1']).toMatchObject({ starred, tags, accentColor })
+  })
+
   it('round-trips Cate-owned run metadata but never its one-shot launch', () => {
     const { snapshot } = buildSnapshot()
     const codingAgentRun = {
