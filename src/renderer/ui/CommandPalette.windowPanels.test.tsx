@@ -25,6 +25,8 @@ import { WindowTypeContext } from '../stores/WindowTypeContext'
 import { useUIStore } from '../stores/uiStore'
 import { useAppStore } from '../stores/appStore'
 import { useWindowPanelStore } from '../stores/windowPanelStore'
+import { getOrCreateWorkspaceDockStore } from '../lib/workspace/dockRegistry'
+import { createDefaultDockState } from '../stores/dockStore'
 import { recordRecentFile } from '../lib/fs/recentFiles'
 import type { CateWindowType, WindowPanelInfo } from '../../shared/types'
 
@@ -161,6 +163,51 @@ describe('CommandPalette in the main window', () => {
     renderPalette('main')
     expect(host.textContent).toContain('Toggle Sidebar')
     expect(host.textContent).toContain('Toggle File Explorer')
+  })
+
+  it('cycles focus to the next starred terminal via the palette command', () => {
+    useAppStore.setState({
+      workspaces: [{
+        id: 'ws-A',
+        name: 'Proj',
+        color: '',
+        rootPath: '/tmp/p',
+        panels: {
+          'star-1': { id: 'star-1', type: 'terminal', title: 'Starred One', isDirty: false, starred: true },
+          'star-2': { id: 'star-2', type: 'terminal', title: 'Starred Two', isDirty: false, starred: true },
+          'plain-1': { id: 'plain-1', type: 'terminal', title: 'Plain One', isDirty: false },
+        },
+      } as never],
+      selectedWorkspaceId: 'ws-A',
+    })
+
+    // Place both starred terminals in a real dock tab stack so revealPanel can
+    // resolve them (dock-first probe) and activate the target leaf.
+    getOrCreateWorkspaceDockStore('ws-A').getState().restoreSnapshot({
+      zones: {
+        ...createDefaultDockState(),
+        center: {
+          position: 'center',
+          visible: true,
+          size: 0,
+          layout: { type: 'tabs', id: 'stack-1', panelIds: ['star-1', 'star-2'], activeIndex: 0 },
+        },
+      },
+    })
+
+    renderPalette('main')
+
+    // First activation: active panel is null → focus the first starred terminal.
+    const commandRow = rowWithText('Focus Next Starred Terminal')
+    expect(commandRow).toBeTruthy()
+    act(() => { commandRow!.click() })
+
+    expect(useUIStore.getState().showCommandPalette).toBe(false)
+
+    const state = getOrCreateWorkspaceDockStore('ws-A').getState()
+    const stack = state.zones.center.layout && state.zones.center.layout.type === 'tabs' ? state.zones.center.layout : null
+    expect(stack).toBeTruthy()
+    expect(stack!.activeIndex).toBe(0)
   })
 })
 
