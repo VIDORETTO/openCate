@@ -368,11 +368,22 @@ export class RemoteRuntime implements Runtime {
   }
 
   async validatePathStrict(filePath: string, ownerWindowId?: number, scopeId?: string): Promise<string> {
-    return this.rpc.call(Methods.validatePathStrict, [filePath, ownerWindowId, scopeId]) as Promise<string>
+    // Match the leaf-op contract: a main-process caller that supplies no
+    // context operates at this runtime's own scope. An explicit context/scope
+    // still wins so workspace boundaries remain authoritative.
+    return this.rpc.call(Methods.validatePathStrict, [
+      filePath,
+      ownerWindowId,
+      scopeId ?? this.id,
+    ]) as Promise<string>
   }
 
   async validatePathForCreation(filePath: string, ownerWindowId?: number, scopeId?: string): Promise<string> {
-    return this.rpc.call(Methods.validatePathForCreation, [filePath, ownerWindowId, scopeId]) as Promise<string>
+    return this.rpc.call(Methods.validatePathForCreation, [
+      filePath,
+      ownerWindowId,
+      scopeId ?? this.id,
+    ]) as Promise<string>
   }
 
   validateCwd(cwd: string, ownerWindowId?: number, scopeId?: string): string {

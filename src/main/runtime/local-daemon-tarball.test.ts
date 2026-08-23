@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import { existsSync } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { RuntimeManager } from './runtimeManager'
@@ -27,8 +28,10 @@ describe.skipIf(!hasTarball)('local daemon from the real tarball', () => {
   let workspace: string
 
   beforeAll(async () => {
-    installRoot = await fs.mkdtemp(path.join(process.cwd(), 'cate-local-install-'))
-    workspace = await fs.realpath(await fs.mkdtemp(path.join(process.cwd(), 'cate-local-ws-')))
+    // Keep fixtures in the system temp dir: the daemon explicitly allows
+    // os.tmpdir(), and this also avoids leaving scratch dirs in the checkout.
+    installRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'cate-local-install-'))
+    workspace = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'cate-local-ws-')))
     await fs.writeFile(path.join(workspace, 'hello.ts'), 'export const x = 1\n')
   }, 60_000)
 
