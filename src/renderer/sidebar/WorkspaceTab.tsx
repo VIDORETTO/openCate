@@ -32,6 +32,7 @@ import { WorkspaceSkillsTree } from './WorkspaceSkillsTree'
 import { canvasKey, toggleCollapsed, useTreeCollapseStore } from './treeCollapse'
 import { Tooltip } from '../ui/Tooltip'
 import { useActiveChatWorktreeByPanel } from '../../cateAgent/renderer/cateAgentStore'
+import { ActivitySparkline } from '../canvas/ActivitySparkline'
 
 // Stable empty map so the ports selector returns a referentially-constant value
 // when a workspace has no status entry (a fresh `{}` each render would defeat
@@ -106,6 +107,8 @@ export interface TerminalPanelRowProps {
   agentState: AgentState | undefined
   agentLogo?: string | null
   hasPorts: boolean
+  /** Panel-local activity-history key. Omitted for rows owned by another window. */
+  activityHistoryId?: string
   worktreeColor?: string
   onClick: (e: React.MouseEvent) => void
   /** Middle-click closes the row (mirrors the dock tab behavior). */
@@ -121,7 +124,7 @@ export interface TerminalPanelRowProps {
 
 const AWAIT_COLOR = '#c08a5a'
 
-export const TerminalPanelRow: React.FC<TerminalPanelRowProps> = ({ panel, indent, agentState, agentLogo: agentLogoProp, hasPorts, worktreeColor, onClick, onClose, rename, titleHint, onContextMenu }) => {
+export const TerminalPanelRow: React.FC<TerminalPanelRowProps> = ({ panel, indent, agentState, agentLogo: agentLogoProp, hasPorts, activityHistoryId, worktreeColor, onClick, onClose, rename, titleHint, onContextMenu }) => {
   const Icon = PANEL_ICONS[panel.type] ?? TerminalIcon
   const label = panelRowLabel(panel)
 
@@ -197,6 +200,14 @@ export const TerminalPanelRow: React.FC<TerminalPanelRowProps> = ({ panel, inden
       ) : !isRunning && hasPorts ? (
         <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-muted opacity-50" />
       ) : null}
+      {panel.type === 'terminal' && !!activityHistoryId && !isRenaming && (
+        <ActivitySparkline
+          panelId={activityHistoryId}
+          height={9}
+          width={18}
+          style={{ opacity: 0.8 }}
+        />
+      )}
     </button>
   )
 }
@@ -782,6 +793,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
           indent={indent}
           agentState={info?.state}
           agentLogo={info?.logo}
+          activityHistoryId={p.id}
           hasPorts={(portsByPanel[p.id]?.length ?? 0) > 0}
           worktreeColor={worktreeColorFor(p.id)}
           onClick={(e) => handlePanelClick(e, p.id)}
@@ -841,6 +853,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
           agentState={info?.state}
           agentLogo={info?.logo}
           hasPorts={(portsByPanel[p.id]?.length ?? 0) > 0}
+          activityHistoryId={p.id}
           worktreeColor={worktreeColorFor(p.id)}
           onClick={(e) => handleStashedClick(e, p.id)}
           rename={{

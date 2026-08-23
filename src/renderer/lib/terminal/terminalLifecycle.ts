@@ -41,6 +41,7 @@ import { awaitWorkspaceSync, useAppStore } from '../../stores/appStore'
 import { replayTerminalLog } from '../workspace/session'
 import type { CodingAgentLaunch } from '../../../shared/codingAgentRuns'
 import { noteAgentInputSubmitted } from '../agent/agentScreenDetector'
+import { clearActivityHistory, noteTerminalActivity } from './activityHistory'
 
 interface CreateOpts {
   workspaceId: string
@@ -180,6 +181,7 @@ export function wireTerminalListeners(args: {
   const removeDataListener = electronAPI.onTerminalData((id: string, data: string) => {
     if (id === ptyId) {
       sawOutput = true
+      noteTerminalActivity(panelId, data.length)
       terminal.write(data)
     }
   })
@@ -614,6 +616,7 @@ export function terminate(panelId: string): void {
  * the registry.
  */
 export function dispose(panelId: string): void {
+  clearActivityHistory(panelId)
   const entry = registry.get(panelId)
   pendingTerminalStarts.delete(panelId)
   if (!entry) return

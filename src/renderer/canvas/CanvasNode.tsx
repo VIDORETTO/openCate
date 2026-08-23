@@ -17,6 +17,7 @@ import { useUIStore } from '../stores/uiStore'
 import { useDragStore, useDragSourceVisibility } from '../drag'
 import { useNodeResize } from '../hooks/useNodeResize'
 import { useCanvasNodeStyle } from './useCanvasNodeStyle'
+import { ActivitySparkline } from './ActivitySparkline'
 import { useCanvasNodeDrag } from './useCanvasNodeDrag'
 import { isSelected as isNodeSelected, isGroupDragMember } from '../stores/canvas/selectionModel'
 import { useNodeResizeCursor } from './useNodeResizeCursor'
@@ -697,6 +698,9 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
           onContextMenu={handleGrabStripContextMenu}
         >
           <div style={{ flex: 1, height: '100%' }} />
+          <div style={{ alignItems: 'center', display: 'flex', paddingRight: 8 }}>
+            <ActivitySparkline panelId={activePanel?.type === 'terminal' ? activePanel.id : undefined} />
+          </div>
           <div
             style={{
               display: 'flex',

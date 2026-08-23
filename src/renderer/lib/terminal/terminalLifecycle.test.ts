@@ -178,10 +178,12 @@ function fireExit(ptyId: string, code: number): void {
 
 let LC: typeof import('./terminalLifecycle')
 let RS: typeof import('./registryState')
+let AH: typeof import('./activityHistory')
 
 beforeAll(async () => {
   LC = await import('./terminalLifecycle')
   RS = await import('./registryState')
+  AH = await import('./activityHistory')
 })
 
 beforeEach(() => {
@@ -220,6 +222,7 @@ beforeEach(() => {
   onTerminalExit.mockImplementation(captureExitListener)
   statusRegisterTerminal.mockClear()
   statusUnregisterTerminal.mockClear()
+  AH.resetActivityHistoriesForTests()
   setPanelAgentSession.mockClear()
   replayTerminalLog.mockClear()
   replayTerminalLog.mockImplementation(async () => {})
@@ -258,6 +261,9 @@ describe('spawn → wire → dispose happy path', () => {
     expect(fake.writes).toContain('hello from pty')
     expect(fake.writes).not.toContain('not for us')
 
+    // The sparkline consumes the same routed PTY stream, keyed by panel id.
+    expect(AH.getActivitySnapshot('panel-happy').bytes).toEqual([14])
+
     // Dispose: kills the PTY, unregisters everywhere, removes the entry,
     // disposes the xterm exactly once, and removes the IPC data listener.
     LC.dispose('panel-happy')
@@ -278,6 +284,16 @@ describe('spawn → wire → dispose happy path', () => {
 
     expect(noteAgentInputSubmitted).toHaveBeenCalledWith('pty-input')
     expect(terminalWrite).toHaveBeenCalledWith('pty-input', '\r')
+  })
+
+  it('clears the activity history when the terminal is disposed', async () => {
+    terminalCreate.mockResolvedValueOnce('pty-dispose-history')
+    await LC.getOrCreate('panel-dispose-history', { workspaceId: 'ws-1' })
+    fireData('pty-dispose-history', 'activity')
+
+    expect(AH.getActivitySnapshot('panel-dispose-history').bytes).toEqual([8])
+    LC.dispose('panel-dispose-history')
+    expect(AH.getActivitySnapshot('panel-dispose-history').bytes).toEqual([])
   })
 
   it('returns the same in-flight entry for concurrent getOrCreate calls and spawns once', async () => {
