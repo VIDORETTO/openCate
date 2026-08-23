@@ -209,6 +209,60 @@ describe('CommandPalette in the main window', () => {
     expect(stack).toBeTruthy()
     expect(stack!.activeIndex).toBe(0)
   })
+
+  it('cycles focus through terminals sharing a tag via the @tag query', () => {
+    useAppStore.setState({
+      workspaces: [{
+        id: 'ws-A',
+        name: 'Proj',
+        color: '',
+        rootPath: '/tmp/p',
+        panels: {
+          'work-1': { id: 'work-1', type: 'terminal', title: 'Work One', isDirty: false, tags: ['work'] },
+          'work-2': { id: 'work-2', type: 'terminal', title: 'Work Two', isDirty: false, tags: ['work'] },
+          'other-1': { id: 'other-1', type: 'terminal', title: 'Other', isDirty: false, tags: ['misc'] },
+        },
+      } as never],
+      selectedWorkspaceId: 'ws-A',
+    })
+
+    getOrCreateWorkspaceDockStore('ws-A').getState().restoreSnapshot({
+      zones: {
+        ...createDefaultDockState(),
+        center: {
+          position: 'center',
+          visible: true,
+          size: 0,
+          layout: { type: 'tabs', id: 'stack-tag', panelIds: ['work-1', 'work-2', 'other-1'], activeIndex: 2 },
+        },
+      },
+    })
+
+    renderPalette('main')
+
+    // Type `@wor` — a prefix of the "work" tag — and expect the tag-cycle row.
+    const input = host.querySelector('input')
+    expect(input).toBeTruthy()
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+      setter.call(input, '@wor')
+      input!.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    const cycleRow = rowWithText("tagged 'wor'")
+    expect(cycleRow).toBeTruthy()
+    expect(host.textContent).toContain('Cycle through 2')
+
+    act(() => { cycleRow!.click() })
+    expect(useUIStore.getState().showCommandPalette).toBe(false)
+
+    // Active index was 2 ("other-1", untagged) → next tagged terminal wraps to
+    // index 0 ("work-1").
+    const state = getOrCreateWorkspaceDockStore('ws-A').getState()
+    const stack = state.zones.center.layout && state.zones.center.layout.type === 'tabs' ? state.zones.center.layout : null
+    expect(stack).toBeTruthy()
+    expect(stack!.activeIndex).toBe(0)
+  })
 })
 
 describe('CommandPalette in a detached window', () => {
