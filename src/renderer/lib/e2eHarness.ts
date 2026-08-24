@@ -79,6 +79,9 @@ declare global {
        *  → IPC → main process atomic write) and resolve when the file is on
        *  disk. */
       saveSessionNow(): Promise<void>
+      /** Detach a panel into its own window via the real movePanelToNewWindow
+       *  pipeline. Returns true when the window was created. */
+      detachPanel(panelId: string): Promise<boolean>
       /** Close every panel in the selected workspace (clears the canvas between
        *  perf scenarios so node counts/layout don't accumulate). */
       clearCanvas(): void
@@ -261,6 +264,13 @@ export function installE2EHarness(): void {
   const saveSessionNow = async (): Promise<void> => {
     const { saveSession } = await import('./workspace/session')
     await saveSession()
+  }
+
+  const detachPanel = (panelId: string): Promise<boolean> => {
+    const wsId = useAppStore.getState().selectedWorkspaceId
+    return import('./workspace/movePanelToNewWindow').then((m) =>
+      m.movePanelToNewWindow(wsId, panelId),
+    )
   }
 
   const clearCanvas = () => {
@@ -514,6 +524,7 @@ export function installE2EHarness(): void {
     moveNode,
     resizeNode,
     saveSessionNow,
+    detachPanel,
     clearCanvas,
     addWorkspace,
     selectWorkspace,
