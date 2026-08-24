@@ -1,0 +1,170 @@
+# Arquitetura — Modelo de Processos, IPC, Persistência e Segurança
+
+> Documento técnico para desenvolvedores. Descreve como o Cate funciona internamente, baseado na leitura do código-fonte (não no README). Última atualização: Fase 1 do backlog de produto.
+
+## Visão geral dos processos
+
+O Cate é um app Electron com **três camadas de processo**:
+
+```
+┌──────────────────────────────────────────────────────┐
+│  Renderer (por BrowserWindow)                        │
+│  React + Zustand + xterm.js + Monaco                 │
+│  • UI do canvas, docks, sidebars                     │
+│  • CanvasStore por painel (nodes/zoom/viewport)      │
+│  • Comunica via preload bridge (contextBridge)       │
+└────────────────────┬─────────────────────────────────┘
+                     │ IPC (invoke/handle + send/on)
+┌────────────────────▼─────────────────────────────────┐
+│  Main Process (Electron Node)                        │
+│  • Gerencia janelas, menus, diálogos nativos         │
+│  • RuntimeManager: conecta/dispatch para daemons     │
+│  • projectWorkspaceStore: persiste .cate/*.json      │
+│  • pathValidation: sandbox de filesystem             │
+│  • webSecurity: hardening de webviews                │
+└────────────────────┬─────────────────────────────────┘
+                     │ stdio JSON-LF RPC
+┌────────────────────▼─────────────────────────────────┐
+│  Runtime Daemon (Node standalone, cate-runtime)      │
+│  • PTYs via node-pty (lazy-loaded)                   │
+│  • File watcher (@parcel/watcher)                    │
+│  • Ripgrep content search                            │
+│  • Git operations                                    │
+│  • Agent hooks ingestion endpoint                    │
+│  Roda local OU remoto (SSH/WSL) — mesmo tarball      │
+└──────────────────────────────────────────────────────┘
+```
+
+### Por que um daemon separado?
+
+O daemon (`src/runtime/index.ts`) roda em Node standalone — sem Electron. Isso permite:
+
+- **Remoto**: o MESMO tarball roda num host SSH ou distro WSL; o main fala com ele via stdio pipes sobre a conexão.
+- **Isolamento**: crash do daemon não derruba a UI; PTYs morrem limpos quando o daemon sai (stdin close → killAll).
+- **ABI correto**: node-pty é compilado pro Node embutido no tarball, não pro ABI do Electron.
+
+## IPC — canais e contratos
+
+Canares declarados em `src/shared/ipc-channels.ts`. O preload expõe via `contextBridge` uma API tipada (`window.electronAPI`), nunca `ipcRenderer` cru.
+
+### Categorias principais
+
+| Categoria | Exemplos de canal | Direção |
+|---|---|---|
+| Terminal | `TERMINAL_CREATE/WRITE/RESIZE/KILL/DATA/EXIT` | bidirecional |
+| Filesystem | `FS_READ_FILE/WRITE_FILE/READ_DIR/WATCH_*` | invoke |
+| Git | `GIT_IS_REPO/STATUS/DIFF/COMMIT...` | invoke |
+| Search | `SEARCH_START/CANCEL` → `SEARCH_RESULT/DONE` | stream |
+| Project state | `PROJECT_STATE_SAVE/LOAD` | invoke |
+| Session flush | `SESSION_FLUSH_SAVE` / `SESSION_FLUSH_SAVE_DONE` | quit-time sync |
+| Runtime | `RUNTIME_CONNECT/STATUS/INSTALL/DELETE` | invoke + broadcast |
+| Window panels | cross-window panel union | broadcast |
+
+### Handlers registrados UMA vez no boot
+
+`src/main/index.ts` registra todos os handlers no startup — não por janela. Handlers que dependem do sender (ex: busca por window id) recebem `event` e usam `event.sender.id` como chave.
+
+### Preload bridge
+
+`src/preload/index.ts` monta um objeto grande com métodos `makeInvoker<T>(CHANNEL)` — wrappers type-safe de `ipcRenderer.invoke`. Eventos push (PTY data, runtime status) usam `ipcRenderer.on` com cleanup automático.
+
+**Segurança**: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true` (desativável só para dev com flag). Ver `src/main/windows/windowFactory.ts`.
+
+## Persistência
+
+### `.cate/workspace.json` (compartilhável, commitável)
+
+Contém estado "de projeto": nome, cor do workspace, dockState (árvore de zonas/splits), painéis (tipo/título/filePath), e **geometria de canvas** sob `canvases.<canvasPanelId>.canvasNodes.<nodeId>` (origin, size, zOrder).
+
+### `.cate/session.json` (machine-local, gitignored)
+
+Fatos que NÃO devem ser commitados: worktree tag por terminal, working directory live, conteúdo unsaved de scratch, sessões CLI retomáveis, starred/tags/cor por terminal, stashed panels, worktrees registry.
+
+### Ciclo de gravação
+
+1. **Autosave** (`sessionAutosave.ts`): debounce ~30s + trailing. Qualquer mudança relevante marca dirty e agenda save.
+2. **Flush on quit**: main envia `SESSION_FLUSH_SAVE`; renderer responde com `SESSION_FLUSH_SAVE_DONE` após gravar. Se restore em progresso, ACK sem salvar (evita persistir meio-hydrate).
+3. **IPC**: renderer chama `projectStateSave(rootPath, wsFile, sessFile)` — fire-and-forget com promise.
+4. **Main** (`projectWorkspaceStore.ts`):
+   - Adquire project lock (`workspace.lock` com pid) se nenhuma outra instância segura;
+   - Guarda lastSavedProjectStates para detectar external edits;
+   - `atomicWriteWithBak(sessionPath, ...)` sempre (machine-local, nunca hand-edited);
+   - Para workspace.json: checa external edit → prompt reload; checa empty-overwrite (issue #220 guard) antes de escrever.
+
+### Backup e recuperação
+
+Antes de cada write, copia o arquivo atual pra `.bak`. Na leitura, se o primary estiver corrupto, cai pro `.bak` (prefer-richer load). Orphan tmp files são limpos.
+
+### Multi-instância
+
+Lock file `.cate/workspace.lock` contém `{pid}`. Outro Cate que encontra lock vivo pula o autosave desse root. Crash → pid morto → lock reclaimado automaticamente.
+
+## Segurança
+
+### Sandbox de filesystem
+
+`src/main/ipc/pathValidation.ts` mantém um Map de **allowed roots** (workspaces abertos + temp dir). Toda operação fs valida:
+
+1. Path resolve pra dentro de algum allowed root (com case-insensitive no Windows, symlink-aware via realpathSync.native);
+2. Symlinks são rejeitados em operações write/remove (anti-symlink attack);
+3. Grants persistentes por janela para arquivos escolhidos via dialog nativo;
+4. Write allowances temporários (60s TTL) para operações one-shot.
+
+O daemon repete a validação no seu lado — autoridade final, pois só ele pode realpath seu próprio filesystem.
+
+### Webviews (browser panel)
+
+`src/main/webSecurity.ts` instala handlers globais:
+
+- `will-navigate`: bloqueia navegação fora de allowlist (app windows vs guest sessions têm regras distintas);
+- `will-attach-webview`: força preload canônico (nunca confia no path do renderer), `nodeIntegration:false`, `contextIsolation:true`, `sandbox:true`;
+- `setWindowOpenHandler`: deny por padrão; popups OAuth rastreados via registry;
+- Guest sessions isoladas por partition.
+
+### Agent hooks
+
+Hooks de CLI agents (Codex/Claude/Gemini/etc.) reportam eventos ao daemon via HTTP loopback:
+
+- Daemon materializa hooks dir estável em `~/.cate/agent-hooks`;
+- Cada PTY recebe env com endpoint URL + bearer token HMAC-SHA256(ptyId, per-boot secret);
+- Posts autenticados por token; token derivado por terminal (não global).
+
+Ver `src/runtime/capabilities/agentHooks.ts`.
+
+### Secrets
+
+Passphrases SSH criptografadas via Electron safeStorage (`sshSecretStore.ts`). Nunca plaintext em disco. Outros secrets (tokens de provider) ficam no keychain do OS via authManager do pi.
+
+### Content Security Policy
+
+Renderer carrega apenas assets locais (file:// ou dev server). CSP restritiva definida no index.html.
+
+## Limites conhecidos
+
+Documentados honestamente (não são bugs, são tradeoffs):
+
+1. **Windows**: `postinstall` agora usa Node (cross-platform), mas CI macOS ainda depende de bash scripts para codesign/notarize — específico de plataforma, não afeta devs Windows.
+2. **Remote musl**: runtime tarball shipa glibc prebuilds de node-pty; hosts Alpine precisam de suporte adicional (erro explícito, não fallback silencioso).
+3. **Scrollback**: serializado por terminal em session.json; limites de memória dependem da setting do usuário (padrão 1000 linhas).
+4. **Multi-canvas perf**: cada canvas tem store próprio; muitos canvases simultâneos = muitas subscrições reativas (mitigado por virtualização DOM, mas ainda é custo linear).
+5. **Daemon restart**: PTYs morrem com o daemon. Reconexão restaura scrollback mas não revive processos interativos (limitação fundamental de PTY-over-pipe).
+
+## Referências rápidas
+
+| Módulo | Caminho |
+|---|---|
+| Boot main | `src/main/index.ts` |
+| Window factory | `src/main/windows/windowFactory.ts` |
+| Preload bridge | `src/preload/index.ts` |
+| IPC channels | `src/shared/ipc-channels.ts` |
+| Runtime manager | `src/main/runtime/runtimeManager.ts` |
+| Local transport | `src/main/runtime/transports/localTransport.ts` |
+| Daemon entry | `src/runtime/index.ts` |
+| Capabilities | `src/runtime/capabilities/` |
+| PTY wrapper | `src/runtime/capabilities/process.ts` |
+| File watcher | `src/runtime/capabilities/fileWatcher.ts` |
+| Agent hooks | `src/runtime/capabilities/agentHooks.ts` |
+| Path validation | `src/main/ipc/pathValidation.ts` |
+| Project state | `src/main/projectWorkspaceStore.ts` |
+| Session autosave | `src/renderer/lib/workspace/sessionAutosave.ts` |
+| E2E harness | `src/renderer/lib/e2eHarness.ts` |
