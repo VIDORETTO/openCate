@@ -39,6 +39,9 @@ export type AgentId =
   | 'grok'
   | 'opencode'
   | 'pi'
+  | 'gemini'
+  | 'copilot'
+  | 'aider'
 
 /** Every agent integration Cate exposes. External CLIs are AgentId; Cate's
  * embedded agent participates in shared integrations such as skills without
@@ -203,6 +206,46 @@ export const AGENTS: readonly AgentDef[] = [
     // `.agents/skills` is the cross-tool shared location pi (and others) read,
     // so pi's target id is 'pi-native' rather than the dir-derived name.
     skills: folderSkills('pi-native', ['.agents', 'skills'], { label: 'Pi' }),
+  },
+  // Gemini CLI reads project skills from .gemini/skills and also honors the
+  // shared .agents/skills location. Cate installs only to Gemini's own dir so
+  // it never writes another tool's home.
+  {
+    id: 'gemini',
+    displayName: 'Gemini CLI',
+    command: 'gemini',
+    codingAgentArgs: (prompt) => ['--prompt', prompt],
+    codingAgentFollowUp: true,
+    matchProcess: (n) => n === 'gemini',
+    // UUID, numeric index, or no argument for the latest session.
+    resumeArgs: (sid) => ['--resume', sid],
+    skills: folderSkills('gemini', ['.gemini', 'skills']),
+  },
+  // GitHub Copilot CLI reads .github/skills plus compatibility dirs owned by
+  // other agents; install to its repository-owned integration root only.
+  {
+    id: 'copilot',
+    displayName: 'Copilot CLI',
+    command: 'copilot',
+    codingAgentArgs: (prompt) => ['--prompt', prompt],
+    codingAgentFollowUp: true,
+    matchProcess: (n) => n === 'copilot',
+    resumeArgs: (sid) => ['--resume', sid],
+    skills: folderSkills('copilot', ['.github', 'skills']),
+  },
+  // Aider has neither Agent Skills nor an event/hook system. It does support a
+  // one-shot `--message` invocation, so it can still be driven as a mission;
+  // its TUI remains follow-up-capable on the same PTY.
+  {
+    id: 'aider',
+    displayName: 'Aider',
+    command: 'aider',
+    codingAgentArgs: (prompt) => ['--message', prompt],
+    codingAgentFollowUp: true,
+    matchProcess: (n) => n === 'aider',
+    // Only --restore-chat-history exists: there is no stable session id.
+    resumeArgs: null,
+    skills: null,
   },
 ]
 

@@ -826,6 +826,146 @@ const opencodeSpec: AgentHookSpec = {
 }
 
 // ---------------------------------------------------------------------------
+// gemini — hooks ride in the project-scoped .gemini/settings.json under the
+// standard {hooks: {<Event>: [groups]}} shape. That file is SHARED with
+// Gemini's own settings, so Cate merges only its marked groups (the same rule
+// as claude/codex). The bridge command must be stable because Gemini fingerprints
+// project hook files. Payloads are Claude-shaped JSON on stdin.
+//
+// Event mapping follows Gemini's reference: SessionStart(source startup|resume|
+// clear), BeforeAgent after prompt submission, AfterTool after each executed
+// tool, AfterAgent once after the final response, Notification with
+// notification_type ToolPermission while approval is parked, and SessionEnd on
+// exit/clear/logout/prompt_input_exit/other. BeforeTool/BeforeModel fire before
+// every operation and would over-report state, so they stay uninjected.
+// No interrupt event is documented; the gap is left open rather than guessed.
+// ---------------------------------------------------------------------------
+
+const GEMINI_EVENTS = ['SessionStart', 'BeforeAgent', 'Notification', 'AfterTool', 'AfterAgent', 'SessionEnd']
+
+const GEMINI_HOOK_TIMEOUT = 60_000
+
+const geminiSpec: AgentHookSpec = {
+  // The docs expose no interrupt-specific event. Do not synthesize a turn-end
+  // from an unrelated signal, and do not claim a transcript marker we have not
+  // verified against a real interrupted Gemini session.
+  reportsTurnEndOnInterrupt: false,
+  projectFiles: [
+    {
+      relPath: '.gemini/settings.json',
+      build: (existing, ctx) =>
+        mergeSharedHooksFile(existing, GEMINI_EVENTS, () => ({
+          hooks: [{ type: 'command', command: ctx.bridgeCommand, timeout: GEMINI_HOOK_TIMEOUT }],
+        })),
+      strip: (existing) => stripSharedHooksFile(existing, GEMINI_EVENTS),
+    },
+  ],
+  normalize: (p) => {
+    const base = {
+      sessionId: str(p.session_id),
+      cwd: str(p.cwd) ?? undefined,
+      transcriptPath: str(p.transcript_path) ?? undefined,
+    }
+    switch (p.hook_event_name) {
+      case 'SessionStart': return { kind: 'session-start', ...base }
+      case 'BeforeAgent': return { kind: 'turn-start', ...base }
+      case 'AfterTool': return { kind: 'turn-resume', ...base }
+      case 'AfterAgent': return { kind: 'turn-end', ...base }
+      case 'SessionEnd': return { kind: 'session-end', ...base }
+      case 'Notification':
+        return p.notification_type === 'ToolPermission' ? { kind: 'permission-wait', ...base } : null
+      default: return null
+    }
+  },
+}
+
+// ---------------------------------------------------------------------------
+// copilot — repository-level hooks load every *.json from
+// <project>/.github/hooks/. Cate owns cate-hook.json outright, so a user's own
+// files in that directory remain untouched. Configuring the event keys in
+// PascalCase selects the documented VS Code-compatible payload shape:
+// hook_event_name plus snake_case session_id/cwd/transcript_path fields.
+// transcript_path is not promised on every lifecycle event; it stays optional.
+//
+// userPromptSubmitted -> turn-start, postToolUse -> turn-resume,
+// agentStop -> turn-end, permissionRequest -> permission-wait and sessionEnd ->
+// session-end. SessionStart carries identity but does not itself prove that a
+// turn ended. No interrupt-specific event is documented; abort may surface in
+// a later sessionEnd payload, but that contract is left open until pinned live.
+// ---------------------------------------------------------------------------
+
+const COPILOT_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PermissionRequest', 'PostToolUse', 'Stop', 'SessionEnd']
+
+interface CopilotHooksJson {
+  version?: unknown
+  hooks?: Record<string, Array<{ type?: unknown; command?: unknown }>>
+  [k: string]: unknown
+}
+
+const COPILOT_HOOK_TIMEOUT_SEC = 30
+
+function mergeCopilotHooksFile(existing: string | null, bridgeCommand: string): string | null {
+  const ours = (): CopilotHooksJson => ({
+    version: 1,
+    hooks: Object.fromEntries(COPILOT_EVENTS.map((event) => [
+      event,
+      [{ type: 'command', command: bridgeCommand, timeoutSec: COPILOT_HOOK_TIMEOUT_SEC }],
+    ])),
+  })
+  if (existing === null) return JSON.stringify(ours(), null, 2) + '\n'
+  let parsed: CopilotHooksJson
+  try {
+    parsed = JSON.parse(existing) as CopilotHooksJson
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null
+  } catch {
+    return null
+  }
+  // Cate owns this file by marker. Preserve any foreign fields, replace our
+  // generated map wholesale, and leave unparseable drift for explicit review.
+  if (!JSON.stringify(parsed).includes(CATE_HOOK_MARKER)) return null
+  const out = JSON.stringify({ ...parsed, ...ours() }, null, 2) + '\n'
+  return out === existing ? null : out
+}
+
+const copilotSpec: AgentHookSpec = {
+  reportsTurnEndOnInterrupt: false,
+  projectFiles: [
+    {
+      relPath: `.github/hooks/${CATE_HOOK_MARKER}.json`,
+      build: (existing, ctx) => mergeCopilotHooksFile(existing, ctx.bridgeCommand),
+      strip: (existing) => (existing.includes(CATE_HOOK_MARKER) ? { delete: true } : null),
+    },
+  ],
+  normalize: (p) => {
+    const base = {
+      sessionId: str(p.session_id),
+      cwd: str(p.cwd) ?? undefined,
+      // Present on Stop in the documented VS Code-compatible payloads; absent
+      // elsewhere is accepted degradation rather than invented state.
+      transcriptPath: str(p.transcript_path) ?? undefined,
+    }
+    switch (p.hook_event_name) {
+      case 'SessionStart': return { kind: 'session-start', ...base }
+      case 'UserPromptSubmit': return { kind: 'turn-start', ...base }
+      case 'PostToolUse': return { kind: 'turn-resume', ...base }
+      case 'Stop': return { kind: 'turn-end', ...base }
+      case 'SessionEnd': return { kind: 'session-end', ...base }
+      case 'PermissionRequest': return { kind: 'permission-wait', ...base }
+      default: return null
+    }
+  },
+}
+
+// aider — Aider has no hooks, plugins or Agent Skills system. It is registered
+// so process detection, mission launching and its explicit resume limitation
+// remain first-class decisions in one canonical registry. The empty hook spec
+// is therefore a deliberate, tested omission rather than missing wiring.
+const aiderSpec: AgentHookSpec = {
+  reportsTurnEndOnInterrupt: false,
+  normalize: () => null,
+}
+
+// ---------------------------------------------------------------------------
 // Registry + normalization entry point
 // ---------------------------------------------------------------------------
 
@@ -836,6 +976,9 @@ export const AGENT_HOOK_SPECS: Record<AgentId, AgentHookSpec> = {
   grok: grokSpec,
   pi: piSpec,
   opencode: opencodeSpec,
+  gemini: geminiSpec,
+  copilot: copilotSpec,
+  aider: aiderSpec,
 }
 
 /** Normalize one raw bridge-posted payload into the shared event, or null when

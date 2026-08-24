@@ -337,13 +337,13 @@ describe('agentHooks capability', () => {
     expect(posts).toEqual([{ terminalId: 'rpty-guard', agentId: 'grok', pid: process.pid }])
   })
 
-  test('prepareWorkspace writes the claude + codex + cursor + grok + pi hook files and git-excludes them', async () => {
+  test('prepareWorkspace writes every file-backed agent hook and git-excludes it', async () => {
     const cap = makeCap()
     const cwd = tmpDir('ws')
     mkdirSync(path.join(cwd, '.git')) // enough of a repo for info/exclude
     // 'auto' (the default) injects only where the agent's config folder already
-    // exists — seed all five so this covers every file writer.
-    for (const id of ['claude-code', 'codex', 'cursor', 'grok', 'pi'] as const) {
+    // exists — seed all file-backed agents so this covers every writer.
+    for (const id of ['claude-code', 'codex', 'cursor', 'grok', 'pi', 'gemini', 'copilot'] as const) {
       mkdirSync(path.join(cwd, agentHookFolder(id)!))
     }
 
@@ -404,12 +404,36 @@ describe('agentHooks capability', () => {
     const piExt = readFileSync(path.join(cwd, '.pi', 'extensions', 'cate-hook.ts'), 'utf-8')
     expect(piExt).toContain('CATE_HOOK_ENDPOINT')
 
+    // Gemini shares settings.json with its own configuration — our marked
+    // groups must arrive through a merge rather than a clobber.
+    const geminiSettings = JSON.parse(readFileSync(path.join(cwd, '.gemini', 'settings.json'), 'utf-8')) as {
+      hooks: Record<string, unknown>
+    }
+    expect(Object.keys(geminiSettings.hooks)).toContain('BeforeAgent')
+    expect(Object.keys(geminiSettings.hooks)).toContain('AfterAgent')
+
+    // Copilot loads repository-level *.json files from .github/hooks; Cate owns
+    // exactly one file there and leaves user-owned siblings untouched.
+    const copilotHooks = JSON.parse(readFileSync(path.join(cwd, '.github', 'hooks', 'cate-hook.json'), 'utf-8')) as {
+      hooks: Record<string, Array<{ command: string; timeoutSec: number }>>
+    }
+    expect(Object.keys(copilotHooks.hooks)).toContain('PermissionRequest')
+    expect(copilotHooks.hooks.SessionStart[0]).toMatchObject({
+      command: bridgeHookCommand(
+        path.join(dir, posix ? 'cate-hook-bridge-copilot' : 'cate-hook-bridge-copilot.cmd'),
+        process.platform,
+      ),
+      timeoutSec: 30,
+    })
+
     const exclude = readFileSync(path.join(cwd, '.git', 'info', 'exclude'), 'utf-8')
     expect(exclude).toContain('/.claude/settings.local.json')
     expect(exclude).toContain('/.codex/hooks.json')
     expect(exclude).toContain('/.cursor/hooks.json')
     expect(exclude).toContain('/.grok/hooks/cate-hook.json')
     expect(exclude).toContain('/.pi/extensions/cate-hook.ts')
+    expect(exclude).toContain('/.gemini/settings.json')
+    expect(exclude).toContain('/.github/hooks/cate-hook.json')
 
     // Idempotent: a second prepare does not duplicate exclude lines.
     await cap.prepareWorkspace(cwd)
@@ -479,6 +503,8 @@ describe('agentHooks capability', () => {
     expect(existsSync(path.join(cwd2, '.codex'))).toBe(false)
     expect(existsSync(path.join(cwd2, '.cursor'))).toBe(false)
     expect(existsSync(path.join(cwd2, '.pi'))).toBe(false)
+    expect(existsSync(path.join(cwd2, '.gemini'))).toBe(false)
+    expect(existsSync(path.join(cwd2, '.github'))).toBe(false)
   })
 
   test('auto injects only agents whose config folder already exists', async () => {
@@ -604,6 +630,8 @@ describe('agentHooks capability', () => {
     expect(byId.pi).toMatchObject({ folderPresent: false, injected: false })
     // opencode injects a repo file like every other agent.
     expect(byId.opencode).toMatchObject({ folderPresent: false, injected: false })
+    expect(byId.gemini).toMatchObject({ folderPresent: false, injected: false })
+    expect(byId.copilot).toMatchObject({ folderPresent: false, injected: false })
     // Every agent carries a display name for the UI.
     expect(states.every((s) => s.displayName.length > 0)).toBe(true)
   })

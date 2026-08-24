@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { normalizeAgentHookPayload } from '../../../shared/agentHooks'
 import { AGENTS, type AgentId } from '../../../shared/agents'
+import { AGENT_HOOK_SPECS } from '../../../shared/agentHooks'
 import {
   noteAgentHookEvent,
   noteAgentInputSubmitted,
@@ -68,6 +69,18 @@ const fixtures: AgentLifecycleFixture[] = [
     turnStart: { type: 'session.status', sessionID: SESSION, status: { type: 'busy' } },
     turnEnd: { type: 'session.idle', sessionID: SESSION },
   },
+  {
+    agentId: 'gemini',
+    sessionStart: { hook_event_name: 'SessionStart', session_id: SESSION, cwd: '/workspace' },
+    turnStart: { hook_event_name: 'BeforeAgent', session_id: SESSION, cwd: '/workspace' },
+    turnEnd: { hook_event_name: 'AfterAgent', session_id: SESSION, cwd: '/workspace' },
+  },
+  {
+    agentId: 'copilot',
+    sessionStart: { hook_event_name: 'SessionStart', session_id: SESSION, cwd: '/workspace' },
+    turnStart: { hook_event_name: 'UserPromptSubmit', session_id: SESSION, cwd: '/workspace' },
+    turnEnd: { hook_event_name: 'Stop', session_id: SESSION, cwd: '/workspace' },
+  },
 ]
 
 const permissionFixtures: PermissionFixture[] = [
@@ -104,6 +117,25 @@ const permissionFixtures: PermissionFixture[] = [
     turnStart: { type: 'session.status', sessionID: SESSION, status: { type: 'busy' } },
     permissionWait: { type: 'permission.asked', sessionID: SESSION },
   },
+  {
+    agentId: 'gemini',
+    turnStart: { hook_event_name: 'BeforeAgent', session_id: SESSION, cwd: '/workspace' },
+    permissionWait: {
+      hook_event_name: 'Notification',
+      notification_type: 'ToolPermission',
+      session_id: SESSION,
+      cwd: '/workspace',
+    },
+  },
+  {
+    agentId: 'copilot',
+    turnStart: { hook_event_name: 'UserPromptSubmit', session_id: SESSION, cwd: '/workspace' },
+    permissionWait: {
+      hook_event_name: 'PermissionRequest',
+      session_id: SESSION,
+      cwd: '/workspace',
+    },
+  },
 ]
 
 function state(): string | undefined {
@@ -134,7 +166,14 @@ describe('coding-agent hook status integration', () => {
   })
 
   it('covers every registered coding-agent CLI', () => {
-    expect(fixtures.map((fixture) => fixture.agentId).sort()).toEqual(AGENTS.map((agent) => agent.id).sort())
+    // Aider deliberately has no hook channel, so it cannot have a lifecycle
+    // fixture; every file-backed agent must have one.
+    const hookable = new Set(
+      AGENTS.filter((agent) => AGENT_HOOK_SPECS[agent.id].projectFiles?.length).map((agent) => agent.id),
+    )
+    expect(fixtures.map((fixture) => fixture.agentId).sort()).toEqual([...hookable].sort())
+    expect(AGENTS.find((agent) => agent.id === 'aider')).toBeTruthy()
+    expect(normalizeAgentHookPayload('aider', PTY, {})).toBeNull()
   })
 
   it.each(fixtures)('$agentId remains stable across consecutive turns', ({

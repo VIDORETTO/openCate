@@ -12,6 +12,9 @@ import cursorLogo from '../../assets/agentLogos/cursor.svg?url'
 import grokLogo from '../../assets/agentLogos/grok.svg?url'
 import opencodeLogo from '../../assets/agentLogos/opencode.svg?url'
 import piLogo from '../../assets/agentLogos/pi.svg?url'
+import geminiLogo from '../../assets/agentLogos/gemini.svg?url'
+import copilotLogo from '../../assets/agentLogos/copilot.svg?url'
+import aiderLogo from '../../assets/agentLogos/aider.svg?url'
 
 const LOGO_BY_ID: Partial<Record<AgentId, string>> = {
   'claude-code': claudeLogo,
@@ -20,6 +23,9 @@ const LOGO_BY_ID: Partial<Record<AgentId, string>> = {
   grok: grokLogo,
   opencode: opencodeLogo,
   pi: piLogo,
+  gemini: geminiLogo,
+  copilot: copilotLogo,
+  aider: aiderLogo,
 }
 
 // displayName → logo, derived from the shared list so the names never drift.

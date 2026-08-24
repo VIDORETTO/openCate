@@ -56,6 +56,12 @@ const RESUMABLE_FROM_SESSION_START: Record<AgentId, boolean> = {
   grok: true,
   pi: true,
   opencode: true,
+  // Both CLIs fire their SessionStart hook again on resume, and the id is
+  // already tied to persisted session state at that point.
+  gemini: true,
+  copilot: true,
+  // No hook stream / session id: never stamp what cannot be resumed exactly.
+  aider: false,
 }
 
 interface StampState {

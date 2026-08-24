@@ -23,6 +23,9 @@ describe('codingAgentCommand', () => {
       { id: 'grok', command: { executable: 'grok', args: [prefixed] }, followUp: true },
       { id: 'opencode', command: { executable: 'opencode', args: ['--prompt', prefixed] }, followUp: true },
       { id: 'pi', command: { executable: 'pi', args: [prefixed] }, followUp: true },
+      { id: 'gemini', command: { executable: 'gemini', args: ['--prompt', prefixed] }, followUp: true },
+      { id: 'copilot', command: { executable: 'copilot', args: ['--prompt', prefixed] }, followUp: true },
+      { id: 'aider', command: { executable: 'aider', args: ['--message', prefixed] }, followUp: true },
     ])
   })
 

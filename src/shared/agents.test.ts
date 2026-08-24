@@ -41,6 +41,13 @@ describe('resumeCommandForAgent', () => {
     expect(resumeCommandForAgent('grok', uuid)).toBe(`grok --resume ${uuid}`)
     expect(resumeCommandForAgent('pi', uuid)).toBe(`pi --session ${uuid}`)
     expect(resumeCommandForAgent('opencode', 'ses_abc123')).toBe('opencode --session ses_abc123')
+    expect(resumeCommandForAgent('gemini', uuid)).toBe(`gemini --resume ${uuid}`)
+    expect(resumeCommandForAgent('copilot', uuid)).toBe(`copilot --resume ${uuid}`)
+  })
+
+  it('returns null for Aider because its history restore has no session id', () => {
+    const uuid = '11111111-1111-4111-8111-111111111111'
+    expect(resumeCommandForAgent('aider', uuid)).toBeNull()
   })
 
   it('returns null for unknown agent ids', () => {

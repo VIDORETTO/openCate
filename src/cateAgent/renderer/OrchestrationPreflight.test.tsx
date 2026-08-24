@@ -43,10 +43,10 @@ describe('OrchestrationPreflight', () => {
       root.render(<TestPreflight active />)
     })
 
-    expect(document.body.textContent).toContain('0/6 ready')
+    expect(document.body.textContent).toContain('0/9 ready')
     const list = document.body.querySelector<HTMLElement>('[data-agent-preflight-list]')!
-    expect(list.children).toHaveLength(6)
-    expect(list.querySelectorAll('img')).toHaveLength(6)
+    expect(list.children).toHaveLength(9)
+    expect(list.querySelectorAll('img')).toHaveLength(9)
     expect(list.className).not.toContain('grid-cols-2')
     const codex = document.body.querySelector<HTMLElement>('[data-agent-preflight-id="codex"]')!
     expect(codex.className).toContain('h-6')
@@ -56,7 +56,7 @@ describe('OrchestrationPreflight', () => {
     act(() => enable.click())
 
     expect(useSettingsStore.getState().agentHookInjection.ws?.codex).toBe('on')
-    expect(document.body.textContent).toContain('1/6 ready')
+    expect(document.body.textContent).toContain('1/9 ready')
     expect(settingsSet).toHaveBeenCalledWith('agentHookInjection', expect.any(Object))
   })
 

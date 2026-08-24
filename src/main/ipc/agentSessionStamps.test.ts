@@ -97,9 +97,17 @@ describe('claude resumability gating', () => {
 })
 
 describe('agents whose first sessionId-bearing event is already persisted', () => {
-  it.each(['codex', 'cursor', 'pi', 'opencode'] as const)('%s stamps on session-start', (agentId) => {
-    ingestAgentSessionStamp(runtime, ev(tid, agentId, 'session-start', 'id-1', '/w'))
-    expect(stamps(tid)).toEqual([{ agentId, sessionId: 'id-1', cwd: '/w' }])
+  it.each(['codex', 'cursor', 'pi', 'opencode', 'gemini', 'copilot'] as const)(
+    '%s stamps on session-start',
+    (agentId) => {
+      ingestAgentSessionStamp(runtime, ev(tid, agentId, 'session-start', 'id-1', '/w'))
+      expect(stamps(tid)).toEqual([{ agentId, sessionId: 'id-1', cwd: '/w' }])
+    },
+  )
+
+  it('does not stamp Aider session-start: its restore flag has no id', () => {
+    ingestAgentSessionStamp(runtime, ev(tid, 'aider', 'session-start', 'id-1', '/w'))
+    expect(stamps(tid)).toEqual([])
   })
 
   it('session-end without a follow-up clears the stamp', () => {

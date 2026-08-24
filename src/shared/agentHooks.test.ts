@@ -499,6 +499,138 @@ describe('opencode spec', () => {
   })
 })
 
+describe('gemini spec', () => {
+  const spec = AGENT_HOOK_SPECS.gemini
+  const file = spec.projectFiles![0]
+  const base = {
+    session_id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+    transcript_path: '/home/u/.gemini/tmp/hash/chats/session.json',
+    cwd: '/w',
+  }
+
+  test('merges the bridge into shared .gemini/settings.json on six tracked events', () => {
+    expect(file.relPath).toBe('.gemini/settings.json')
+    const parsed = JSON.parse(file.build(null, ctx)!) as {
+      hooks: Record<string, Array<{ hooks: Array<{ type: string; command: string; timeout: number }> }>>
+    }
+    expect(Object.keys(parsed.hooks).sort()).toEqual(
+      ['AfterAgent', 'AfterTool', 'BeforeAgent', 'Notification', 'SessionEnd', 'SessionStart'].sort(),
+    )
+    for (const groups of Object.values(parsed.hooks)) {
+      expect(groups[0].hooks[0]).toEqual({ type: 'command', command: ctx.bridgeCommand, timeout: 60_000 })
+    }
+
+    const existing = JSON.stringify({
+      theme: 'auto',
+      hooks: { Stop: [{ hooks: [{ type: 'command', command: '/home/u/mine.sh' }] }] },
+    })
+    const merged = JSON.parse(file.build(existing, ctx)!) as {
+      theme: string
+      hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>
+    }
+    expect(merged.theme).toBe('auto')
+    expect(JSON.stringify(merged.hooks.Stop)).toContain('/home/u/mine.sh')
+    expect(merged.hooks.SessionStart[0].hooks[0].command).toBe(ctx.bridgeCommand)
+    expect(file.build('{broken', ctx)).toBeNull()
+
+    const fresh = file.build(null, ctx)!
+    expect(file.build(fresh, ctx)).toBeNull()
+  })
+
+  test('normalizes Gemini lifecycle and ToolPermission payloads', () => {
+    expect(norm('gemini', { hook_event_name: 'SessionStart', source: 'resume', ...base })).toMatchObject({
+      kind: 'session-start',
+      sessionId: base.session_id,
+      cwd: '/w',
+      transcriptPath: base.transcript_path,
+    })
+    expect(norm('gemini', { hook_event_name: 'BeforeAgent', prompt: 'hi', ...base })?.kind).toBe('turn-start')
+    expect(norm('gemini', { hook_event_name: 'AfterTool', tool_name: 'write_file', ...base })?.kind)
+      .toBe('turn-resume')
+    expect(norm('gemini', { hook_event_name: 'AfterAgent', response_text: 'done', ...base })?.kind)
+      .toBe('turn-end')
+    expect(norm('gemini', { hook_event_name: 'SessionEnd', reason: 'clear', ...base })?.kind)
+      .toBe('session-end')
+    expect(
+      norm('gemini', { hook_event_name: 'Notification', notification_type: 'ToolPermission', ...base })?.kind,
+    ).toBe('permission-wait')
+    expect(norm('gemini', { hook_event_name: 'Notification', message: 'other', ...base })).toBeNull()
+    // Deliberately uninjected: it precedes every tool, approved or not.
+    expect(norm('gemini', { hook_event_name: 'BeforeTool', tool_name: 'write_file', ...base })).toBeNull()
+  })
+})
+
+describe('copilot spec', () => {
+  const spec = AGENT_HOOK_SPECS.copilot
+  const file = spec.projectFiles![0]
+  const base = {
+    session_id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+    cwd: '/w',
+    transcript_path: '/home/u/.copilot/session.jsonl',
+  }
+
+  test('owns .github/hooks/cate-hook.json with PascalCase VS Code-compatible event keys', () => {
+    expect(file.relPath).toBe('.github/hooks/cate-hook.json')
+    const parsed = JSON.parse(file.build(null, ctx)!) as {
+      version: number
+      hooks: Record<string, Array<{ type: string; command: string; timeoutSec: number }>>
+    }
+    expect(Object.keys(parsed.hooks).sort()).toEqual(
+      ['PermissionRequest', 'PostToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'UserPromptSubmit'].sort(),
+    )
+    for (const handlers of Object.values(parsed.hooks)) {
+      expect(handlers).toEqual([{ type: 'command', command: ctx.bridgeCommand, timeoutSec: 30 }])
+    }
+
+    const fresh = file.build(null, ctx)!
+    expect(fresh).toContain(CATE_HOOK_MARKER)
+    expect(file.build(fresh, ctx)).toBeNull()
+    expect(file.strip!(fresh)).toEqual({ delete: true })
+    expect(file.strip!('{"version":1,"hooks":{}}')).toBeNull()
+  })
+
+  test('regenerates a marked owned file while preserving foreign metadata; leaves unmarked files alone', () => {
+    const marked = JSON.stringify({
+      generatedBy: 'someone-else',
+      version: 99,
+      hooks: { Stop: [{ type: 'command', command: `/old/${CATE_HOOK_MARKER}` }] },
+    })
+    const rebuilt = JSON.parse(file.build(marked, ctx)!) as { generatedBy: string; version: number }
+    expect(rebuilt.generatedBy).toBe('someone-else')
+    expect(rebuilt.version).toBe(1)
+    expect(file.build('{"hooks":{"Stop":[{"type":"command","command":"mine"}]}}', ctx)).toBeNull()
+    expect(file.build('{broken', ctx)).toBeNull()
+  })
+
+  test('normalizes lifecycle and permission events; transcript stays optional outside Stop', () => {
+    expect(norm('copilot', { hook_event_name: 'SessionStart', source: 'resume', session_id: base.session_id, cwd: '/w' }))
+      .toMatchObject({ kind: 'session-start', sessionId: base.session_id, cwd: '/w' })
+    expect(norm('copilot', { hook_event_name: 'UserPromptSubmit', prompt: 'hi', ...base })?.kind)
+      .toBe('turn-start')
+    expect(norm('copilot', { hook_event_name: 'PostToolUse', tool_name: 'Bash', ...base })?.kind)
+      .toBe('turn-resume')
+    expect(norm('copilot', { hook_event_name: 'Stop', stopReason: 'end_turn', ...base })).toMatchObject({
+      kind: 'turn-end',
+      transcriptPath: base.transcript_path,
+    })
+    expect(norm('copilot', { hook_event_name: 'PermissionRequest', tool_name: 'Bash', ...base })?.kind)
+      .toBe('permission-wait')
+    expect(norm('copilot', { hook_event_name: 'SessionEnd', reason: 'abort', ...base })?.kind)
+      .toBe('session-end')
+    expect(norm('copilot', { hook_event_name: 'notification', message: 'hello' })).toBeNull()
+  })
+})
+
+describe('aider explicit gaps', () => {
+  const spec = AGENT_HOOK_SPECS.aider
+
+  test('declares no injection channel and normalizes nothing', () => {
+    expect(spec.projectFiles ?? []).toHaveLength(0)
+    expect(spec.reportsTurnEndOnInterrupt).toBe(false)
+    expect(spec.normalize?.({})).toBeNull()
+  })
+})
+
 describe('normalizeAgentHookPayload', () => {
   test('unknown agents and untracked payloads drop; raw payload rides along', () => {
     expect(normalizeAgentHookPayload('not-an-agent', 't', { hook_event_name: 'Stop' })).toBeNull()
@@ -532,6 +664,11 @@ describe('reportsTurnEndOnInterrupt', () => {
       // Expected self-heal via stop{cancelled}; streaming path not yet
       // observed live (test account quota) — see grokSpec.
       grok: true,
+      // No interrupt event is documented for either CLI. Aider has no event
+      // stream at all. These are honest open gaps, not inferred behavior.
+      gemini: false,
+      copilot: false,
+      aider: false,
     })
   })
 })

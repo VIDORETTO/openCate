@@ -23,11 +23,16 @@ import { SKILL_TARGETS, type SkillTargetId } from './skills'
 
 /** Agents deliberately without a skills integration. Add an id here ONLY with a
  *  reason — the point of the failure is to force the decision, not to be muted. */
-const NO_SKILLS: ReadonlySet<AgentId> = new Set([])
+/** Aider has neither Agent Skills nor an event/hook system; both omissions are
+ *  deliberate registry decisions rather than wiring still missing. */
+const NO_SKILLS: ReadonlySet<AgentId> = new Set(['aider'])
 
 /** Agents deliberately without a bundled logo (they fall back to the panel's
  *  default icon). */
 const NO_LOGO: ReadonlySet<AgentId> = new Set([])
+
+/** Agents deliberately without a project-file injection channel. */
+const NO_HOOKS: ReadonlySet<AgentId> = new Set(['aider'])
 
 describe('agent registry coverage', () => {
   test('every agent declares a skills target, or is an explicit omission', () => {
@@ -69,6 +74,7 @@ describe('agent registry coverage', () => {
   test('persisted SkillTargetId values never drift', () => {
     const expected: SkillTargetId[] = [
       'claude-code', 'cate-agent', 'pi-native', 'opencode', 'codex', 'cursor', 'grok',
+      'gemini', 'copilot',
     ]
     expect([...SKILL_TARGETS].map((t) => t.id).sort()).toEqual([...expected].sort())
   })
@@ -79,6 +85,10 @@ describe('agent registry coverage', () => {
     for (const a of AGENTS) {
       const spec = AGENT_HOOK_SPECS[a.id]
       expect(spec, `${a.id} hook spec`).toBeTruthy()
+      if (NO_HOOKS.has(a.id)) {
+        expect(spec.projectFiles?.length ?? 0, `${a.id} must stay channel-less`).toBe(0)
+        continue
+      }
       expect(spec.projectFiles?.length, `${a.id} has no project-file injection channel`).toBeTruthy()
     }
   })

@@ -36,6 +36,8 @@ export type SkillTargetId =
   | 'codex'
   | 'cursor'
   | 'grok'
+  | 'gemini'
+  | 'copilot'
 
 /** Where a skill lives in a source repo: the directory that contains its
  *  `SKILL.md` (path === '' means the repo root is the skill dir). */
