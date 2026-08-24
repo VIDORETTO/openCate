@@ -19,6 +19,7 @@ function run(id: string, status: CodingAgentRunSnapshot['status']): CodingAgentR
     createdAt: 1,
     cwd: '/repo',
     alive: true,
+    durationMs: 999,
     followUpSupported: true,
   }
 }
@@ -64,6 +65,7 @@ describe('coding-agent wait policy', () => {
       status: 'working',
       cwd: '/repo',
       alive: true,
+      durationMs: 999,
       followUpSupported: true,
       background: true,
       statusLine: 'Running tests',

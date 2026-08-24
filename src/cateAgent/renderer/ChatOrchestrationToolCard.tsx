@@ -43,6 +43,21 @@ function agentLabel(value: unknown): string {
   return agentId ? codingAgentDisplayName(agentId) : text(value) || 'Coding agent'
 }
 
+function compactTokens(value: unknown): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return ''
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+  if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1).replace(/\.0$/, '')}k`
+  return String(Math.round(value))
+}
+
+function compactDuration(value: unknown): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return ''
+  const seconds = Math.max(0, Math.floor(value / 1_000))
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  return `${minutes}m ${String(seconds % 60).padStart(2, '0')}s`
+}
+
 function DetailField({
   label,
   value,
@@ -67,6 +82,22 @@ function DetailField({
 
 function RunDetails({ run }: { run: Record<string, unknown> }) {
   const agent = text(run.agentName) || agentLabel(run.agentId)
+  const usage = run.usage && typeof run.usage === 'object'
+    ? run.usage as Record<string, unknown>
+    : null
+  const tokenParts = usage
+    ? [
+        compactTokens(usage.inputTokens) ? `in ${compactTokens(usage.inputTokens)}` : '',
+        compactTokens(usage.outputTokens) ? `out ${compactTokens(usage.outputTokens)}` : '',
+        compactTokens(usage.totalTokens) ? `total ${compactTokens(usage.totalTokens)}` : '',
+      ].filter(Boolean).join(' · ')
+    : ''
+  const contextRemaining = typeof run.contextRemainingTokens === 'number'
+    ? compactTokens(run.contextRemainingTokens)
+    : ''
+  const cost = typeof usage?.costUsd === 'number'
+    ? `${usage.costSource === 'estimated' ? '~' : ''}$${usage.costUsd.toFixed(usage.costUsd < 0.1 ? 4 : 2)}`
+    : ''
   return (
     <div className="space-y-1">
       <DetailField label="Agent" value={agent} />
@@ -75,6 +106,10 @@ function RunDetails({ run }: { run: Record<string, unknown> }) {
       <DetailField label="Worktree" value={text(run.worktreeId)} mono />
       <DetailField label="Directory" value={text(run.cwd)} mono />
       <DetailField label="Activity" value={text(run.statusLine)} mono />
+      <DetailField label="Duration" value={compactDuration(run.durationMs)} />
+      <DetailField label="Tokens" value={tokenParts || 'Unavailable'} />
+      <DetailField label="Context" value={contextRemaining ? `${contextRemaining} remaining` : 'Unavailable'} />
+      <DetailField label="Cost" value={cost || 'Unavailable'} />
     </div>
   )
 }

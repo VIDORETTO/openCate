@@ -5,8 +5,10 @@ import { useAppStore } from '../../renderer/stores/appStore'
 import { revealPanel } from '../../renderer/lib/workspace/panelReveal'
 import { useAgentTerminalStatus, codingAgentStatusLabel } from './useAgentTerminalStatus'
 import {
+  codingAgentContextRemainingTokens,
   codingAgentDisplayName,
   parseCodingAgentId,
+  type CodingAgentUsage,
   type CodingAgentRunStatus,
 } from '../../shared/codingAgentRuns'
 import { getAgentLogoById } from '../../renderer/lib/agent/agentLogos'
@@ -36,6 +38,42 @@ function resultStatus(value: unknown): CodingAgentRunStatus | null {
     || value === 'ready' || value === 'stopped' || value === 'failed'
     ? value
     : null
+}
+
+function formatTokens(value: number | undefined): string | null {
+  if (value === undefined) return null
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1).replace(/\.0$/, '')}M`
+  if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1).replace(/\.0$/, '')}k`
+  return String(Math.round(value))
+}
+
+function formatDuration(ms: number): string {
+  const seconds = Math.max(0, Math.floor(ms / 1_000))
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const remainder = seconds % 60
+  if (minutes < 60) return `${minutes}m ${String(remainder).padStart(2, '0')}s`
+  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`
+}
+
+function RunMetrics({ usage, durationMs }: { usage: CodingAgentUsage | undefined; durationMs: number }) {
+  const input = formatTokens(usage?.inputTokens)
+  const output = formatTokens(usage?.outputTokens)
+  const total = formatTokens(usage?.totalTokens)
+  const contextLeft = formatTokens(codingAgentContextRemainingTokens(usage))
+  const cost = usage?.costUsd !== undefined
+    ? `${usage.costSource === 'estimated' ? '~' : ''}$${usage.costUsd.toFixed(usage.costUsd < 0.1 ? 4 : 2)}`
+    : null
+  const tokenText = input || output || total
+    ? `tokens ${input ? `in ${input}` : ''}${input && output ? ' · ' : ''}${output ? `out ${output}` : ''}${(input || output) && total ? ' · ' : ''}${total ? `total ${total}` : ''}`
+    : 'tokens unavailable'
+  return (
+    <div className="mt-0.5 pl-[23px] text-[10px] text-muted" data-coding-agent-metrics>
+      {tokenText} · {formatDuration(durationMs)}
+      {contextLeft ? ` · ctx ${contextLeft} left` : ''}
+      {cost ? ` · ${cost}` : ''}
+    </div>
+  )
 }
 
 /** Native card for a worker created by Cate Agent. The terminal remains a real,
@@ -134,6 +172,9 @@ export function CodingAgentCard({ msg }: { msg: ToolMessage; shimmer?: boolean }
           <CaretDown size={11} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
         </button>
       </div>
+      {run && terminalStatus.durationMs !== null && (
+        <RunMetrics usage={run.usage} durationMs={terminalStatus.durationMs} />
+      )}
       {expanded && (
         <div className="mt-2 space-y-2 pl-[23px]">
           <OrchestrationToolDetails msg={msg} />

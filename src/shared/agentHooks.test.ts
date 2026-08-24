@@ -340,6 +340,8 @@ describe('pi spec', () => {
     // The extension posts identity from ctx.sessionManager, echoes the env,
     // and self-gates on the Cate env vars (inert in a teammate's checkout).
     expect(src).toContain('getSessionId')
+    expect(src).toContain('getContextUsage')
+    expect(src).toContain('usageFor')
     expect(src).toContain('CATE_TERMINAL_ID')
     expect(src).toContain('CATE_HOOK_ENDPOINT')
     for (const ev of ['session_start', 'agent_start', 'agent_end', 'session_shutdown']) {

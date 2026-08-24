@@ -7,7 +7,12 @@ import { CodingAgentCard } from './ChatCodingAgentCard'
 
 const reviewCodingAgentWorktree = vi.hoisted(() => vi.fn())
 const keepCodingAgentWorktree = vi.hoisted(() => vi.fn())
-const terminalStatus = vi.hoisted(() => ({ runStatus: 'starting' as string | null, line: '' }))
+const terminalStatus = vi.hoisted(() => ({
+  runStatus: 'starting' as string | null,
+  line: '',
+  durationMs: 0,
+  usage: undefined as unknown,
+}))
 
 vi.mock('../../renderer/lib/agent/codingAgentIntegration', () => ({
   reviewCodingAgentWorktree,
@@ -58,6 +63,8 @@ describe('coding agent launch presentation', () => {
     reviewCodingAgentWorktree.mockReset()
     keepCodingAgentWorktree.mockReset()
     terminalStatus.runStatus = 'starting'
+    terminalStatus.durationMs = 0
+    terminalStatus.usage = undefined
     useAppStore.setState({
       workspaces: [{
         id: 'workspace-1',
@@ -143,6 +150,29 @@ describe('coding agent launch presentation', () => {
 
     const title = host.querySelector<HTMLElement>('[data-coding-agent-terminal-link] .cate-notif-pulse')
     expect(title?.textContent).toBe('Test reliability')
+  })
+
+  it('shows observed tokens, duration, context remaining and reported cost', () => {
+    terminalStatus.durationMs = 65_000
+    const panel = useAppStore.getState().workspaces[0].panels['panel-1'] as any
+    panel.codingAgentRun.usage = {
+      inputTokens: 1_200,
+      outputTokens: 340,
+      totalTokens: 1_540,
+      contextTokens: 8_000,
+      contextWindow: 16_000,
+      costUsd: 0.0123,
+      costSource: 'reported',
+      observedAt: 2,
+      source: 'hook',
+    }
+
+    act(() => root.render(<CodingAgentCard msg={message()} />))
+
+    expect(host.querySelector('[data-coding-agent-metrics]')?.textContent).toContain('tokens in 1.2k · out 340 · total 1.5k')
+    expect(host.textContent).toContain('1m 05s')
+    expect(host.textContent).toContain('ctx 8k left')
+    expect(host.textContent).toContain('$0.0123')
   })
 
   it('stops shimmering and labels a working run with no recent output as stalled', () => {

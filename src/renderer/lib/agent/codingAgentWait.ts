@@ -16,6 +16,11 @@ export function compactCodingAgentSnapshot(snapshot: CodingAgentRunSnapshot) {
     status: snapshot.status,
     cwd: snapshot.cwd,
     alive: snapshot.alive,
+    durationMs: snapshot.durationMs,
+    ...(snapshot.usage ? { usage: snapshot.usage } : {}),
+    ...(snapshot.contextRemainingTokens !== undefined
+      ? { contextRemainingTokens: snapshot.contextRemainingTokens }
+      : {}),
     followUpSupported: snapshot.followUpSupported,
     ...(snapshot.worktreeId ? { worktreeId: snapshot.worktreeId } : {}),
     ...(snapshot.ownsWorktree ? { ownsWorktree: true } : {}),

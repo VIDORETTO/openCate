@@ -2,9 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { AGENTS } from './agents'
 import {
   CODING_AGENT_STALLED_AFTER_MS,
+  codingAgentContextRemainingTokens,
+  codingAgentRunDurationMs,
   codingAgentCommand,
   codingAgentSupportsFollowUp,
   deriveCodingAgentRunStatus,
+  mergeCodingAgentUsage,
+  normalizeCodingAgentUsage,
   normalizeAgentCommandOverrides,
   parseCodingAgentId,
 } from './codingAgentRuns'
@@ -166,5 +170,75 @@ describe('deriveCodingAgentRunStatus', () => {
   it('does not invent staleness for waiting or completed runs', () => {
     expect(deriveCodingAgentRunStatus(run, { ...runtime, agentState: 'waitingForInput' }, 999_999_999_999)).toBe('waiting')
     expect(deriveCodingAgentRunStatus({ ...run, endedAt: 2, exitCode: 0 }, runtime, 999_999_999_999)).toBe('ready')
+  })
+})
+
+describe('coding-agent usage observations', () => {
+  it('normalizes common provider and Pi nested usage shapes', () => {
+    const usage = normalizeCodingAgentUsage({
+      message: {
+        model: 'claude-sonnet',
+        usage: {
+          input_tokens: 1_200,
+          output_tokens: 340,
+          cache_read_input_tokens: 80,
+          cache_creation_input_tokens: 20,
+          cost: { total: 0.0123 },
+        },
+      },
+      contextUsage: { tokens: 1_560, contextWindow: 200_000 },
+    }, 123)
+
+    expect(usage).toEqual({
+      inputTokens: 1_200,
+      outputTokens: 340,
+      cacheReadTokens: 80,
+      cacheWriteTokens: 20,
+      totalTokens: 1_640,
+      costUsd: 0.0123,
+      costSource: 'reported',
+      contextTokens: 1_560,
+      contextWindow: 200_000,
+      model: 'claude-sonnet',
+      observedAt: 123,
+      source: 'hook',
+    })
+    expect(codingAgentContextRemainingTokens(usage!)).toBe(198_440)
+  })
+
+  it('accepts OpenAI-compatible flat usage and refuses free-form text', () => {
+    expect(normalizeCodingAgentUsage({
+      usage: { prompt_tokens: 10, completion_tokens: 7, total_tokens: 17 },
+      total_cost_usd: 0.004,
+    }, 456)).toMatchObject({
+      inputTokens: 10,
+      outputTokens: 7,
+      totalTokens: 17,
+      costUsd: 0.004,
+      observedAt: 456,
+    })
+    expect(normalizeCodingAgentUsage({ message: 'used 10k tokens and cost $2' }, 456)).toBeNull()
+    expect(normalizeCodingAgentUsage({ usage: { input_tokens: -1 } }, 456)).toBeNull()
+  })
+
+  it('merges partial later observations without pretending to add turns', () => {
+    const first = normalizeCodingAgentUsage({ usage: { input: 10, output: 5 }, model: 'm1' }, 10)!
+    const second = normalizeCodingAgentUsage({ usage: { contextTokens: 12, contextWindow: 100 } }, 20)!
+    expect(mergeCodingAgentUsage(first, second)).toEqual({
+      inputTokens: 10,
+      outputTokens: 5,
+      totalTokens: 15,
+      contextTokens: 12,
+      contextWindow: 100,
+      model: 'm1',
+      observedAt: 20,
+      source: 'hook',
+    })
+  })
+
+  it('freezes duration at the terminal edge and computes active duration', () => {
+    const run = { createdAt: 1_000, endedAt: 4_500, stoppedAt: undefined }
+    expect(codingAgentRunDurationMs(run, 99_000)).toBe(3_500)
+    expect(codingAgentRunDurationMs({ createdAt: 1_000 }, 6_000)).toBe(5_000)
   })
 })

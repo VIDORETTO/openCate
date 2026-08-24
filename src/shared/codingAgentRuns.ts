@@ -20,6 +20,9 @@ export interface CodingAgentRun {
   /** Follow-up prompts sent after the initial task. Kept with panel state so
    *  mission context survives a Cate restart. */
   followUps?: Array<{ prompt: string; sentAt: number }>
+  /** Latest structured usage observation from the CLI hook stream. Optional
+   *  because several CLIs expose lifecycle hooks but no usage payload. */
+  usage?: CodingAgentUsage
   endedAt?: number
   exitCode?: number
   stoppedAt?: number
@@ -50,6 +53,178 @@ export type CodingAgentRunStatus =
   | 'ready'
   | 'stopped'
   | 'failed'
+
+/** Usage observed from a coding-agent hook payload. Every field is optional:
+ * CLIs expose different subsets, and Cate must not manufacture a number when
+ * the provider did not report one. Values are snapshots from the latest
+ * structured report; they are not inferred from terminal text. */
+export interface CodingAgentUsage {
+  inputTokens?: number
+  outputTokens?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
+  totalTokens?: number
+  /** Provider-reported cost, or a future explicitly marked estimate. */
+  costUsd?: number
+  costSource?: 'reported' | 'estimated'
+  /** Current context usage and model limit when the CLI exposes both. */
+  contextTokens?: number
+  contextWindow?: number
+  model?: string
+  observedAt: number
+  source: 'hook'
+}
+
+/** Return the live elapsed duration for a mission. A stopped/finished run is
+ * frozen at its terminal edge; an active run keeps advancing in the UI. */
+export function codingAgentRunDurationMs(run: Pick<CodingAgentRun, 'createdAt' | 'endedAt' | 'stoppedAt'>, now = Date.now()): number {
+  const end = run.endedAt ?? run.stoppedAt ?? now
+  return Math.max(0, end - run.createdAt)
+}
+
+export function codingAgentContextRemainingTokens(usage: CodingAgentUsage | undefined): number | undefined {
+  if (!usage || usage.contextTokens === undefined || usage.contextWindow === undefined) return undefined
+  return Math.max(0, usage.contextWindow - usage.contextTokens)
+}
+
+const MAX_USAGE_NUMBER = 1_000_000_000_000
+const MAX_USAGE_COST = 1_000_000_000
+
+function boundedNumber(value: unknown, max = MAX_USAGE_NUMBER): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > max) return undefined
+  return value
+}
+
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined
+}
+
+function firstNumber(records: readonly (Record<string, unknown> | undefined)[], keys: readonly string[], max = MAX_USAGE_NUMBER): number | undefined {
+  for (const record of records) {
+    if (!record) continue
+    for (const key of keys) {
+      const value = boundedNumber(record[key], max)
+      if (value !== undefined) return value
+    }
+  }
+  return undefined
+}
+
+function firstString(records: readonly (Record<string, unknown> | undefined)[], keys: readonly string[]): string | undefined {
+  for (const record of records) {
+    if (!record) continue
+    for (const key of keys) {
+      const value = record[key]
+      if (typeof value === 'string' && value.trim()) return value.trim().slice(0, 200)
+    }
+  }
+  return undefined
+}
+
+/** Extract only explicit, structured usage fields from a raw hook payload.
+ * Supports the common shapes used by Claude/Codex-compatible hooks, OpenAI
+ * responses, and Pi's `{message: {usage}}` payload without parsing free-form
+ * terminal output. Returns null when the CLI gave Cate no metric. */
+export function normalizeCodingAgentUsage(raw: unknown, observedAt = Date.now()): CodingAgentUsage | null {
+  const root = recordValue(raw)
+  if (!root) return null
+  const usage = recordValue(root.usage)
+  const stats = recordValue(root.stats)
+  const metrics = recordValue(root.metrics)
+  const message = recordValue(root.message)
+  const messageUsage = recordValue(message?.usage)
+  const response = recordValue(root.response)
+  const responseUsage = recordValue(response?.usage)
+  const result = recordValue(root.result)
+  const resultUsage = recordValue(result?.usage)
+  const contextUsage = recordValue(root.contextUsage) ?? recordValue(root.context_usage)
+  const records = [
+    usage,
+    messageUsage,
+    responseUsage,
+    resultUsage,
+    stats,
+    metrics,
+    contextUsage,
+    message,
+    response,
+    result,
+    root,
+  ] as const
+
+  const inputTokens = firstNumber(records, ['inputTokens', 'input_tokens', 'promptTokens', 'prompt_tokens', 'input'])
+  const outputTokens = firstNumber(records, ['outputTokens', 'output_tokens', 'completionTokens', 'completion_tokens', 'output'])
+  const cacheReadTokens = firstNumber(records, ['cacheReadTokens', 'cache_read_input_tokens', 'cacheRead', 'cache_read'])
+  const cacheWriteTokens = firstNumber(records, ['cacheWriteTokens', 'cache_creation_input_tokens', 'cacheWrite', 'cache_write'])
+  const explicitTotalTokens = firstNumber(records, ['totalTokens', 'total_tokens'])
+  const totalTokens = explicitTotalTokens ?? (
+    inputTokens !== undefined || outputTokens !== undefined || cacheReadTokens !== undefined || cacheWriteTokens !== undefined
+      ? (inputTokens ?? 0) + (outputTokens ?? 0) + (cacheReadTokens ?? 0) + (cacheWriteTokens ?? 0)
+      : undefined
+  )
+  const costUsd = firstNumber(records, [
+    'costUsd',
+    'cost_usd',
+    'totalCostUsd',
+    'total_cost_usd',
+    'cost',
+  ], MAX_USAGE_COST) ?? firstNumber(
+    [
+      recordValue(usage?.cost),
+      recordValue(messageUsage?.cost),
+      recordValue(responseUsage?.cost),
+      recordValue(resultUsage?.cost),
+    ],
+    ['total', 'totalUsd', 'total_usd', 'usd'],
+    MAX_USAGE_COST,
+  )
+  const contextTokens = firstNumber(records, [
+    'contextTokens',
+    'context_tokens',
+    'contextUsedTokens',
+    'context_used_tokens',
+    'tokens',
+  ])
+  const contextWindow = firstNumber(records, [
+    'contextWindow',
+    'context_window',
+    'contextLimit',
+    'context_limit',
+  ])
+  const model = firstString(records, ['model', 'modelId', 'model_id'])
+
+  if (
+    inputTokens === undefined && outputTokens === undefined && cacheReadTokens === undefined &&
+    cacheWriteTokens === undefined && totalTokens === undefined && costUsd === undefined &&
+    contextTokens === undefined && contextWindow === undefined && model === undefined
+  ) return null
+
+  return {
+    ...(inputTokens !== undefined ? { inputTokens } : {}),
+    ...(outputTokens !== undefined ? { outputTokens } : {}),
+    ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
+    ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {}),
+    ...(totalTokens !== undefined ? { totalTokens } : {}),
+    ...(costUsd !== undefined ? { costUsd, costSource: 'reported' as const } : {}),
+    ...(contextTokens !== undefined ? { contextTokens } : {}),
+    ...(contextWindow !== undefined ? { contextWindow } : {}),
+    ...(model !== undefined ? { model } : {}),
+    observedAt,
+    source: 'hook',
+  }
+}
+
+/** Merge a partial later report without erasing fields another hook already
+ * exposed. This is a latest-observation merge, deliberately not an addition:
+ * hook payloads differ on whether token counts are per-turn or cumulative. */
+export function mergeCodingAgentUsage(
+  previous: CodingAgentUsage | undefined,
+  next: CodingAgentUsage,
+): CodingAgentUsage {
+  return { ...previous, ...next, observedAt: Math.max(previous?.observedAt ?? 0, next.observedAt) }
+}
 
 export interface CodingAgentRuntimeState {
   terminalStarted: boolean
@@ -98,6 +273,8 @@ export interface CodingAgentRunSnapshot extends CodingAgentRun {
   agentName: string
   cwd: string
   alive: boolean
+  durationMs: number
+  contextRemainingTokens?: number
   /** Derived from the canonical agent capability registry. */
   followUpSupported: boolean
   statusLine?: string

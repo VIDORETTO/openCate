@@ -14,7 +14,9 @@ import {
 } from '../../stores/useWorktreeActions'
 import {
   MAX_CONCURRENT_CODING_AGENTS,
+  codingAgentContextRemainingTokens,
   codingAgentDisplayName,
+  codingAgentRunDurationMs,
   codingAgentSupportsFollowUp,
   deriveCodingAgentRunStatus,
   parseCodingAgentId,
@@ -111,6 +113,11 @@ export function codingAgentSnapshot(
     agentName: codingAgentDisplayName(run.agentId),
     cwd: panel.cwd ?? workspace(workspaceId)?.rootPath ?? '',
     alive: entry?.alive === true,
+    durationMs: codingAgentRunDurationMs(run),
+    ...(run.usage ? { usage: run.usage } : {}),
+    ...(codingAgentContextRemainingTokens(run.usage) !== undefined
+      ? { contextRemainingTokens: codingAgentContextRemainingTokens(run.usage) }
+      : {}),
     followUpSupported: codingAgentSupportsFollowUp(run.agentId),
     ...(lastLine ? { statusLine: lastLine.slice(0, 200) } : {}),
     ...(failureReason ? { failureReason } : {}),

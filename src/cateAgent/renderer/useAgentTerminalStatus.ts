@@ -14,7 +14,9 @@ import { useAppStore } from '../../renderer/stores/appStore'
 import { useStatusStore } from '../../renderer/stores/statusStore'
 import { terminalRegistry } from '../../renderer/lib/terminal/terminalRegistry'
 import {
+  codingAgentRunDurationMs,
   deriveCodingAgentRunStatus,
+  type CodingAgentUsage,
   type CodingAgentRunStatus,
 } from '../../shared/codingAgentRuns'
 import { useLastTerminalActivity } from '../../renderer/hooks/useActivitySparkline'
@@ -45,6 +47,9 @@ export interface AgentTerminalStatus {
   runStatus: CodingAgentRunStatus | null
   /** A peek of the terminal's current status line, or null when unavailable. */
   line: string | null
+  /** Live duration, frozen at endedAt/stoppedAt for completed runs. */
+  durationMs: number | null
+  usage: CodingAgentUsage | undefined
 }
 
 export function useAgentTerminalStatus(wsId: string, panelId: string): AgentTerminalStatus {
@@ -92,7 +97,12 @@ export function useAgentTerminalStatus(wsId: string, panelId: string): AgentTerm
       clearInterval(id)
     }
   }, [panelId])
-  return { runStatus, line }
+  return {
+    runStatus,
+    line,
+    durationMs: run ? codingAgentRunDurationMs(run, now) : null,
+    usage: run?.usage,
+  }
 }
 
 export function codingAgentStatusLabel(status: CodingAgentRunStatus): string {

@@ -604,7 +604,21 @@ const ENDPOINT = process.env.${CATE_HOOK_ENDPOINT_ENV};
 const TOKEN = process.env.${CATE_HOOK_TOKEN_ENV};
 export default function (pi: any) {
   if (!ENDPOINT || !TOKEN) return;
-  const post = (event: string, ctx: any) => {
+  const usageFor = (event: any, ctx: any) => {
+    const messages = Array.isArray(event?.messages) ? event.messages : [];
+    const last = [...messages].reverse().find((message: any) => message?.role === "assistant" && message?.usage);
+    const usage = last?.usage ?? event?.message?.usage ?? event?.usage;
+    let contextUsage: any = null;
+    try { contextUsage = ctx?.getContextUsage?.() ?? null; } catch {}
+    if (!usage && !contextUsage && !last?.model) return undefined;
+    return {
+      ...(usage && typeof usage === "object" ? usage : {}),
+      ...(contextUsage?.tokens != null ? { contextTokens: contextUsage.tokens } : {}),
+      ...(contextUsage?.contextWindow != null ? { contextWindow: contextUsage.contextWindow } : {}),
+      ...(last?.model ? { model: last.model } : {}),
+    };
+  };
+  const post = (eventName: string, event: any, ctx: any) => {
     let sessionId: string | undefined;
     let sessionFile: string | undefined;
     try {
@@ -618,13 +632,19 @@ export default function (pi: any) {
         agentId: "pi",
         terminalId: process.env.${CATE_TERMINAL_ID_ENV} ?? null,
         pid: process.pid, // in-process: this IS the agent, for presence tracking
-        payload: { event, sessionId, sessionFile, cwd: process.cwd() },
+        payload: {
+          event: eventName,
+          sessionId,
+          sessionFile,
+          cwd: process.cwd(),
+          usage: usageFor(event, ctx),
+        },
       }),
     }).catch(() => {});
   };
   for (const name of ["session_start", "agent_start", "agent_end", "session_shutdown"]) {
-    pi.on(name as any, async (_event: unknown, ctx: any) => {
-      post(name, ctx);
+    pi.on(name as any, async (event: unknown, ctx: any) => {
+      post(name, event, ctx);
       return undefined;
     });
   }
