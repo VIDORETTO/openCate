@@ -1,6 +1,6 @@
 # Arquitetura — Modelo de Processos, IPC, Persistência e Segurança
 
-> Documento técnico para desenvolvedores. Descreve como o Cate funciona internamente, baseado na leitura do código-fonte (não no README). Última atualização: Fase 1 do backlog de produto.
+> Documento técnico para desenvolvedores. Descreve como o Cate funciona internamente, baseado na leitura do código-fonte (não no README). Última atualização: Fase 3 — histórico de sessões.
 
 ## Visão geral dos processos
 
@@ -59,6 +59,7 @@ Canares declarados em `src/shared/ipc-channels.ts`. O preload expõe via `contex
 | Session flush | `SESSION_FLUSH_SAVE` / `SESSION_FLUSH_SAVE_DONE` | quit-time sync |
 | Runtime | `RUNTIME_CONNECT/STATUS/INSTALL/DELETE` | invoke + broadcast |
 | Window panels | cross-window panel union | broadcast |
+| Agent history | `AGENT_SESSION_HISTORY_LIST/LOAD` | invoke |
 
 ### Handlers registrados UMA vez no boot
 
@@ -98,6 +99,23 @@ Antes de cada write, copia o arquivo atual pra `.bak`. Na leitura, se o primary 
 ### Multi-instância
 
 Lock file `.cate/workspace.lock` contém `{pid}`. Outro Cate que encontra lock vivo pula o autosave desse root. Crash → pid morto → lock reclaimado automaticamente.
+
+### Histórico unificado de agentes
+
+O histórico cross-CLI fica separado de `session.json` em
+`.cate/agent-sessions.json` (machine-local e coberto pelo `.gitignore`). O
+daemon normaliza os eventos de hook em uma referência composta por
+`runtimeId + agentId + sessionId`, mantendo apenas metadados e o caminho do
+transcript nativo quando o CLI o fornece. A atualização é idempotente e
+preserva o caminho aprendido em eventos posteriores que não o repetem.
+
+O renderer consulta esse índice pelo popover de histórico e pede um replay
+read-only. O main valida que a referência existe no índice e que o transcript
+está dentro do workspace ou do diretório nativo conhecido do CLI antes de
+ler; scrollback de PTY nunca é promovido a transcript semântico. Resume é uma
+operação distinta e continua usando `resumeCommandForAgent`/o comando nativo.
+CLIs sem transcript ou sem id estável (como Aider) aparecem como metadados sem
+replay inventado.
 
 ## Segurança
 
@@ -148,6 +166,11 @@ Documentados honestamente (não são bugs, são tradeoffs):
 3. **Scrollback**: serializado por terminal em session.json; limites de memória dependem da setting do usuário (padrão 1000 linhas).
 4. **Multi-canvas perf**: cada canvas tem store próprio; muitos canvases simultâneos = muitas subscrições reativas (mitigado por virtualização DOM, mas ainda é custo linear).
 5. **Daemon restart**: PTYs morrem com o daemon. Reconexão restaura scrollback mas não revive processos interativos (limitação fundamental de PTY-over-pipe).
+6. **Histórico cross-CLI**: a primeira versão indexa sessões observadas pelos
+   hooks; ela não varre retroativamente todos os diretórios globais dos CLIs.
+   Transcripts remotos fora do workspace aguardam uma capacidade de leitura
+   específica no runtime, em vez de ampliar silenciosamente o escopo de
+   filesystem.
 
 ## Referências rápidas
 
@@ -164,6 +187,7 @@ Documentados honestamente (não são bugs, são tradeoffs):
 | PTY wrapper | `src/runtime/capabilities/process.ts` |
 | File watcher | `src/runtime/capabilities/fileWatcher.ts` |
 | Agent hooks | `src/runtime/capabilities/agentHooks.ts` |
+| Agent session history | `src/shared/agentSessions.ts` + `src/main/ipc/agentSessionHistory.ts` |
 | Path validation | `src/main/ipc/pathValidation.ts` |
 | Project state | `src/main/projectWorkspaceStore.ts` |
 | Session autosave | `src/renderer/lib/workspace/sessionAutosave.ts` |

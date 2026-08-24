@@ -89,7 +89,9 @@ function emit(terminalId: string, session: TerminalAgentSession | null): void {
   const ownerWindowId = getTerminalOwner(terminalId)
   if (ownerWindowId == null) return
   const st = stateFor(terminalId)
-  const key = session ? `${session.agentId}\0${session.sessionId}\0${session.cwd}` : null
+  const key = session
+    ? `${session.agentId}\0${session.sessionId}\0${session.cwd}\0${session.transcriptPath ?? ''}`
+    : null
   if (st.key === key) return
   st.key = key
   sendToWindow(ownerWindowId, SHELL_AGENT_SESSION_UPDATE, terminalId, session)
@@ -121,7 +123,12 @@ export function ingestAgentSessionStamp(runtime: Runtime, event: AgentHookEvent)
   if (event.kind === 'session-start' && !RESUMABLE_FROM_SESSION_START[event.agentId]) return
   const { agentId, sessionId } = event
   if (event.cwd) {
-    emit(terminalId, { agentId, sessionId, cwd: event.cwd })
+    emit(terminalId, {
+      agentId,
+      sessionId,
+      cwd: event.cwd,
+      ...(event.transcriptPath ? { transcriptPath: event.transcriptPath } : {}),
+    })
     return
   }
   const seq = st.seq
@@ -129,7 +136,12 @@ export function ingestAgentSessionStamp(runtime: Runtime, event: AgentHookEvent)
     .getCwd(terminalId)
     .then((cwd) => {
       if (states.get(terminalId)?.seq !== seq) return // superseded while in flight
-      emit(terminalId, { agentId, sessionId, cwd: cwd ?? '' })
+      emit(terminalId, {
+        agentId,
+        sessionId,
+        cwd: cwd ?? '',
+        ...(event.transcriptPath ? { transcriptPath: event.transcriptPath } : {}),
+      })
     })
     .catch(() => { /* runtime gone — no stamp beats a cwd-less guess */ })
 }

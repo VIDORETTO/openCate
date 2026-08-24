@@ -144,6 +144,19 @@ describe('cwd fallback (payloads that carry no cwd)', () => {
     ingestAgentSessionStamp(runtime, ev(tid, 'codex', 'turn-start', 'id-1', '/w'))
     expect(getCwdCalls).toBe(0)
   })
+
+  it('preserves a provider transcript path alongside the resume stamp', () => {
+    ingestAgentSessionStamp(runtime, {
+      ...ev(tid, 'codex', 'turn-start', 'id-1', '/w'),
+      transcriptPath: '/home/user/.codex/sessions/rollout.jsonl',
+    })
+    expect(stamps(tid)).toEqual([{
+      agentId: 'codex',
+      sessionId: 'id-1',
+      cwd: '/w',
+      transcriptPath: '/home/user/.codex/sessions/rollout.jsonl',
+    }])
+  })
 })
 
 describe('emit mechanics', () => {

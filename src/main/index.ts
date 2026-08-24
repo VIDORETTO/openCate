@@ -10,6 +10,7 @@ import { registerHandlers as registerGitHandlers } from './ipc/git'
 import { registerHandlers as registerSearchHandlers } from './ipc/search'
 import { registerHandlers as registerShellHandlers } from './ipc/shell'
 import { registerAgentHookForwarding } from './ipc/agentHookEvents'
+import { registerAgentSessionHistoryHandlers } from './ipc/agentSessionHistory'
 import { registerHandlers as registerGitMonitorHandlers } from './ipc/git-monitor'
 import { registerHandlers as registerStoreHandlers, loadSettingsSyncFromDisk, getSettingSync, setSettingsFromMain } from './store'
 import { registerUIStateHandlers } from './uiStateStore'
@@ -123,6 +124,7 @@ function registerDeferredHandlers(): void {
   registerNotificationHandlers()
   registerAuthHandlers(authManager)
   registerCodingHandlers(authManager, codingManager)
+  registerAgentSessionHistoryHandlers()
   registerSkillHandlers()
   registerRuntimeHandlers()
   registerExtensionHandlers()

@@ -68,6 +68,10 @@ const terminalOwners: Map<string, number> = new Map()
 
 // Which runtime hosts each terminal — routes write/resize/kill/getCwd.
 const terminalRuntime: Map<string, RuntimeId> = new Map()
+// Workspace ownership is kept alongside the runtime route so main-process
+// consumers can persist terminal-scoped events without asking a renderer which
+// workspace is currently selected.
+const terminalWorkspaces: Map<string, string> = new Map()
 const sessionListeners = new Set<() => void>()
 
 function emitSessionsChanged(): void {
@@ -81,6 +85,10 @@ export function onTerminalSessionsChanged(listener: () => void): () => void {
 
 export function getTerminalIds(): string[] {
   return [...terminalRuntime.keys()]
+}
+
+export function getTerminalWorkspaceId(id: string): string | undefined {
+  return terminalWorkspaces.get(id)
 }
 
 function runtimeForTerminal(id: string): Runtime | null {
@@ -236,6 +244,7 @@ export function reassignTerminalWindow(terminalId: string, newWindowId: number):
 function cleanupTerminal(id: string): void {
   terminalOwners.delete(id)
   terminalRuntime.delete(id)
+  terminalWorkspaces.delete(id)
   emitSessionsChanged()
 }
 
@@ -436,6 +445,7 @@ async function spawnTerminal(
 
   terminalRuntime.set(handle.id, runtimeId)
   terminalOwners.set(handle.id, ownerWindowId)
+  if (options.workspaceId) terminalWorkspaces.set(handle.id, options.workspaceId)
   emitSessionsChanged()
   if (handle.notice) {
     try { sendToWindow(ownerWindowId, TERMINAL_DATA, handle.id, handle.notice) } catch { /* window gone */ }

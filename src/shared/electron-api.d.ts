@@ -6,6 +6,7 @@ import type { CodingCreateOptions, CodingEventEnvelope, CodingExtensionUIRespons
 import type { CodingAgentLaunch } from './codingAgentRuns'
 import type { SavedSkill, InstalledSkill, SkillEntry, SkillSource, SkillTargetId } from './skills'
 import type { AgentHookEvent, AgentHookAgentState } from './agentHooks'
+import type { AgentSessionRef, AgentSessionSummary, AgentTranscriptMessage } from './agentSessions'
 import type { ExtensionListEntry, ExtensionManifest } from './extensions'
 
 /** Lifecycle state of the auto-updater, surfaced to the renderer for the
@@ -1082,6 +1083,12 @@ export interface ElectronAPI {
 
   /** Delete a pi session file from disk. Refuses paths outside ~/.pi/agent/sessions. */
   agentDeleteSession(sessionFile: string): Promise<void>
+
+  /** List provider-neutral session references observed by Cate's hooks. */
+  agentSessionHistoryList(workspaceRoot: string, query?: string): Promise<AgentSessionSummary[]>
+
+  /** Replay a known native transcript without starting its CLI. */
+  agentSessionHistoryLoad(workspaceRoot: string, ref: AgentSessionRef): Promise<AgentTranscriptMessage[]>
 
   /** Interrupt the running agent (cancels current turn). */
   agentInterrupt(panelId: string): Promise<void>

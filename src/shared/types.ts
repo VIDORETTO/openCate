@@ -83,6 +83,10 @@ export interface TerminalAgentSession {
   /** The cwd the session belongs to (from the hook payload, or the terminal's
    *  cwd when the payload carries none). */
   cwd: string
+  /** Provider-owned transcript/rollout path when the hook exposes it. This is
+   *  a host path, not a renderer-readable file handle; history readers validate
+   *  it through the owning runtime. */
+  transcriptPath?: string
 }
 
 export interface PanelState {

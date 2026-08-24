@@ -1,7 +1,7 @@
 // Horizontal switcher for durable main-agent chats.
 
 import React from 'react'
-import { Plus, X } from '@phosphor-icons/react'
+import { ClockCounterClockwise, Plus, X } from '@phosphor-icons/react'
 import { isPanelChat, isSidebarChat, useChatsStore } from '../../renderer/stores/chatsStore'
 import { useCateAgentStore, useCateAgentWs } from './cateAgentStore'
 import { disposeDirectChatSession } from './directChatSession'
@@ -12,6 +12,7 @@ import {
   useChatDragState,
 } from '../../renderer/drag/chatDragState'
 import { ChatDropGhost, ChatStatusGlyph } from './chatListPrimitives'
+import { AgentSessionHistoryPopover } from './AgentSessionHistoryPopover'
 
 const Tab: React.FC<{
   active: boolean
@@ -65,6 +66,7 @@ type CateAgentChatTabsProps = {
 
 export const CateAgentChatTabs: React.FC<CateAgentChatTabsProps> = (props) => {
   const { wsId, rootPath, panelId } = props
+  const [historyOpen, setHistoryOpen] = React.useState(false)
   const cateAgent = useCateAgentWs(wsId)
   const chats = (useChatsStore((s) => s.chatsByRoot[rootPath]) ?? [])
     .filter((chat) => panelId ? isPanelChat(chat, panelId) : isSidebarChat(chat))
@@ -89,7 +91,7 @@ export const CateAgentChatTabs: React.FC<CateAgentChatTabsProps> = (props) => {
   }
 
   return (
-    <div className="cate-agent-chat-tabs min-w-0 w-full">
+    <div className="cate-agent-chat-tabs relative min-w-0 w-full">
       <div className="cate-agent-chat-tabs-scroll flex w-full items-center gap-1 overflow-x-auto">
         {previewItems.map((chat) => chat.id === drag?.chat.id && showGhost ? (
           <ChatDropGhost key={`ghost-${chat.id}`} chat={chat} compact />
@@ -120,6 +122,16 @@ export const CateAgentChatTabs: React.FC<CateAgentChatTabsProps> = (props) => {
         ))}
         <button
           type="button"
+          onClick={() => setHistoryOpen((open) => !open)}
+          title="Agent session history"
+          aria-label="Agent session history"
+          className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[10px] text-muted transition-colors hover:bg-hover hover:text-primary ${historyOpen ? 'bg-surface-2 text-primary' : ''}`}
+          data-agent-session-history-toggle
+        >
+          <ClockCounterClockwise size={14} />
+        </button>
+        <button
+          type="button"
           onClick={newChat}
           title="New chat"
           className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[10px] text-muted transition-colors hover:bg-hover hover:text-primary"
@@ -127,6 +139,7 @@ export const CateAgentChatTabs: React.FC<CateAgentChatTabsProps> = (props) => {
           <Plus size={14} />
         </button>
       </div>
+      {historyOpen ? <AgentSessionHistoryPopover rootPath={rootPath} onClose={() => setHistoryOpen(false)} /> : null}
     </div>
   )
 }

@@ -371,6 +371,11 @@ export const CODING_LIST_SESSIONS = 'coding:listSessions'         // renderer ->
 export const CODING_LOAD_SESSION_MESSAGES = 'coding:loadSessionMessages' // renderer -> main
 export const CODING_DELETE_SESSION = 'coding:deleteSession'       // renderer -> main
 
+// Cross-CLI session history. The index is machine-local and fed by hook
+// observations; load accepts only references already present in that index.
+export const AGENT_SESSION_HISTORY_LIST = 'agentSessionHistory:list'
+export const AGENT_SESSION_HISTORY_LOAD = 'agentSessionHistory:load'
+
 // Custom OpenAI-compatible provider (pi models.json)
 export const CODING_CUSTOM_MODELS_GET = 'coding:customModelsGet'   // renderer -> main
 export const CODING_CUSTOM_MODELS_SAVE = 'coding:customModelsSave' // renderer -> main

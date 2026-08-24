@@ -18,8 +18,11 @@ import type { AgentHookAgentState, AgentHookEvent } from '../../shared/agentHook
 import { runtimes } from '../runtime/runtimeManager'
 import { parseLocator, type RuntimeId } from '../../shared/runtimeLocator'
 import { getTerminalOwner } from './terminal'
+import { getTerminalWorkspaceId } from './terminal'
 import { sendToWindow } from '../windowRegistry'
 import { ingestAgentSessionStamp } from './agentSessionStamps'
+import { getWorkspaceInfo } from '../workspaceManager'
+import { recordAgentSessionEvent } from './agentSessionHistory'
 
 const unsubs = new Map<RuntimeId, () => void>()
 
@@ -51,6 +54,9 @@ export function registerAgentHookForwarding(): void {
     unsubs.set(
       id,
       runtime.agentHooks.subscribe((event: AgentHookEvent) => {
+        const workspaceId = getTerminalWorkspaceId(event.terminalId)
+        const workspaceRoot = workspaceId ? getWorkspaceInfo(workspaceId)?.rootPath : undefined
+        void recordAgentSessionEvent(runtime, workspaceRoot, event)
         // Events are correlated daemon-side via CATE_TERMINAL_ID; a terminal
         // that has no owner (already closed, or an id we never spawned) drops.
         const ownerWindowId = getTerminalOwner(event.terminalId)
