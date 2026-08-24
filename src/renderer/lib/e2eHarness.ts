@@ -72,6 +72,13 @@ declare global {
        *  geometry-rebuild + redraw path a live node-drag does, without depending
        *  on synthetic mouse drag working in the hidden window. */
       moveNode(nodeId: string, origin: Point): void
+      /** Resize a node in the canvas store — same store action the resize
+       *  handle uses (no synthetic mouse). */
+      resizeNode(nodeId: string, size: { width: number; height: number }): void
+      /** Flush a session save through the real autosave pipeline (sessionSave
+       *  → IPC → main process atomic write) and resolve when the file is on
+       *  disk. */
+      saveSessionNow(): Promise<void>
       /** Close every panel in the selected workspace (clears the canvas between
        *  perf scenarios so node counts/layout don't accumulate). */
       clearCanvas(): void
@@ -245,6 +252,15 @@ export function installE2EHarness(): void {
 
   const moveNode = (nodeId: string, origin: Point) => {
     activeCanvasStore()?.getState().moveNode(nodeId, origin)
+  }
+
+  const resizeNode = (nodeId: string, size: { width: number; height: number }) => {
+    activeCanvasStore()?.getState().resizeNode(nodeId, size)
+  }
+
+  const saveSessionNow = async (): Promise<void> => {
+    const { saveSession } = await import('./workspace/session')
+    await saveSession()
   }
 
   const clearCanvas = () => {
@@ -496,6 +512,8 @@ export function installE2EHarness(): void {
     resetViewport,
     setViewport,
     moveNode,
+    resizeNode,
+    saveSessionNow,
     clearCanvas,
     addWorkspace,
     selectWorkspace,
