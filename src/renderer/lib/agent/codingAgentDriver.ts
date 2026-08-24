@@ -287,6 +287,38 @@ async function waitForCodingAgentChange(
   })
 }
 
+/** Send one user-approved follow-up through the same guarded path used by the
+ *  extension API. The global composer calls this one target at a time; keeping
+ *  the validation here prevents a second, weaker keyboard-injection path from
+ *  growing beside `cate.codingAgent.send`. */
+export async function sendCodingAgentFollowUp(
+  workspaceId: string,
+  ownerPanelId: string,
+  runId: string,
+  rawPrompt: string,
+): Promise<CodingAgentOutcome> {
+  const panel = runPanel(workspaceId, ownerPanelId, runId)
+  const run = panel?.codingAgentRun
+  const prompt = rawPrompt.trim()
+  if (!panel || !run) return { ok: false, error: 'coding-agent-not-found' }
+  if (!prompt) return { ok: false, error: 'prompt-required' }
+  if (prompt.includes('\0')) return { ok: false, error: 'invalid-prompt' }
+  if (prompt.length > 50_000) return { ok: false, error: 'prompt-too-long' }
+  if (run.stoppedAt) return { ok: false, error: 'coding-agent-stopped' }
+  if (!codingAgentSupportsFollowUp(run.agentId)) {
+    return { ok: false, error: 'coding-agent-follow-up-unsupported' }
+  }
+  if (!(await submitTerminalText(panel.id, prompt))) {
+    return { ok: false, error: 'coding-agent-not-ready' }
+  }
+  useAppStore.getState().setPanelCodingAgentRun(workspaceId, panel.id, {
+    ...run,
+    followUps: [...(run.followUps ?? []), { prompt, sentAt: Date.now() }],
+  })
+  const snapshot = codingAgentSnapshot(workspaceId, ownerPanelId, runId)
+  return { ok: true, result: snapshot ? compactCodingAgentSnapshot(snapshot) : null }
+}
+
 export async function handleCodingAgentMethod(
   workspaceId: string,
   ownerPanelId: string,
@@ -603,24 +635,12 @@ export async function handleCodingAgentMethod(
   }
 
   if (name === 'send') {
-    const panel = runPanel(workspaceId, ownerPanelId, runId)
-    const run = panel?.codingAgentRun
-    const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : ''
-    if (!panel || !run) return { ok: false, error: 'coding-agent-not-found' }
-    if (!prompt) return { ok: false, error: 'prompt-required' }
-    if (run.stoppedAt) return { ok: false, error: 'coding-agent-stopped' }
-    if (!codingAgentSupportsFollowUp(run.agentId)) {
-      return { ok: false, error: 'coding-agent-follow-up-unsupported' }
-    }
-    if (!(await submitTerminalText(panel.id, prompt))) {
-      return { ok: false, error: 'coding-agent-not-ready' }
-    }
-    useAppStore.getState().setPanelCodingAgentRun(workspaceId, panel.id, {
-      ...run,
-      followUps: [...(run.followUps ?? []), { prompt, sentAt: Date.now() }],
-    })
-    const snapshot = codingAgentSnapshot(workspaceId, ownerPanelId, runId)
-    return { ok: true, result: snapshot ? compactCodingAgentSnapshot(snapshot) : null }
+    return sendCodingAgentFollowUp(
+      workspaceId,
+      ownerPanelId,
+      runId,
+      typeof args.prompt === 'string' ? args.prompt : '',
+    )
   }
 
   if (name === 'stop') {

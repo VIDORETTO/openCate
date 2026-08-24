@@ -1,6 +1,6 @@
 # Arquitetura — Modelo de Processos, IPC, Persistência e Segurança
 
-> Documento técnico para desenvolvedores. Descreve como o Cate funciona internamente, baseado na leitura do código-fonte (não no README). Última atualização: Fase 3 — histórico de sessões.
+> Documento técnico para desenvolvedores. Descreve como o Cate funciona internamente, baseado na leitura do código-fonte (não no README). Última atualização: Fase 3 — histórico e composer global de agentes.
 
 ## Visão geral dos processos
 
@@ -117,6 +117,22 @@ operação distinta e continua usando `resumeCommandForAgent`/o comando nativo.
 CLIs sem transcript ou sem id estável (como Aider) aparecem como metadados sem
 replay inventado.
 
+### Composer global de agentes
+
+`src/renderer/canvas/GlobalAgentComposer.tsx` oferece um ponto único para
+enviar um follow-up a missões `codingAgentRun` criadas pelo Cate. A lista só
+habilita alvos cujo registro declara follow-up e cujo estado derivado está em
+`working` ou `waiting`; terminais arbitrários, processos encerrados e CLIs sem
+esse contrato permanecem indisponíveis. Mais de um alvo exige uma segunda
+confirmação antes do broadcast, e cada envio passa por
+`sendCodingAgentFollowUp`, que reutiliza a validação do driver e registra o
+follow-up no estado persistido da missão.
+
+Slash commands são literais por padrão. O usuário pode ativar a tradução
+opt-in de `/status`, `/plan` e `/review` para instruções neutras; comandos
+desconhecidos não são reescritos, evitando afirmar compatibilidade entre CLIs
+que não foi verificada.
+
 ## Segurança
 
 ### Sandbox de filesystem
@@ -171,6 +187,9 @@ Documentados honestamente (não são bugs, são tradeoffs):
    Transcripts remotos fora do workspace aguardam uma capacidade de leitura
    específica no runtime, em vez de ampliar silenciosamente o escopo de
    filesystem.
+7. **Broadcast global**: a primeira versão só alcança missões criadas pelo
+   Cate com follow-up declarado; sessões de CLI abertas manualmente em
+   terminais não são alvos até existir um protocolo de estado e envio seguro.
 
 ## Referências rápidas
 
@@ -188,6 +207,7 @@ Documentados honestamente (não são bugs, são tradeoffs):
 | File watcher | `src/runtime/capabilities/fileWatcher.ts` |
 | Agent hooks | `src/runtime/capabilities/agentHooks.ts` |
 | Agent session history | `src/shared/agentSessions.ts` + `src/main/ipc/agentSessionHistory.ts` |
+| Global agent composer | `src/renderer/canvas/GlobalAgentComposer.tsx` + `src/renderer/lib/agent/codingAgentBroadcast.ts` |
 | Path validation | `src/main/ipc/pathValidation.ts` |
 | Project state | `src/main/projectWorkspaceStore.ts` |
 | Session autosave | `src/renderer/lib/workspace/sessionAutosave.ts` |

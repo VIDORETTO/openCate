@@ -20,6 +20,7 @@ import { CateLogo } from '../ui/CateLogo'
 import Minimap from './Minimap'
 import WorktreeToolbarMenu from './WorktreeToolbarMenu'
 import ExtensionToolbarMenu from './ExtensionToolbarMenu'
+import { GlobalAgentComposer } from './GlobalAgentComposer'
 import { useCanvasStoreApi, useCanvasStoreContext } from '../stores/CanvasStoreContext'
 import { useUIStore } from '../stores/uiStore'
 import { useUIStateStore } from '../stores/uiStateStore'
@@ -290,6 +291,7 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
       <ToolbarButton onClick={onNewAgent} title="Cate Agent" size="panel" placement={place}>
         <CateLogo size={18} />
       </ToolbarButton>
+      <GlobalAgentComposer workspaceId={workspaceId} placement={place} />
       <ExtensionToolbarMenu
         canvasPanelId={canvasPanelId}
         workspaceId={workspaceId}

@@ -78,7 +78,7 @@ vi.mock('./codingAgentIntegration', () => ({
 }))
 
 import { AGENTS } from '../../../shared/agents'
-import { codingAgentSnapshot, handleCodingAgentMethod } from './codingAgentDriver'
+import { codingAgentSnapshot, handleCodingAgentMethod, sendCodingAgentFollowUp } from './codingAgentDriver'
 
 describe('codingAgentDriver mission integration', () => {
   beforeEach(() => {
@@ -541,6 +541,24 @@ describe('codingAgentDriver mission integration', () => {
     expect(state.app.workspaces[0].panels.worker.codingAgentRun.followUps).toEqual([
       { prompt: 'Now test it', sentAt: expect.any(Number) },
     ])
+  })
+
+  it('rejects unsafe or empty direct follow-ups before touching the PTY', async () => {
+    await handleCodingAgentMethod('ws', 'supervisor-1', 'cate.codingAgent.create', {
+      agentId: 'codex', prompt: 'Implement it',
+    })
+    const run = state.app.workspaces[0].panels.worker.codingAgentRun
+    submitTerminalText.mockClear()
+
+    await expect(sendCodingAgentFollowUp('ws', 'supervisor-1', run.id, '   ')).resolves.toEqual({
+      ok: false,
+      error: 'prompt-required',
+    })
+    await expect(sendCodingAgentFollowUp('ws', 'supervisor-1', run.id, 'safe\0unsafe')).resolves.toEqual({
+      ok: false,
+      error: 'invalid-prompt',
+    })
+    expect(submitTerminalText).not.toHaveBeenCalled()
   })
 
   it('returns a read-only review for an owned isolated worker', async () => {
