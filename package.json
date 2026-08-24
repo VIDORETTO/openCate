@@ -21,8 +21,8 @@
     "node": ">=20 <23"
   },
   "scripts": {
-    "postinstall": "bash scripts/patch-electron-name.sh",
-    "predev": "bash scripts/patch-electron-name.sh",
+    "postinstall": "node scripts/patch-electron-name.mjs",
+    "predev": "node scripts/patch-electron-name.mjs",
     "setup": "bun install && bun run runtime:tarball",
     "dev": "electron-vite dev",
     "dev:dialog": "DEV_FORCE_DIALOG=1 electron-vite dev",
