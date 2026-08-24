@@ -132,4 +132,21 @@ describe('settingsFile', () => {
     const onDisk = JSON.parse(fs.readFileSync(settingsPath(), 'utf-8'))
     expect(onDisk.betaUpdatesEnabled).toBe(true)
   })
+
+  it('accepts and round-trips structured agent command overrides', async () => {
+    const overrides: import('../shared/types').AppSettings['agentCommandOverrides'] = {
+      'ws-1': {
+        agents: { codex: { command: '/opt/codex-wrapper', args: ['--safe', '{PROMPT}'] } },
+        profiles: { review: { agent: 'codex', command: 'review-agent', args: ['{PROMPT}'] } },
+      },
+    }
+    const m = await freshModule()
+    m.loadSettingsSync()
+
+    expect(m.isSettingsKey('agentCommandOverrides')).toBe(true)
+    expect(m.getSetting('agentCommandOverrides')).toEqual({})
+    expect(m.setSetting('agentCommandOverrides', overrides)).toBe(true)
+    m.flushPendingWritesSync()
+    expect(JSON.parse(fs.readFileSync(settingsPath(), 'utf-8')).agentCommandOverrides).toEqual(overrides)
+  })
 })

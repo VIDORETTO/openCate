@@ -92,6 +92,7 @@ const SETTINGS_SCHEMA: Record<keyof AppSettings, string> = {
   // renderer consumers, which validate hand-edited partial shapes.
   agentDefaultModel: 'object',
   agentHookInjection: 'object',
+  agentCommandOverrides: 'object',
   sidebarLayout: 'object',
   customShortcuts: 'object',
   enabledExtensions: 'array',

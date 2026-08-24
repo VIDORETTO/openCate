@@ -5,6 +5,7 @@ import {
   codingAgentCommand,
   codingAgentSupportsFollowUp,
   deriveCodingAgentRunStatus,
+  normalizeAgentCommandOverrides,
   parseCodingAgentId,
 } from './codingAgentRuns'
 
@@ -53,6 +54,83 @@ describe('codingAgentCommand', () => {
     expect(() => codingAgentCommand({ agentId: 'pi', prompt: '   ' })).toThrow(
       'A coding-agent prompt is required',
     )
+  })
+
+  it('normalizes untrusted overrides and drops malformed entries', () => {
+    const normalized = normalizeAgentCommandOverrides({
+      agents: {
+        codex: { command: '/opt/tools/codex', args: ['--profile', 'safe', '{PROMPT}'] },
+        'claude-code': { command: 'claude\n--danger' },
+        pi: { args: ['valid', 42 as never] },
+      },
+      profiles: {
+        'review.safe': { agent: 'codex', command: 'codex-review', args: ['--review', '{PROMPT}'] },
+        bad: { agent: 'nope', command: 'sh' },
+        empty: {},
+      },
+      ignored: true,
+    })
+
+    expect(normalized).toEqual({
+      agents: {
+        codex: { command: '/opt/tools/codex', args: ['--profile', 'safe', '{PROMPT}'] },
+      },
+      profiles: {
+        'review.safe': { agent: 'codex', command: 'codex-review', args: ['--review', '{PROMPT}'] },
+      },
+    })
+  })
+
+  it('applies workspace agent override after canonical argv without shell interpretation', () => {
+    expect(codingAgentCommand(
+      { agentId: 'codex', prompt: 'dangerous; task' },
+      {
+        workspaceId: 'ws',
+        overrides: {
+          agents: { codex: { command: 'podman', args: ['run', '--rm', 'codex', '{PROMPT}'] } },
+        },
+      },
+    )).toEqual({
+      executable: 'podman',
+      args: [
+        'run',
+        '--rm',
+        'codex',
+        `Complete this coding task:\n\ndangerous; task`,
+      ],
+    })
+  })
+
+  it('applies an explicit profile before a workspace agent override', () => {
+    const command = codingAgentCommand(
+      { agentId: 'gemini', prompt: 'Inspect it', commandProfile: 'fast' },
+      {
+        workspaceId: 'ws',
+        overrides: {
+          agents: { gemini: { command: 'agent-override' } },
+          profiles: { fast: { agent: 'gemini', command: 'gemini-fast', args: ['{PROMPT}', '--fast'] } },
+        },
+      },
+    )
+
+    expect(command).toEqual({
+      executable: 'gemini-fast',
+      args: [`Complete this coding task:\n\nInspect it`, '--fast'],
+    })
+  })
+
+  it('fails closed for unknown or mismatched explicit profiles', () => {
+    expect(() => codingAgentCommand(
+      { agentId: 'codex', prompt: 'task', commandProfile: 'missing' as never },
+      { workspaceId: 'ws', overrides: {} },
+    )).toThrow('Unknown coding-agent launch profile')
+    expect(() => codingAgentCommand(
+      { agentId: 'codex', prompt: 'task', commandProfile: 'claude-only' as never },
+      {
+        workspaceId: 'ws',
+        overrides: { profiles: { 'claude-only': { agent: 'claude-code', command: 'claude' } } },
+      },
+    )).toThrow('not codex')
   })
 })
 

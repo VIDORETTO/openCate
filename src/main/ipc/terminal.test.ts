@@ -90,6 +90,13 @@ const workspaceInfo = vi.hoisted(() => ({
 vi.mock('../workspaceManager', () => ({ getWorkspaceInfo: workspaceInfo.get }))
 const skillsSync = vi.hoisted(() => ({ run: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../../skills/main/skillsMirror', () => ({ syncWorkspaceSkills: skillsSync.run }))
+const settingsState = vi.hoisted(() => ({
+  agentCommandOverrides: {} as Record<string, unknown>,
+  agentHookInjection: {} as Record<string, unknown>,
+}))
+vi.mock('../settingsFile', () => ({
+  getSetting: (key: string) => (settingsState as Record<string, unknown>)[key],
+}))
 
 // A fake runtime whose process.create is the hoisted spy, so the instant-exit
 // tests can drive onData/onExit deterministically through the real spawnTerminal.
@@ -517,6 +524,7 @@ describe('instant-exit diagnostics (#401)', () => {
 describe('CATE_API env injection into spawned terminals', () => {
   beforeEach(() => {
     vi.resetModules()
+    settingsState.agentCommandOverrides = {}
     diag.ptyCreate.mockReset()
     diag.worktreeList.mockReset().mockResolvedValue([
       { path: '/repo/base', branch: 'main', isBare: false },
@@ -654,6 +662,7 @@ describe('Cate-owned coding-agent process launch', () => {
     diag.ptyCreate.mockReset()
     cateApi.ensureEndpoint.mockReset().mockResolvedValue(null)
     workspaceInfo.get.mockReset()
+    settingsState.agentCommandOverrides = {}
   })
 
   async function spawn(options: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -693,5 +702,32 @@ describe('Cate-owned coding-agent process launch', () => {
     })
 
     expect(options.command).toBeUndefined()
+  })
+
+  it('resolves persisted workspace overrides at the PTY boundary', async () => {
+    settingsState.agentCommandOverrides = {
+      'ws-1': {
+        agents: {
+          aider: { command: '/opt/aider-wrapper', args: ['--model', 'fast', '{PROMPT}'] },
+        },
+      },
+    }
+
+    const options = await spawn({
+      workspaceId: 'ws-1',
+      panelId: 'worker-panel',
+      cwd: '/repo',
+      codingAgentLaunch: {
+        runId: 'run-1',
+        agentId: 'aider',
+        ownerPanelId: 'supervisor-1',
+        prompt: 'Implement it',
+      },
+    })
+
+    expect(options.command).toEqual({
+      executable: '/opt/aider-wrapper',
+      args: ['--model', 'fast', `Complete this coding task:\n\nImplement it`],
+    })
   })
 })

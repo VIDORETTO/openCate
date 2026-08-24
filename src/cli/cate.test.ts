@@ -194,6 +194,16 @@ describe('agent orchestration surface', () => {
     })
   })
 
+  it('parses an explicit launch profile as a create-only option', () => {
+    const parsed = parseCli(['agent', 'create', 'Ship it', '--profile', 'safe.review'])
+    expect(buildRequest(parsed.positionals, parsed.flags)).toEqual({
+      method: 'cate.codingAgent.create',
+      args: { prompt: 'Ship it', commandProfile: 'safe.review' },
+    })
+    expect(() => buildRequest(['agent', 'list'], { ...flags, profile: 'safe.review' }))
+      .toThrow(/create options/)
+  })
+
   it('maps the complete lifecycle and validates worktree options', () => {
     expect(buildRequest(['agent', 'list'], flags)).toEqual({
       method: 'cate.codingAgent.list', args: {},

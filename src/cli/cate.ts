@@ -30,6 +30,7 @@ export interface Flags {
   newWorktree?: string
   baseRef?: string
   foreground: boolean
+  profile?: string
   waitTimeout?: string
 }
 
@@ -108,6 +109,9 @@ export function parseCli(argv: string[]): Parsed {
       index += 1
     } else if (agentCommand && part === '--foreground') {
       flags.foreground = true
+    } else if (agentCommand && part === '--profile') {
+      flags.profile = need(argv[index + 1], 'profile')
+      index += 1
     } else if (agentCommand && part === '--wait-timeout') {
       flags.waitTimeout = need(argv[index + 1], 'wait-timeout')
       index += 1
@@ -123,7 +127,8 @@ function agentRequest(args: string[], flags: Flags): Request {
   const rest = args.slice(1)
   if (flags.panel) throw new UsageError(`--panel is not valid for agent ${command}`)
   const hasCreateOptions = Boolean(
-    flags.agentId || flags.title || flags.worktreeId || flags.newWorktree || flags.baseRef || flags.foreground,
+    flags.agentId || flags.title || flags.worktreeId || flags.newWorktree ||
+      flags.baseRef || flags.foreground || flags.profile,
   )
   if (command !== 'create' && hasCreateOptions) {
     throw new UsageError(`create options are not valid for agent ${command}`)
@@ -154,6 +159,7 @@ function agentRequest(args: string[], flags: Flags): Request {
         ...(flags.newWorktree ? { newWorktree: flags.newWorktree } : {}),
         ...(flags.baseRef ? { baseRef: flags.baseRef } : {}),
         ...(flags.foreground ? { background: false } : {}),
+        ...(flags.profile ? { commandProfile: flags.profile } : {}),
       },
     }
   }
@@ -606,6 +612,7 @@ snapshot. Use --panel whenever more than one browser could be the target.`
 const AGENT_USAGE = `Usage:
   cate agent list
   cate agent create <prompt...> [--agent <id>] [--title <title>]
+      [--profile <name>]
       [--worktree <id> | --new-worktree <name> [--base-ref <ref>]] [--foreground]
   cate agent send <runId> <prompt...>
   cate agent wait [runId...] [--wait-timeout <ms>]

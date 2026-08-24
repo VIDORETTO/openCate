@@ -487,6 +487,8 @@ describe('codingAgentDriver mission integration', () => {
     [{ prompt: 'x'.repeat(50_001) }, 'prompt-too-long'],
     [{ prompt: 'task', worktreeId: 'wt', newWorktree: 'new' }, 'choose-worktreeId-or-newWorktree'],
     [{ prompt: 'task', worktreeId: 'missing' }, 'worktree-not-registered'],
+    [{ prompt: 'task', commandProfile: '' }, 'invalid-command-profile'],
+    [{ prompt: 'task', commandProfile: 'x'.repeat(65) }, 'invalid-command-profile'],
   ])('rejects invalid create arguments %# before creating a panel', async (args, error) => {
     await expect(handleCodingAgentMethod(
       'ws',
@@ -495,6 +497,28 @@ describe('codingAgentDriver mission integration', () => {
       args,
     )).resolves.toEqual({ ok: false, error })
     expect(state.app.createTerminal).not.toHaveBeenCalled()
+  })
+
+  it('carries an explicit launch profile through to the terminal contract', async () => {
+    const outcome = await handleCodingAgentMethod(
+      'ws',
+      'supervisor-1',
+      'cate.codingAgent.create',
+      { agentId: 'codex', prompt: 'Implement it', commandProfile: 'safe-review' },
+    )
+
+    expect(outcome.ok).toBe(true)
+    expect(state.app.createTerminal).toHaveBeenCalledWith(
+      'ws',
+      undefined,
+      undefined,
+      expect.any(Object),
+      '/repo',
+      expect.objectContaining({ commandProfile: 'safe-review' }),
+    )
+    expect(getOrCreate).toHaveBeenCalledWith('worker', expect.objectContaining({
+      codingAgentLaunch: expect.objectContaining({ commandProfile: 'safe-review' }),
+    }))
   })
 
   it('inspects recent output and sends a durable follow-up to a supported worker', async () => {

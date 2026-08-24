@@ -5,6 +5,7 @@
 
 import { create } from 'zustand'
 import log from '../lib/logger'
+import { normalizeAgentCommandOverrides } from '../../shared/codingAgentRuns'
 import type { AppSettings } from '../../shared/types'
 import { DEFAULT_SETTINGS } from '../../shared/types'
 import { getElectronAPI as getAPI, loadOnce, mergeKnown } from './jsonProjection'
@@ -24,7 +25,13 @@ interface ElectronSettingsAPI {
 
 // Copy only known AppSettings keys from a source object onto a target patch.
 function pickKnownSettings(source: Partial<AppSettings>): Partial<AppSettings> {
-  return mergeKnown(DEFAULT_SETTINGS, source)
+  const known = mergeKnown(DEFAULT_SETTINGS, source)
+  if ('agentCommandOverrides' in known) {
+    known.agentCommandOverrides = normalizeAgentCommandOverrides(
+      known.agentCommandOverrides,
+    ) as typeof known.agentCommandOverrides
+  }
+  return known
 }
 
 // Subscribe once (per window) to SETTINGS_RELOADED. Main broadcasts the full

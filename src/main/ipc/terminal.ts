@@ -54,7 +54,10 @@ import {
   validateWorktreeContext,
   type WorktreeContext,
 } from '../worktreeContext'
-import { codingAgentCommand, type CodingAgentLaunch } from '../../shared/codingAgentRuns'
+import {
+  codingAgentCommand,
+  type CodingAgentLaunch,
+} from '../../shared/codingAgentRuns'
 
 // Set true during app shutdown so PTY data/exit callbacks no-op instead of
 // calling into a torn-down JS environment.
@@ -409,7 +412,13 @@ async function spawnTerminal(
       cwd,
       shell: options.shell,
       ...(options.codingAgentLaunch
-        ? { command: codingAgentCommand(options.codingAgentLaunch) }
+        ? {
+            command: codingAgentCommand(options.codingAgentLaunch, {
+              workspaceId: options.workspaceId,
+              profileId: options.codingAgentLaunch.commandProfile,
+              overrides: getSetting('agentCommandOverrides')[options.workspaceId ?? ''],
+            }),
+          }
         : {}),
       env: cateApiEnv,
       agentHooks: true,

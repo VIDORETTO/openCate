@@ -7,7 +7,12 @@ import type { Theme } from './theme'
 export type { Theme } from './theme'
 import type { AgentId } from './agents'
 import type { AgentHookMode } from './agentHooks'
-import type { CodingAgentLaunch, CodingAgentRun, CodingAgentRunStatus } from './codingAgentRuns'
+import type {
+  AgentCommandOverrides,
+  CodingAgentLaunch,
+  CodingAgentRun,
+  CodingAgentRunStatus,
+} from './codingAgentRuns'
 
 // -----------------------------------------------------------------------------
 // Geometry primitives
@@ -1431,6 +1436,13 @@ export interface AppSettings {
    *  folder already exists in the repo). Sparse: only real overrides stored. */
   agentHookInjection: Record<string, Partial<Record<AgentId, AgentHookMode>>>
 
+  /** Optional executable/argv replacements for coding-agent launches.
+   *  `agents` is keyed by workspace id and then AgentId; `profiles` are named,
+   *  workspace-scoped launch profiles selected explicitly with `--profile`.
+   *  Args replace the canonical argv entirely; malformed hand edits are dropped
+   *  during normalization rather than passed to a PTY. */
+  agentCommandOverrides: Record<string, AgentCommandOverrides>
+
   // Layout
   /** Which sidebar views live in the left vs. right rail. Was renderer
    *  localStorage (cate.sidebarLayout.v3) before. */
@@ -1534,6 +1546,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   // Agent
   agentDefaultModel: null,
   agentHookInjection: {},
+  agentCommandOverrides: {},
 
   // Layout — keep in sync with the sidebar's default arrangement.
   sidebarLayout: {

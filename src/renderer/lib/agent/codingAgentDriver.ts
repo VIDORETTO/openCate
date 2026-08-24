@@ -315,12 +315,19 @@ export async function handleCodingAgentMethod(
     const requestedAgentId = args.agentId === undefined ? '' : parseCodingAgentId(args.agentId)
     const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : ''
     const requestedTitle = typeof args.title === 'string' ? args.title.trim() : ''
+    const commandProfile = typeof args.commandProfile === 'string' ? args.commandProfile : undefined
     const background = args.background !== false
     if (args.agentId !== undefined && !requestedAgentId) {
       return { ok: false, error: 'unsupported-agent' }
     }
     if (!prompt) return { ok: false, error: 'prompt-required' }
     if (requestedTitle.length > 80) return { ok: false, error: 'title-too-long' }
+    if (
+      args.commandProfile !== undefined &&
+      (commandProfile === undefined || commandProfile === '' || commandProfile.length > 64)
+    ) {
+      return { ok: false, error: 'invalid-command-profile' }
+    }
     if (prompt.includes('\0')) return { ok: false, error: 'invalid-prompt' }
     if (prompt.length > 50_000) return { ok: false, error: 'prompt-too-long' }
     const active = allSnapshots(workspaceId, ownerPanelId).filter((run) =>
@@ -432,6 +439,7 @@ export async function handleCodingAgentMethod(
       ownerPanelId,
       ownsWorktree: Boolean(createdWorktree),
       background,
+      ...(commandProfile !== undefined ? { commandProfile } : {}),
     }
     const panelId = useAppStore.getState().createTerminal(
       workspaceId,
