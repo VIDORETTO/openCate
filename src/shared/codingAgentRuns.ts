@@ -290,12 +290,38 @@ const CODING_AGENT_TASK_PREFIX = 'Complete this coding task:\n\n'
 export interface AgentCommandOverride {
   command?: string
   args?: readonly string[]
+  /** Structured, registry-translated launch preferences. */
+  preferences?: AgentEnvironmentPreferences
 }
 
 /** Named, reusable launch override. An optional agent makes it apply only when
  *  that exact agent is selected; unrestricted profiles apply to every agent. */
 export interface AgentCommandProfile extends AgentCommandOverride {
   agent?: AgentId
+}
+
+/** Structured launch preferences that are translated by the canonical agent
+ *  registry instead of being passed through as raw CLI flags. */
+export interface AgentLaunchPreferences {
+  /** Provider/model identifier accepted by the target CLI. Free-form because
+   *  model catalogs change frequently and are provider-owned. */
+  model?: string
+  /** Coarse reasoning effort; mapped only when the CLI exposes a compatible
+   *  flag or environment variable. Unsupported levels are dropped. */
+  reasoningEffort?: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+}
+
+/** Explicit permission posture for a mission launch. `default` means "let the
+ *  agent use its own project/user policy"; the other values map to documented
+ *  per-CLI modes and never to a generic shell bypass. */
+export type AgentPermissionMode = 'default' | 'ask' | 'workspace-write' | 'bypass'
+
+export interface AgentEnvironmentPreferences extends AgentLaunchPreferences {
+  permissions?: AgentPermissionMode
+  /** Extra spawn environment. Keys cannot reserve Cate's CATE_* namespace and
+   *  values are length/NUL-bounded. Invalid entries invalidate the whole object
+   *  so a hand edit can never partially become a spawn contract. */
+  env?: Record<string, string>
 }
 
 export interface AgentCommandOverrides {
@@ -309,6 +335,61 @@ const PROFILE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 const MAX_COMMAND_LENGTH = 1_024
 const MAX_ARG_LENGTH = 16_384
 const MAX_ARGS = 64
+const MAX_MODEL_LENGTH = 200
+const MAX_ENV_ENTRIES = 64
+const ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_.-]{0,127}$/
+
+function validModel(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0 && value.length <= MAX_MODEL_LENGTH &&
+    !hasControlChars(value)
+}
+
+function validReasoningEffort(value: unknown): value is NonNullable<AgentLaunchPreferences['reasoningEffort']> {
+  return value === 'off' || value === 'minimal' || value === 'low' ||
+    value === 'medium' || value === 'high' || value === 'xhigh'
+}
+
+function validPermissionMode(value: unknown): value is AgentPermissionMode {
+  return value === 'default' || value === 'ask' || value === 'workspace-write' || value === 'bypass'
+}
+
+function normalizeAgentEnvironmentPreferences(
+  value: unknown,
+): AgentEnvironmentPreferences | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const source = value as AgentEnvironmentPreferences
+  const clean: AgentEnvironmentPreferences = {}
+  if (source.model !== undefined) {
+    if (!validModel(source.model)) return undefined
+    clean.model = source.model.trim()
+  }
+  if (source.reasoningEffort !== undefined) {
+    if (!validReasoningEffort(source.reasoningEffort)) return undefined
+    clean.reasoningEffort = source.reasoningEffort
+  }
+  if (source.permissions !== undefined) {
+    if (!validPermissionMode(source.permissions)) return undefined
+    if (source.permissions !== 'default') clean.permissions = source.permissions
+  }
+  if (source.env !== undefined) {
+    if (!validEnv(source.env)) return undefined
+    clean.env = Object.fromEntries(Object.entries(source.env).sort(([a], [b]) => a.localeCompare(b)))
+  }
+  return Object.keys(clean).length > 0 ? clean : undefined
+}
+
+function validEnv(value: unknown): value is Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const entries = Object.entries(value)
+  if (entries.length > MAX_ENV_ENTRIES) return false
+  return entries.every(([key, val]) =>
+    ENV_KEY_RE.test(key) &&
+    !key.toLowerCase().startsWith('cate_') &&
+    typeof val === 'string' &&
+    val.length <= MAX_ARG_LENGTH &&
+    !val.includes('\0'),
+  )
+}
 
 function hasControlChars(value: string): boolean {
   return /[\0\x01-\x1f\x7f]/.test(value)
@@ -347,7 +428,11 @@ export function normalizeAgentCommandOverrides(value: unknown): AgentCommandOver
         if (!validArgs(entry.args)) continue
         clean.args = entry.args
       }
-      if (clean.command !== undefined || clean.args !== undefined) agents[agent.id] = clean
+      const preferences = normalizeAgentEnvironmentPreferences(entry.preferences)
+      if (preferences) clean.preferences = preferences
+      if (
+        clean.command !== undefined || clean.args !== undefined || clean.preferences !== undefined
+      ) agents[agent.id] = clean
     }
     if (Object.keys(agents).length > 0) result.agents = agents
   }
@@ -370,7 +455,11 @@ export function normalizeAgentCommandOverrides(value: unknown): AgentCommandOver
         if (!validArgs(entry.args)) continue
         clean.args = entry.args
       }
-      if (clean.command !== undefined || clean.args !== undefined) profiles[id] = clean
+      const preferences = normalizeAgentEnvironmentPreferences(entry.preferences)
+      if (preferences) clean.preferences = preferences
+      if (
+        clean.command !== undefined || clean.args !== undefined || clean.preferences !== undefined
+      ) profiles[id] = clean
     }
     if (Object.keys(profiles).length > 0) result.profiles = profiles
   }
@@ -380,6 +469,7 @@ export function normalizeAgentCommandOverrides(value: unknown): AgentCommandOver
 interface ResolvedAgentCommandOptions {
   workspaceId?: string
   profileId?: string
+  strictUnsupported?: boolean
   overrides?: unknown
 }
 
@@ -394,6 +484,7 @@ function resolveRegisteredAgentCommand(
   const overrides = normalizeAgentCommandOverrides(options.overrides)
   let executable = agent.command
   let args = canonicalArgs
+  let selectedPreferences: AgentEnvironmentPreferences | undefined
 
   if (options.profileId !== undefined) {
     const profile = overrides.profiles?.[options.profileId]
@@ -407,6 +498,7 @@ function resolveRegisteredAgentCommand(
     }
     if (profile.command !== undefined) executable = profile.command
     if (profile.args !== undefined) args = [...profile.args]
+    selectedPreferences = profile.preferences
   }
 
   // Workspace agent override applies only when no explicit profile was chosen:
@@ -416,6 +508,7 @@ function resolveRegisteredAgentCommand(
     const agentOverride = overrides.agents?.[agent.id]
     if (agentOverride?.command !== undefined) executable = agentOverride.command
     if (agentOverride?.args !== undefined) args = [...agentOverride.args]
+    selectedPreferences ??= agentOverride?.preferences
   }
 
   // Interpolate the task into the override argv. The canonical argv already
@@ -423,6 +516,32 @@ function resolveRegisteredAgentCommand(
   // `{PROMPT}` token is the only way to place it. Without this, a wrapper would
   // receive no task at all. No shell involved, so the text stays one argument.
   args = args.map((arg) => arg.replace(/\{PROMPT\}/g, canonicalArgs[canonicalArgs.length - 1]))
+
+  // Structured preferences are resolved after override argv replacement so they
+  // remain meaningful for wrapper commands too. They are not raw user flags:
+  // every supported mapping comes from the canonical agent registry.
+  if (selectedPreferences?.model !== undefined && supportsLaunchPreference(agent.id, 'model')) {
+    args.push(...agent.launchPreferences!.model!.args(selectedPreferences.model))
+  }
+  if (
+    selectedPreferences?.reasoningEffort !== undefined &&
+    supportsLaunchPreference(agent.id, 'reasoning')
+  ) {
+    const effortArgs = agent.launchPreferences!.reasoning![selectedPreferences.reasoningEffort]
+    if (effortArgs) args.push(...effortArgs)
+  }
+  if (selectedPreferences?.permissions && selectedPreferences.permissions !== 'default') {
+    const mapping = agent.permissionModes?.[
+      selectedPreferences.permissions === 'workspace-write' ? 'workspaceWrite' : selectedPreferences.permissions
+    ]
+    if (mapping) {
+      args.splice(mapping.promptIndex ?? args.length, 0, ...mapping.args)
+    } else if (mapping === null && options.strictUnsupported !== false) {
+      throw new Error(
+        `${agent.displayName} does not support the ${selectedPreferences.permissions} permission mode`,
+      )
+    }
+  }
 
   return { executable, args }
 }
@@ -463,4 +582,13 @@ export function codingAgentDisplayName(agentId: string): string {
 
 export function codingAgentSupportsFollowUp(agentId: AgentId): boolean {
   return AGENTS.find((agent) => agent.id === agentId)?.codingAgentFollowUp ?? false
+}
+
+/** Whether the canonical registry can translate a structured launch preference. */
+export function supportsLaunchPreference(
+  agentId: AgentId,
+  preference: 'model' | 'reasoning',
+): boolean {
+  const agent = AGENTS.find((candidate) => candidate.id === agentId)
+  return Boolean(agent?.launchPreferences?.[preference])
 }

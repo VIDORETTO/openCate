@@ -56,6 +56,7 @@ import {
 } from '../worktreeContext'
 import {
   codingAgentCommand,
+  normalizeAgentCommandOverrides,
   type CodingAgentLaunch,
 } from '../../shared/codingAgentRuns'
 
@@ -414,6 +415,12 @@ async function spawnTerminal(
       log.warn('[terminal] worktree skill sync failed: %O', err)
     }
   }
+  const codingAgentPreferences = options.codingAgentLaunch?.commandProfile === undefined
+    ? normalizeAgentCommandOverrides(
+        getSetting('agentCommandOverrides')[options.workspaceId ?? ''],
+      ).agents?.[options.codingAgentLaunch!.agentId]
+    : undefined
+  const codingAgentEnv = codingAgentPreferences?.preferences?.env
   const handle = await runtime.process.create(
     {
       cols: options.cols,
@@ -425,11 +432,12 @@ async function spawnTerminal(
             command: codingAgentCommand(options.codingAgentLaunch, {
               workspaceId: options.workspaceId,
               profileId: options.codingAgentLaunch.commandProfile,
+              strictUnsupported: false,
               overrides: getSetting('agentCommandOverrides')[options.workspaceId ?? ''],
             }),
           }
         : {}),
-      env: cateApiEnv,
+      ...(codingAgentEnv || cateApiEnv ? { env: { ...(codingAgentEnv ?? {}), ...(cateApiEnv ?? {}) } } : {}),
       agentHooks: true,
       agentHookConfig,
       workspaceBaseCwd: worktree?.base.path,

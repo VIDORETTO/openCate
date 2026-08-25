@@ -97,6 +97,19 @@ export interface AgentDef {
   /** Project-skills integration, or null when Cate installs no skills for this
    *  agent. Verified against each CLI's own docs — see the per-agent notes. */
   skills: AgentSkillTarget | null
+  /** Registry-translated structured launch preferences. Omitted means the CLI
+   *  has no verified mapping for that preference; Cate must not invent flags. */
+  launchPreferences?: {
+    model?: { args: (model: string) => string[] }
+    reasoning?: Partial<Record<'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh', string[]>>
+  }
+  /** Explicit permission postures, keyed by the shared contract value. `null`
+   *  records a verified gap and makes strict launches fail closed rather than
+   *  silently using a different posture. */
+  permissionModes?: Partial<Record<
+    'ask' | 'workspaceWrite' | 'bypass',
+    { args: string[]; promptIndex?: number } | null
+  >>
 }
 
 export interface EmbeddedAgentDef {
@@ -133,6 +146,14 @@ export const AGENTS: readonly AgentDef[] = [
     resumeArgs: (sid) => ['--resume', sid],
     // claude is the standard's origin: it REQUIRES frontmatter name === dir name.
     skills: folderSkills('claude-code', ['.claude', 'skills'], { nameMatchesDir: true }),
+    launchPreferences: {
+      model: { args: (model) => ['--model', model] },
+      reasoning: {},
+    },
+    permissionModes: {
+      workspaceWrite: { args: ['--permission-mode', 'acceptEdits'], promptIndex: 0 },
+      bypass: { args: ['--permission-mode', 'bypassPermissions'], promptIndex: 0 },
+    },
   },
   {
     id: 'codex',
@@ -143,6 +164,17 @@ export const AGENTS: readonly AgentDef[] = [
     matchProcess: (n) => n === 'codex',
     resumeArgs: (sid) => ['resume', sid],
     skills: folderSkills('codex', ['.codex', 'skills']),
+    launchPreferences: {
+      model: { args: (model) => ['-m', model] },
+      reasoning: {
+        low: ['-c', 'model_reasoning_effort=low'],
+        medium: ['-c', 'model_reasoning_effort=medium'],
+        high: ['-c', 'model_reasoning_effort=high'],
+      },
+    },
+    permissionModes: {
+      workspaceWrite: { args: ['--sandbox', 'workspace-write'], promptIndex: 0 },
+    },
   },
   // The install script links ~/.local/bin/cursor-agent; the CLI keeps the
   // invoked name as its process title (comm is the full launcher path, which
@@ -180,6 +212,9 @@ export const AGENTS: readonly AgentDef[] = [
     // compat dirs belong to the agents that own them, and grok dedupes by name
     // with .grok winning, so a skill installed for both lands once.
     skills: folderSkills('grok', ['.grok', 'skills']),
+    permissionModes: {
+      bypass: { args: ['--permission-mode', 'bypassPermissions'], promptIndex: 0 },
+    },
   },
   {
     id: 'opencode',
@@ -206,6 +241,9 @@ export const AGENTS: readonly AgentDef[] = [
     // `.agents/skills` is the cross-tool shared location pi (and others) read,
     // so pi's target id is 'pi-native' rather than the dir-derived name.
     skills: folderSkills('pi-native', ['.agents', 'skills'], { label: 'Pi' }),
+    launchPreferences: {
+      model: { args: (model) => ['--model', model] },
+    },
   },
   // Gemini CLI reads project skills from .gemini/skills and also honors the
   // shared .agents/skills location. Cate installs only to Gemini's own dir so
@@ -220,6 +258,14 @@ export const AGENTS: readonly AgentDef[] = [
     // UUID, numeric index, or no argument for the latest session.
     resumeArgs: (sid) => ['--resume', sid],
     skills: folderSkills('gemini', ['.gemini', 'skills']),
+    launchPreferences: {
+      model: { args: (model) => ['-m', model] },
+    },
+    permissionModes: {
+      ask: { args: ['--approval-mode', 'default'], promptIndex: 0 },
+      workspaceWrite: { args: ['--approval-mode', 'auto_edit'], promptIndex: 0 },
+      bypass: { args: ['--approval-mode', 'yolo'], promptIndex: 0 },
+    },
   },
   // GitHub Copilot CLI reads .github/skills plus compatibility dirs owned by
   // other agents; install to its repository-owned integration root only.

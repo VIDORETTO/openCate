@@ -64,11 +64,18 @@ describe('codingAgentCommand', () => {
     const normalized = normalizeAgentCommandOverrides({
       agents: {
         codex: { command: '/opt/tools/codex', args: ['--profile', 'safe', '{PROMPT}'] },
+        gemini: { preferences: { model: 'gemini-2.5-pro', reasoningEffort: 'high' } },
         'claude-code': { command: 'claude\n--danger' },
-        pi: { args: ['valid', 42 as never] },
+        pi: { preferences: { env: { MODEL_TEMPERATURE: '0.2' } } },
+        aider: { args: ['valid', 42 as never] },
       },
       profiles: {
-        'review.safe': { agent: 'codex', command: 'codex-review', args: ['--review', '{PROMPT}'] },
+        'review.safe': {
+          agent: 'codex',
+          command: 'codex-review',
+          args: ['--review', '{PROMPT}'],
+          preferences: { permissions: 'workspace-write', reasoningEffort: 'medium' },
+        },
         bad: { agent: 'nope', command: 'sh' },
         empty: {},
       },
@@ -78,9 +85,19 @@ describe('codingAgentCommand', () => {
     expect(normalized).toEqual({
       agents: {
         codex: { command: '/opt/tools/codex', args: ['--profile', 'safe', '{PROMPT}'] },
+        gemini: { preferences: { model: 'gemini-2.5-pro', reasoningEffort: 'high' } },
+        pi: { preferences: { env: { MODEL_TEMPERATURE: '0.2' } } },
       },
       profiles: {
-        'review.safe': { agent: 'codex', command: 'codex-review', args: ['--review', '{PROMPT}'] },
+        'review.safe': {
+          agent: 'codex',
+          command: 'codex-review',
+          args: ['--review', '{PROMPT}'],
+          preferences: {
+            permissions: 'workspace-write',
+            reasoningEffort: 'medium',
+          },
+        },
       },
     })
   })
@@ -135,6 +152,54 @@ describe('codingAgentCommand', () => {
         overrides: { profiles: { 'claude-only': { agent: 'claude-code', command: 'claude' } } },
       },
     )).toThrow('not codex')
+  })
+
+  it('translates structured preferences through the canonical registry', () => {
+    expect(codingAgentCommand(
+      { agentId: 'codex', prompt: 'Implement it', commandProfile: 'safe' },
+      {
+        workspaceId: 'ws',
+        overrides: {
+          profiles: {
+            safe: {
+              agent: 'codex',
+              preferences: {
+                model: 'gpt-5-codex',
+                reasoningEffort: 'high',
+                permissions: 'workspace-write',
+              },
+            },
+          },
+        },
+      },
+    )).toEqual({
+      executable: 'codex',
+      args: [
+        '--sandbox', 'workspace-write',
+        `Complete this coding task:\n\nImplement it`,
+        '-m', 'gpt-5-codex',
+        '-c', 'model_reasoning_effort=high',
+      ],
+    })
+  })
+
+  it('drops unsupported structured flags instead of inventing CLI syntax', () => {
+    expect(codingAgentCommand(
+      { agentId: 'aider', prompt: 'Implement it', commandProfile: 'fast' },
+      {
+        overrides: {
+          profiles: {
+            fast: {
+              agent: 'aider',
+              preferences: { model: 'claude-haiku', reasoningEffort: 'high' },
+            },
+          },
+        },
+      },
+    )).toEqual({
+      executable: 'aider',
+      args: ['--message', `Complete this coding task:\n\nImplement it`],
+    })
   })
 })
 
