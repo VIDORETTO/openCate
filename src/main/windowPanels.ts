@@ -52,6 +52,8 @@ export function setWindowPanels(windowId: number, report: WindowPanelReport[]): 
       codingAgentRunId: p.codingAgentRunId,
       codingAgentOwnerPanelId: p.codingAgentOwnerPanelId,
       codingAgentStatus: p.codingAgentStatus,
+      codingAgentLastTool: p.codingAgentLastTool,
+      codingAgentFilesTouchedCount: p.codingAgentFilesTouchedCount,
     })),
   )
   broadcastWindowPanels()
@@ -83,6 +85,8 @@ export function upsertWindowPanel(windowId: number, panel: WindowPanelReport): v
     codingAgentRunId: panel.codingAgentRunId,
     codingAgentOwnerPanelId: panel.codingAgentOwnerPanelId,
     codingAgentStatus: panel.codingAgentStatus,
+    codingAgentLastTool: panel.codingAgentLastTool,
+    codingAgentFilesTouchedCount: panel.codingAgentFilesTouchedCount,
   }
   const index = panels.findIndex((candidate) => candidate.panelId === panel.panelId)
   windowPanels.set(windowId, index < 0
@@ -139,7 +143,7 @@ let lastWindowPanelSignature = ''
 export function broadcastWindowPanels(): void {
   const panels = getWindowPanels()
   const signature = panels
-    .map((p) => `${p.ownerWindowId}:${p.panelId}:${p.type}:${p.title}:${p.workspaceId}:${p.filePath ?? ''}:${p.url ?? ''}:${p.focused ? 1 : 0}:${p.parentCanvasId ?? ''}:${p.worktreeId ?? ''}:${p.agentState ?? ''}:${p.agentName ?? ''}:${p.hasPorts ? 1 : 0}:${p.codingAgentRunId ?? ''}:${p.codingAgentOwnerPanelId ?? ''}:${p.codingAgentStatus ?? ''}`)
+    .map((p) => `${p.ownerWindowId}:${p.panelId}:${p.type}:${p.title}:${p.workspaceId}:${p.filePath ?? ''}:${p.url ?? ''}:${p.focused ? 1 : 0}:${p.parentCanvasId ?? ''}:${p.worktreeId ?? ''}:${p.agentState ?? ''}:${p.agentName ?? ''}:${p.hasPorts ? 1 : 0}:${p.codingAgentRunId ?? ''}:${p.codingAgentOwnerPanelId ?? ''}:${p.codingAgentStatus ?? ''}:${p.codingAgentLastTool ?? ''}:${p.codingAgentFilesTouchedCount ?? ''}`)
     .sort()
     .join('|')
   if (signature === lastWindowPanelSignature) return
@@ -179,3 +183,4 @@ export function closeWindowPanel(panelId: string): boolean {
 onWindowClosed((windowId) => {
   if (windowPanels.delete(windowId)) broadcastWindowPanels()
 })
+

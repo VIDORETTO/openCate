@@ -368,6 +368,10 @@ export interface WindowPanelReport {
   codingAgentRunId?: string
   codingAgentOwnerPanelId?: string
   codingAgentStatus?: CodingAgentRunStatus
+  /** Compact activity facts for detached mission rows. Only the label and a
+   * bounded path count cross IPC; full paths stay with the owning window. */
+  codingAgentLastTool?: string
+  codingAgentFilesTouchedCount?: number
 }
 
 export interface CateWindowParams {

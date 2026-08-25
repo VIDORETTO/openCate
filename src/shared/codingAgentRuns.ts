@@ -23,6 +23,10 @@ export interface CodingAgentRun {
   /** Latest structured usage observation from the CLI hook stream. Optional
    *  because several CLIs expose lifecycle hooks but no usage payload. */
   usage?: CodingAgentUsage
+  /** Latest structured tool observation, when the CLI exposes tool hooks. */
+  lastToolCall?: CodingAgentToolCall
+  /** Bounded explicit path history for durable mission context. */
+  filesTouched?: CodingAgentTouchedFile[]
   endedAt?: number
   exitCode?: number
   stoppedAt?: number
@@ -73,6 +77,21 @@ export interface CodingAgentUsage {
   model?: string
   observedAt: number
   source: 'hook'
+}
+
+/** The latest structured tool observation from a CLI hook stream. */
+export interface CodingAgentToolCall {
+  /** Canonical short tool name suitable for a compact sidebar badge. */
+  name: string
+  /** Bounded human context such as the command or primary file path. */
+  detail?: string
+  observedAt: number
+}
+
+/** A durable, bounded record that an agent explicitly touched this path. */
+export interface CodingAgentTouchedFile {
+  path: string
+  lastObservedAt: number
 }
 
 /** Return the live elapsed duration for a mission. A stopped/finished run is
@@ -224,6 +243,134 @@ export function mergeCodingAgentUsage(
   next: CodingAgentUsage,
 ): CodingAgentUsage {
   return { ...previous, ...next, observedAt: Math.max(previous?.observedAt ?? 0, next.observedAt) }
+}
+
+const MAX_TOOL_NAME_LENGTH = 80
+const MAX_TOOL_CALL_DETAIL_LENGTH = 160
+const MAX_FILE_PATH_LENGTH = 1_024
+const MAX_FILES_TOUCHED = 50
+
+function boundedHookString(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  // Hook payloads are machine-generated, but they still cross IPC. Rejecting
+  // control characters keeps malformed or hostile envelopes out of durable UI.
+  return trimmed && trimmed.length <= maxLength && !/[\0\x01-\x1f\x7f]/.test(trimmed)
+    ? trimmed
+    : undefined
+}
+
+/** Turn provider-specific tool identifiers into stable sidebar labels while
+ *  preserving unknown provider/MCP names instead of hiding them. */
+function canonicalToolName(value: string): string {
+  const key = value.toLowerCase().replace(/[-_]+/g, '-')
+  const aliases: Record<string, string> = {
+    'bash': 'Bash',
+    'shell': 'Bash',
+    'command': 'Bash',
+    'execute-command': 'Bash',
+    'run-command': 'Bash',
+    'read': 'Read',
+    'read-file': 'Read',
+    'view-file': 'Read',
+    'write': 'Write',
+    'write-file': 'Write',
+    'create-file': 'Write',
+    'edit': 'Edit',
+    'edit-file': 'Edit',
+    'apply-patch': 'Patch',
+    'patch-file': 'Patch',
+    'glob': 'Glob',
+    'grep': 'Grep',
+    'search': 'Search',
+    'web-fetch': 'Fetch',
+    'fetch': 'Fetch',
+    'task': 'Agent',
+    'agent': 'Agent',
+  }
+  return aliases[key] ?? value.slice(0, MAX_TOOL_NAME_LENGTH)
+}
+
+function hookToolInput(root: Record<string, unknown>): Record<string, unknown> | undefined {
+  return recordValue(root.tool_input) ?? recordValue(root.toolInput) ?? recordValue(root.input)
+}
+
+function isFileMutationOrInspectionTool(name: string): boolean {
+  const key = name.toLowerCase()
+  return /(^|[-_])(read|write|edit|patch|notebook)([-_]|$)/.test(key) ||
+    /file/.test(key)
+}
+
+/** Extract the latest tool fact from a normalized PostToolUse hook payload.
+ * Claude/Codex/Gemini/Cursor/Copilot use `tool_name` + `tool_input`; Grok uses
+ * its camelCase envelope. OpenCode currently exposes no tool hooks, so it has
+ * no activity to report. Returns null rather than inventing facts from text. */
+export function extractToolCallFromHook(
+  raw: unknown,
+  _observedAt: number = Date.now(),
+): { name: string; detail?: string; filePaths: string[] } | null {
+  const root = recordValue(raw)
+  if (!root) return null
+  const providerName = boundedHookString(root.tool_name ?? root.toolName, MAX_TOOL_NAME_LENGTH)
+  if (!providerName) return null
+
+  const name = canonicalToolName(providerName)
+  const input = hookToolInput(root)
+  const command = input === undefined
+    ? undefined
+    : boundedHookString(input.command ?? input.cmd, MAX_TOOL_CALL_DETAIL_LENGTH)
+        ?.replace(/\s+/g, ' ')
+  const explicitPath = input === undefined ? undefined : (
+    boundedHookString(input.file_path, MAX_FILE_PATH_LENGTH) ??
+    boundedHookString(input.filepath, MAX_FILE_PATH_LENGTH)
+  )
+  const genericPath = input === undefined || !isFileMutationOrInspectionTool(providerName)
+    ? undefined
+    : boundedHookString(input.path, MAX_FILE_PATH_LENGTH)
+
+  const filePath = explicitPath ?? genericPath
+  const filePaths = filePath ? [filePath] : []
+  return {
+    name,
+    ...(command !== undefined || filePath !== undefined
+      ? { detail: command ?? filePath }
+      : {}),
+    filePaths,
+  }
+}
+
+/** Merge a later tool observation without regressing timestamps and retain a
+ *  small most-recently-touched set. Paths are unique; old entries fall off so
+ *  a long mission cannot grow session.json without bound. */
+export function mergeCodingAgentActivity(
+  previous: Pick<CodingAgentRun, 'lastToolCall' | 'filesTouched'>,
+  next: CodingAgentToolCall & { filePaths?: readonly string[] },
+): Pick<CodingAgentRun, 'lastToolCall' | 'filesTouched'> {
+  const previousCall = previous.lastToolCall
+  const lastToolCall = !previousCall || next.observedAt >= previousCall.observedAt
+    ? { name: next.name, ...(next.detail !== undefined ? { detail: next.detail } : {}), observedAt: next.observedAt }
+    : previousCall
+
+  const byPath = new Map<string, CodingAgentTouchedFile>()
+  for (const entry of previous.filesTouched ?? []) byPath.set(entry.path, entry)
+  for (const rawPath of next.filePaths ?? []) {
+    const path = boundedHookString(rawPath, MAX_FILE_PATH_LENGTH)
+    if (!path) continue
+    byPath.set(path, {
+      path,
+      // A late delivery must not make a known touch look older.
+      lastObservedAt: Math.max(byPath.get(path)?.lastObservedAt ?? 0, next.observedAt),
+    })
+  }
+  const filesTouched = [...byPath.values()]
+    .sort((left, right) =>
+      right.lastObservedAt - left.lastObservedAt || left.path.localeCompare(right.path))
+    .slice(0, MAX_FILES_TOUCHED)
+
+  return {
+    lastToolCall,
+    ...(filesTouched.length > 0 ? { filesTouched } : {}),
+  }
 }
 
 export interface CodingAgentRuntimeState {
@@ -592,3 +739,4 @@ export function supportsLaunchPreference(
   const agent = AGENTS.find((candidate) => candidate.id === agentId)
   return Boolean(agent?.launchPreferences?.[preference])
 }
+

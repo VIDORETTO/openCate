@@ -78,12 +78,19 @@ describe('buildAgentTree', () => {
           ownerPanelId: 'orchestrator',
           title: 'Integration tests',
           usage: { totalTokens: 120, observedAt: 5, source: 'hook' },
+          lastToolCall: { name: 'Edit', detail: '/src/app.ts', observedAt: 6 },
+          filesTouched: [
+            { path: '/src/app.ts', lastObservedAt: 6 },
+            { path: '/src/test.ts', lastObservedAt: 7 },
+          ],
         }),
       ],
       detachedPanels: [
         detached('remote-worker', 'remote-run', 'orchestrator', {
           title: 'Docs sweep',
           agentName: 'Claude Code',
+          codingAgentLastTool: 'Bash',
+          codingAgentFilesTouchedCount: 3,
         }),
         detached('transferred-worker', 'same-run', 'orchestrator'),
       ],
@@ -95,9 +102,13 @@ describe('buildAgentTree', () => {
       'remote-run',
     ])
     expect(tree.supervisors[0].workers[0].usage?.totalTokens).toBe(120)
+    expect(tree.supervisors[0].workers[0].lastToolCall?.name).toBe('Edit')
+    expect(tree.supervisors[0].workers[0].filesTouchedCount).toBe(2)
     expect(tree.supervisors[0].workers[0].source).toBe('local')
     expect(tree.supervisors[0].workers[1].source).toBe('detached')
     expect(tree.supervisors[0].workers[1].title).toBe('Docs sweep')
+    expect(tree.supervisors[0].workers[1].lastToolCall?.name).toBe('Bash')
+    expect(tree.supervisors[0].workers[1].filesTouchedCount).toBe(3)
   })
 
   it('keeps an orphaned detached worker grouped by its recorded owner', () => {

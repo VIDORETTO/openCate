@@ -145,6 +145,8 @@ describe('cross-window panel discovery (main)', () => {
         workspaceId: 'ws-A',
         url: 'https://docs.example/',
         focused: true,
+        codingAgentLastTool: 'Edit',
+        codingAgentFilesTouchedCount: 4,
       },
       {
         panelId: 'editor-file',
@@ -159,6 +161,10 @@ describe('cross-window panel discovery (main)', () => {
     const byId = Object.fromEntries(getWindowPanels().map((p) => [p.panelId, p]))
     expect(byId['browser-docs']).toMatchObject({ url: 'https://docs.example/', focused: true })
     expect(byId['editor-file']).toMatchObject({ filePath: '/workspace/a.ts', focused: false })
+    expect(byId['browser-docs']).toMatchObject({
+      codingAgentLastTool: 'Edit',
+      codingAgentFilesTouchedCount: 4,
+    })
   })
 
   it('makes one provisional panel routable until the next full renderer report', () => {

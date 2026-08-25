@@ -28,7 +28,7 @@ import {
   applyRemoteAgentScreenState,
   noteAgentHookEvent,
 } from '../agent/agentScreenDetector'
-import { noteCodingAgentUsageEvent } from '../agent/codingAgentMetrics'
+import { noteCodingAgentActivityEvent, noteCodingAgentUsageEvent } from '../agent/codingAgentMetrics'
 import { isExternalFileDrag } from '../fs/importExternalEntries'
 import { revealPanel } from '../workspace/panelReveal'
 import { closePanelWithConfirm } from '../closePanelWithConfirm'
@@ -77,6 +77,7 @@ export function useWindowRuntime(canvasStore?: StoreApi<CanvasStore>): void {
     const offHook = window.electronAPI?.onShellAgentHookEvent?.((_terminalId, event) => {
       noteAgentHookEvent(event)
       noteCodingAgentUsageEvent(event)
+      noteCodingAgentActivityEvent(event)
     })
     return () => {
       stopAgentScreenDetector()

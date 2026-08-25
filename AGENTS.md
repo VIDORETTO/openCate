@@ -6,6 +6,29 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 Read and follow the **karpathy-guidelines** skill (`.Codex/skills/karpathy-guidelines`) when writing, reviewing, or refactoring code here — surface assumptions, make surgical changes, keep it simple, and define verifiable success criteria.
 
+## Tool Loop Prevention
+
+Every tool call must have a concrete purpose: state the new information expected
+and what decision it can change. Never repeat a tool call with identical or
+semantically equivalent arguments when the prior result is still valid, the
+workspace has not changed, and no new failure or hypothesis requires fresh
+evidence. A second equivalent call is allowed only with a concrete reason; a
+third is a strategy error.
+
+If a file read does not produce enough context, change strategy instead of
+rereading the same range: widen or shift the window, search for the relevant
+symbol/error/reference, inspect its implementation, or run the targeted test.
+After at most three consecutive read-only actions without new evidence, stop and
+replan explicitly: identify what is known, what remains unknown, which single
+query could resolve it, and whether an edit or test would be more direct.
+
+Prefer targeted validation before broad gates, in this order: the test covering
+the changed behavior, typecheck, lint, module tests, then the wider suite. Do
+not treat repeated inspection as validation. Say accurately whether the current
+phase is investigation, editing, focused testing, typecheck/lint, or the full
+gate. "Verify everything" does not authorize redundant reads; when existing
+evidence supports a safe decision, act on it.
+
 ## Project Overview
 
 Cate is a desktop application that provides an infinite zoomable canvas where editor panels, terminal panels, and browser panels float spatially (similar to Figma/Miro, but for coding). Built with Electron + React + TypeScript, styled with Tailwind CSS.

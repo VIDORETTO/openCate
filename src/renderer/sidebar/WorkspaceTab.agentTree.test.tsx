@@ -65,6 +65,11 @@ describe('WorkspaceTab mission tree', () => {
       ownerPanelId: supervisorId,
       prompt: 'Run tests',
       createdAt: Date.now(),
+      lastToolCall: { name: 'Edit', detail: '/src/app.ts', observedAt: Date.now() },
+      filesTouched: [
+        { path: '/src/app.ts', lastObservedAt: Date.now() },
+        { path: '/src/app.test.ts', lastObservedAt: Date.now() },
+      ],
     })
     const workspace = useAppStore.getState().workspaces.find((ws) => ws.id === wsId)!
     act(() => {
@@ -81,5 +86,7 @@ describe('WorkspaceTab mission tree', () => {
     expect(host.textContent).toContain('Missions')
     expect(host.textContent).toContain('Orchestrator')
     expect(host.textContent).toContain('Integration tests')
+    expect(host.textContent).toContain('Edit')
+    expect(host.textContent).toContain('2 files')
   })
 })

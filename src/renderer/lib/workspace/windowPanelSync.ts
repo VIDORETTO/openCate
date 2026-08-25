@@ -77,6 +77,13 @@ function statusSignature(): string {
         ? 'stalled'
         : 'live'
       parts.push(`${ws.id}:a:${panelId}:${lastOutputAt ?? 'none'}:${phase}`)
+      if (panel.codingAgentRun?.lastToolCall) {
+        const tool = panel.codingAgentRun.lastToolCall
+        parts.push(`${ws.id}:t:${panelId}:${tool.name}:${tool.observedAt}`)
+      }
+      if (panel.codingAgentRun?.filesTouched?.length) {
+        parts.push(`${ws.id}:f:${panelId}:${panel.codingAgentRun.filesTouched.length}`)
+      }
     }
   }
   return parts.sort().join('|')
@@ -177,6 +184,8 @@ export function setupWindowPanelSync(): () => void {
                 lastOutputAt: getLastTerminalActivity(p.id),
               })
             : undefined,
+          codingAgentLastTool: p.codingAgentRun?.lastToolCall?.name,
+          codingAgentFilesTouchedCount: p.codingAgentRun?.filesTouched?.length,
           hasPorts: withPorts.has(p.id),
         })
       }

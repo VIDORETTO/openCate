@@ -224,6 +224,11 @@ describe('workspace.json + session.json round-trip', () => {
       createdAt: 123,
       worktreeId: 'wt-1',
       followUps: [{ prompt: 'Add the edge-case test', sentAt: 456 }],
+      lastToolCall: { name: 'Edit', detail: '/repo/src/app.ts', observedAt: 789 },
+      filesTouched: [
+        { path: '/repo/src/app.ts', lastObservedAt: 789 },
+        { path: '/repo/src/app.test.ts', lastObservedAt: 790 },
+      ],
     }
     snapshot.panels!['term-1'] = {
       ...snapshot.panels!['term-1'],
@@ -242,6 +247,7 @@ describe('workspace.json + session.json round-trip', () => {
 
     expect(restored.panels!['term-1'].codingAgentRun).toEqual(codingAgentRun)
     expect(restored.panels!['term-1'].codingAgentLaunch).toBeUndefined()
+    expect(restored.panels!['term-1'].codingAgentRun?.filesTouched).toHaveLength(2)
     expect(JSON.stringify(wsFile)).not.toContain('Implement the parser')
   })
 

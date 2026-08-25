@@ -60,6 +60,11 @@ describe('windowPanelSync — coding-agent status', () => {
         ownerPanelId: 'supervisor-1',
         prompt: 'Implement it',
         createdAt: 1,
+        lastToolCall: { name: 'Edit', detail: '/x/app.ts', observedAt: 2 },
+        filesTouched: [
+          { path: '/x/app.ts', lastObservedAt: 2 },
+          { path: '/x/test.ts', lastObservedAt: 3 },
+        ],
       },
     } as PanelState
     useAppStore.setState({
@@ -76,6 +81,8 @@ describe('windowPanelSync — coding-agent status', () => {
 
     const report = reports[reports.length - 1].find((row) => row.panelId === 'worker')
     expect(report?.codingAgentStatus).toBe('starting')
+    expect(report?.codingAgentLastTool).toBe('Edit')
+    expect(report?.codingAgentFilesTouchedCount).toBe(2)
 
     stop()
   })

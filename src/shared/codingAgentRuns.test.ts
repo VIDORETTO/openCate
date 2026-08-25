@@ -7,6 +7,8 @@ import {
   codingAgentCommand,
   codingAgentSupportsFollowUp,
   deriveCodingAgentRunStatus,
+  extractToolCallFromHook,
+  mergeCodingAgentActivity,
   mergeCodingAgentUsage,
   normalizeCodingAgentUsage,
   normalizeAgentCommandOverrides,
@@ -235,6 +237,94 @@ describe('deriveCodingAgentRunStatus', () => {
   it('does not invent staleness for waiting or completed runs', () => {
     expect(deriveCodingAgentRunStatus(run, { ...runtime, agentState: 'waitingForInput' }, 999_999_999_999)).toBe('waiting')
     expect(deriveCodingAgentRunStatus({ ...run, endedAt: 2, exitCode: 0 }, runtime, 999_999_999_999)).toBe('ready')
+  })
+})
+
+describe('coding-agent tool activity observations', () => {
+  it('extracts explicit file tools from snake_case hook payloads', () => {
+    expect(extractToolCallFromHook({
+      tool_name: 'Edit',
+      tool_input: { file_path: '/repo/src/app.ts' },
+    }, 20)).toEqual({
+      name: 'Edit',
+      detail: '/repo/src/app.ts',
+      filePaths: ['/repo/src/app.ts'],
+    })
+  })
+
+  it('extracts commands and Grok-style camelCase envelopes without parsing screen text', () => {
+    const command = extractToolCallFromHook({
+      toolName: 'run_command',
+      toolInput: { command: 'vitest   run src/shared' },
+    }, 30)
+    expect(command).toEqual({
+      name: 'Bash',
+      detail: 'vitest run src/shared',
+      filePaths: [],
+    })
+
+    expect(extractToolCallFromHook({
+      toolName: 'write_file',
+      toolInput: { file_path: '/repo/docs/readme.md' },
+    }, 31)).toEqual({
+      name: 'Write',
+      detail: '/repo/docs/readme.md',
+      filePaths: ['/repo/docs/readme.md'],
+    })
+  })
+
+  it('preserves unknown provider/MCP names but rejects malformed or hostile data', () => {
+    expect(extractToolCallFromHook({
+      tool_name: 'mcp__github__create_issue',
+      tool_input: {},
+    }, 40)).toEqual({ name: 'mcp__github__create_issue', filePaths: [] })
+    expect(extractToolCallFromHook({ tool_input: {} })).toBeNull()
+    expect(extractToolCallFromHook({ tool_name: 'Read', tool_input: {} }, 41)).toEqual({
+      name: 'Read',
+      filePaths: [],
+    })
+    expect(extractToolCallFromHook({
+      tool_name: 'Edit',
+      tool_input: { file_path: 'bad\0path' },
+    }, 42)).toEqual({ name: 'Edit', filePaths: [] })
+    expect(extractToolCallFromHook({
+      tool_name: `${'x'.repeat(81)}`,
+    }, 43)).toBeNull()
+  })
+
+  it('merges the latest call and keeps a bounded deduplicated recent-path set', () => {
+    const oldPaths = Array.from({ length: 50 }, (_, index) => `/old/${String(index).padStart(2, '0')}.ts`)
+    const merged = mergeCodingAgentActivity(
+      {
+        lastToolCall: { name: 'Read', observedAt: 10 },
+        filesTouched: oldPaths.map((path) => ({ path, lastObservedAt: 5 })),
+      },
+      {
+        name: 'Edit',
+        detail: '/old/00.ts',
+        observedAt: 20,
+        filePaths: ['/old/00.ts', '/new/source.ts', 'bad\0path'],
+      },
+    )
+
+    expect(merged.lastToolCall).toEqual({
+      name: 'Edit',
+      detail: '/old/00.ts',
+      observedAt: 20,
+    })
+    expect(merged.filesTouched).toHaveLength(50)
+    expect(merged.filesTouched![0]).toEqual({ path: '/new/source.ts', lastObservedAt: 20 })
+    expect(merged.filesTouched![1]).toEqual({ path: '/old/00.ts', lastObservedAt: 20 })
+    expect(merged.filesTouched?.at(-1)?.path).toBe('/old/48.ts')
+
+    const unchanged = mergeCodingAgentActivity(merged, {
+      ...merged.lastToolCall!,
+      observedAt: 15,
+      filePaths: ['/new/source.ts'],
+    })
+    expect(unchanged.lastToolCall).toEqual(merged.lastToolCall)
+    expect(unchanged.filesTouched?.[0]).toEqual({ path: '/new/source.ts', lastObservedAt: 20 })
+    expect(unchanged.filesTouched?.[1]).toEqual({ path: '/old/00.ts', lastObservedAt: 20 })
   })
 })
 

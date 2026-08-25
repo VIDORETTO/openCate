@@ -175,7 +175,12 @@ function agentTreeMetrics(worker: AgentTreeWorker): string | null {
   const cost = usage?.costUsd !== undefined
     ? `${usage.costSource === 'estimated' ? '~' : ''}$${usage.costUsd.toFixed(usage.costUsd < 0.1 ? 4 : 2)}`
     : null
+  const filesTouched = worker.filesTouchedCount !== undefined && worker.filesTouchedCount > 0
+    ? `${worker.filesTouchedCount} file${worker.filesTouchedCount === 1 ? '' : 's'}`
+    : null
   const parts: string[] = []
+  if (worker.lastToolCall?.name) parts.push(worker.lastToolCall.name)
+  if (filesTouched) parts.push(filesTouched)
   if (totalTokens) parts.push(`${totalTokens} tok`)
   if (contextLeft) parts.push(`ctx ${contextLeft}`)
   if (cost) parts.push(cost)

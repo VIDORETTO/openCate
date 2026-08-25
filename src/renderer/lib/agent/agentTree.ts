@@ -1,4 +1,5 @@
 import type {
+  CodingAgentToolCall,
   CodingAgentRunSnapshot,
   CodingAgentRunStatus,
   CodingAgentUsage,
@@ -21,6 +22,9 @@ export interface AgentTreeWorker {
   contextRemainingTokens?: number
   statusLine?: string
   failureReason?: string
+  /** Latest structured tool observation from the owning window. */
+  lastToolCall?: CodingAgentToolCall
+  filesTouchedCount?: number
   worktreeId?: string
   source: AgentTreeWorkerSource
   /** Present only for workers hosted in another window. */
@@ -69,6 +73,8 @@ function workerFromLocalSnapshot(snapshot: CodingAgentRunSnapshot): AgentTreeWor
       ? { contextRemainingTokens: snapshot.contextRemainingTokens }
       : {}),
     ...(snapshot.statusLine ? { statusLine: snapshot.statusLine } : {}),
+    ...(snapshot.lastToolCall ? { lastToolCall: snapshot.lastToolCall } : {}),
+    ...(snapshot.filesTouched !== undefined ? { filesTouchedCount: snapshot.filesTouched.length } : {}),
     ...(snapshot.failureReason ? { failureReason: snapshot.failureReason } : {}),
     ...(snapshot.worktreeId ? { worktreeId: snapshot.worktreeId } : {}),
     source: 'local',
@@ -83,6 +89,12 @@ function workerFromDetachedReport(panel: WindowPanelInfo): AgentTreeWorker | nul
     title: panel.title.trim() || panel.agentName?.trim() || 'Mission',
     agentName: panel.agentName?.trim() || 'Agent',
     ...(panel.codingAgentStatus ? { status: panel.codingAgentStatus } : {}),
+    ...(panel.codingAgentLastTool
+      ? { lastToolCall: { name: panel.codingAgentLastTool, observedAt: Date.now() } }
+      : {}),
+    ...(panel.codingAgentFilesTouchedCount !== undefined
+      ? { filesTouchedCount: panel.codingAgentFilesTouchedCount }
+      : {}),
     source: 'detached',
     detachedPanel: panel,
   }
