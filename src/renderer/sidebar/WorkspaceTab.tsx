@@ -33,7 +33,13 @@ import { canvasKey, toggleCollapsed, useTreeCollapseStore } from './treeCollapse
 import { Tooltip } from '../ui/Tooltip'
 import { useActiveChatWorktreeByPanel } from '../../cateAgent/renderer/cateAgentStore'
 import { ActivitySparkline } from '../canvas/ActivitySparkline'
-import { codingAgentDisplayName, type CodingAgentRun } from '../../shared/codingAgentRuns'
+import {
+  codingAgentDisplayName,
+  codingAgentRunDurationMs,
+  type CodingAgentRun,
+} from '../../shared/codingAgentRuns'
+import type { AgentTreeWorker } from '../lib/agent/agentTree'
+import { useAgentTree } from '../lib/agent/useAgentTree'
 import { buildWorkspaceDigest, formatWorkspaceDigest } from './workspaceDigest'
 
 // Stable empty map so the ports selector returns a referentially-constant value
@@ -125,6 +131,57 @@ export interface TerminalPanelRowProps {
 }
 
 const AWAIT_COLOR = '#c08a5a'
+
+/** Compact sidebar presentation for mission facts already derived upstream. */
+function agentTreeStatusColor(status: AgentTreeWorker['status']): string {
+  switch (status) {
+    case 'waiting': return AWAIT_COLOR
+    case 'ready': return '#34c759'
+    case 'failed': return '#ff453a'
+    case 'stalled': return '#ff9f0a'
+    case 'stopped': return '#8e8e93'
+    case 'working': return 'var(--focus-blue)'
+    default: return '#8e8e93'
+  }
+}
+
+function formatAgentTreeTokens(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1).replace(/\.0$/, '')}M`
+  if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1).replace(/\.0$/, '')}k`
+  return String(Math.round(value))
+}
+
+function formatAgentTreeDuration(ms: number): string {
+  const seconds = Math.max(0, Math.floor(ms / 1_000))
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m`
+  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`
+}
+
+function agentTreeMetrics(worker: AgentTreeWorker): string | null {
+  const usage = worker.usage
+  const duration = worker.createdAt !== undefined
+    ? formatAgentTreeDuration(codingAgentRunDurationMs({
+        createdAt: worker.createdAt,
+        endedAt: undefined,
+        stoppedAt: undefined,
+      }))
+    : null
+  const totalTokens = usage?.totalTokens !== undefined ? formatAgentTreeTokens(usage.totalTokens) : null
+  const contextLeft = worker.contextRemainingTokens !== undefined
+    ? formatAgentTreeTokens(worker.contextRemainingTokens)
+    : null
+  const cost = usage?.costUsd !== undefined
+    ? `${usage.costSource === 'estimated' ? '~' : ''}$${usage.costUsd.toFixed(usage.costUsd < 0.1 ? 4 : 2)}`
+    : null
+  const parts: string[] = []
+  if (totalTokens) parts.push(`${totalTokens} tok`)
+  if (contextLeft) parts.push(`ctx ${contextLeft}`)
+  if (cost) parts.push(cost)
+  if (duration) parts.push(duration)
+  return parts.length > 0 ? parts.join(' · ') : null
+}
 
 /** Durable stashed-agent facts. Live status remains the owner window's job;
  *  these badges survive restart and do not invent transient process state. */
@@ -378,6 +435,16 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
     detachedPanels: otherWindowPanels,
   }), [attentionQueue, stashedPanels, orderedPanels, agentInfoByPanel, otherWindowPanels])
   const workspaceDigestText = formatWorkspaceDigest(workspaceDigest)
+
+  // Live orchestrator → worker projection. The pure builder joins mission
+  // ownership with cross-window discovery; the hook re-derives local status at
+  // the same one-second cadence as other live agent indicators.
+  const agentTree = useAgentTree({
+    workspaceId: workspace.id,
+    localPanels: Object.values(panels),
+    detachedPanels: otherWindowPanels,
+    refreshIntervalMs: 1_000,
+  })
 
   // worktrees ignored by useWorkspaceList's equality fn → workspace.worktrees
   // is stale. Subscribe directly so the per-row accent updates as worktrees
@@ -954,6 +1021,50 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
     )
   }
 
+  const renderAgentTreeWorker = (worker: AgentTreeWorker) => {
+    const isLocal = worker.source === 'local'
+    const onClick = (e: React.MouseEvent): void => {
+      e.stopPropagation()
+      if (isLocal) {
+        void handlePanelClick(e, worker.panelId)
+      } else {
+        void window.electronAPI.focusWindowPanel(worker.panelId)
+      }
+    }
+    // Local mission rows already expose rename/metadata actions through the
+    // normal tree; detached workers need the cross-window menu.
+    const onContextMenu = isLocal ? undefined : (e: React.MouseEvent): void => {
+      void handleDetachedContextMenu(e, worker.panelId)
+    }
+    const status = agentTreeStatusColor(worker.status)
+    const metrics = agentTreeMetrics(worker)
+    return (
+      <button
+        key={worker.runId}
+        className="group/panel mx-1.5 my-0.5 rounded-lg flex items-center gap-1.5 h-7 pr-2 pl-10 text-[13px] text-muted hover:text-primary hover:bg-hover text-left min-w-0 focus:outline-none"
+        data-testid="agent-tree-worker"
+        onClick={onClick}
+        onContextMenu={onContextMenu}
+        title={[
+          `${worker.title} — ${worker.agentName}`,
+          worker.status,
+          worker.statusLine,
+          worker.failureReason,
+          isLocal ? undefined : 'in another window',
+        ].filter(Boolean).join(' · ')}
+      >
+        <span
+          className={`flex-shrink-0 w-1.5 h-1.5 rounded-full ${worker.status === 'working' ? 'cate-notif-pulse' : ''}`}
+          style={{ backgroundColor: status }}
+        />
+        <span className="truncate min-w-0 flex-1">{worker.title}</span>
+        {metrics && (
+          <span className="flex-shrink-0 text-[10px] text-muted opacity-80">{metrics}</span>
+        )}
+      </button>
+    )
+  }
+
   // Canvas parent row — like a panel row, but with a disclosure caret that folds
   // its children. A leaf canvas (no children) keeps an empty caret-width gutter
   // so its icon stays aligned with sibling canvas rows. Rendered as a div (not a
@@ -1138,6 +1249,32 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
             </>
           )}
           {freePanels.map((p) => renderPanelRow(p))}
+          {agentTree.supervisors.length > 0 && (
+            <>
+              <div className="flex items-center gap-1.5 h-6 mt-1 pl-7 pr-2 text-[11px] uppercase tracking-wide text-muted opacity-70">
+                <span className="truncate">Missions</span>
+              </div>
+              {agentTree.supervisors.map((supervisor) => (
+                <div key={supervisor.panelId} className="flex flex-col">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="mx-1.5 my-0.5 rounded-lg flex items-center gap-1.5 h-7 pr-2 pl-7 text-[13px] text-muted hover:text-primary hover:bg-hover text-left min-w-0 cursor-pointer focus:outline-none"
+                    data-testid="agent-tree-supervisor"
+                    onClick={(e) => handlePanelClick(e, supervisor.panelId)}
+                    title={`${supervisor.title} — mission orchestrator`}
+                  >
+                    <span className="flex-shrink-0 w-[10px]" />
+                    <span className="truncate min-w-0 flex-1">{supervisor.title}</span>
+                    <span className="flex-shrink-0 rounded-full bg-surface-3 px-1.5 text-[10px] text-secondary">
+                      {supervisor.workers.length}
+                    </span>
+                  </div>
+                  {supervisor.workers.map(renderAgentTreeWorker)}
+                </div>
+              ))}
+            </>
+          )}
           {attentionQueue.length > 0 && (
             <>
               <div className="flex items-center gap-1.5 h-6 mt-1 pl-7 pr-2 text-[11px] uppercase tracking-wide text-muted opacity-70">

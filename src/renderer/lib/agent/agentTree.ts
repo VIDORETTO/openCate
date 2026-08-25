@@ -1,0 +1,149 @@
+import type {
+  CodingAgentRunSnapshot,
+  CodingAgentRunStatus,
+  CodingAgentUsage,
+} from '../../../shared/codingAgentRuns'
+import type { PanelState, WindowPanelInfo } from '../../../shared/types'
+
+/** Where the authoritative live state for this worker came from. */
+export type AgentTreeWorkerSource = 'local' | 'detached'
+
+export interface AgentTreeWorker {
+  runId: string
+  panelId: string
+  title: string
+  agentName: string
+  /** Detached reports can transiently arrive before their status stamp. */
+  status?: CodingAgentRunStatus
+  /** Only Cate-owned runs restored locally carry durable launch ordering. */
+  createdAt?: number
+  usage?: CodingAgentUsage
+  contextRemainingTokens?: number
+  statusLine?: string
+  failureReason?: string
+  worktreeId?: string
+  source: AgentTreeWorkerSource
+  /** Present only for workers hosted in another window. */
+  detachedPanel?: WindowPanelInfo
+}
+
+export interface AgentTreeSupervisor {
+  panelId: string
+  title: string
+  workers: AgentTreeWorker[]
+}
+
+export interface AgentTree {
+  supervisors: AgentTreeSupervisor[]
+}
+
+export interface AgentTreeInput {
+  /** Every local panel, including stashed ones, used only for stable titles. */
+  localPanels: ReadonlyArray<PanelState>
+  /** Snapshots produced by the canonical coding-agent driver. */
+  localRuns: ReadonlyArray<CodingAgentRunSnapshot>
+  /** Owner-window reports for workers living in another window. */
+  detachedPanels?: ReadonlyArray<WindowPanelInfo>
+}
+
+function compareWorkers(left: AgentTreeWorker, right: AgentTreeWorker): number {
+  // Historical local runs have durable launch order. A detached report does
+  // not carry createdAt yet, so it follows known runs instead of pretending to
+  // be older than them.
+  const leftCreated = left.createdAt ?? Number.MAX_SAFE_INTEGER
+  const rightCreated = right.createdAt ?? Number.MAX_SAFE_INTEGER
+  if (leftCreated !== rightCreated) return leftCreated - rightCreated
+  return left.runId.localeCompare(right.runId)
+}
+
+function workerFromLocalSnapshot(snapshot: CodingAgentRunSnapshot): AgentTreeWorker {
+  return {
+    runId: snapshot.id,
+    panelId: snapshot.panelId,
+    title: snapshot.title?.trim() || snapshot.agentName,
+    agentName: snapshot.agentName,
+    status: snapshot.status,
+    createdAt: snapshot.createdAt,
+    ...(snapshot.usage ? { usage: snapshot.usage } : {}),
+    ...(snapshot.contextRemainingTokens !== undefined
+      ? { contextRemainingTokens: snapshot.contextRemainingTokens }
+      : {}),
+    ...(snapshot.statusLine ? { statusLine: snapshot.statusLine } : {}),
+    ...(snapshot.failureReason ? { failureReason: snapshot.failureReason } : {}),
+    ...(snapshot.worktreeId ? { worktreeId: snapshot.worktreeId } : {}),
+    source: 'local',
+  }
+}
+
+function workerFromDetachedReport(panel: WindowPanelInfo): AgentTreeWorker | null {
+  if (!panel.codingAgentRunId || !panel.codingAgentOwnerPanelId) return null
+  return {
+    runId: panel.codingAgentRunId,
+    panelId: panel.panelId,
+    title: panel.title.trim() || panel.agentName?.trim() || 'Mission',
+    agentName: panel.agentName?.trim() || 'Agent',
+    ...(panel.codingAgentStatus ? { status: panel.codingAgentStatus } : {}),
+    source: 'detached',
+    detachedPanel: panel,
+  }
+}
+
+/**
+ * Derive the live orchestrator → worker view from existing mission state.
+ *
+ * This is intentionally a pure projection: `CodingAgentRun` remains the only
+ * persisted ownership record, and cross-window discovery remains the only
+ * detached-panel source. Local driver snapshots win over cross-window reports
+ * for the same run id because they contain richer durable facts.
+ */
+export function buildAgentTree(input: AgentTreeInput): AgentTree {
+  const workersByOwner = new Map<string, Map<string, AgentTreeWorker>>()
+
+  const addWorker = (ownerPanelId: string, worker: AgentTreeWorker): void => {
+    const byRunId = workersByOwner.get(ownerPanelId) ?? new Map<string, AgentTreeWorker>()
+    byRunId.set(worker.runId, worker)
+    workersByOwner.set(ownerPanelId, byRunId)
+  }
+
+  for (const snapshot of input.localRuns) {
+    if (!snapshot.ownerPanelId) continue
+    addWorker(snapshot.ownerPanelId, workerFromLocalSnapshot(snapshot))
+  }
+
+  for (const panel of input.detachedPanels ?? []) {
+    const worker = workerFromDetachedReport(panel)
+    if (!worker) continue
+    const existing = workersByOwner.get(panel.codingAgentOwnerPanelId!)?.get(worker.runId)
+    if (existing) continue
+    addWorker(panel.codingAgentOwnerPanelId!, worker)
+  }
+
+  const titleByPanelId = new Map<string, string>()
+  for (const panel of input.localPanels) {
+    if (panel.title.trim()) titleByPanelId.set(panel.id, panel.title.trim())
+  }
+  for (const panel of input.detachedPanels ?? []) {
+    if (!titleByPanelId.has(panel.panelId) && panel.title.trim()) {
+      titleByPanelId.set(panel.panelId, panel.title.trim())
+    }
+  }
+
+  const supervisors: AgentTreeSupervisor[] = [...workersByOwner.entries()]
+    .map(([panelId, workersById]) => ({
+      panelId,
+      title: titleByPanelId.get(panelId) ?? 'Mission owner',
+      workers: [...workersById.values()].sort(compareWorkers),
+    }))
+    .sort((left, right) => {
+      const leftCreated = left.workers.find((worker) => worker.createdAt !== undefined)?.createdAt
+      const rightCreated = right.workers.find((worker) => worker.createdAt !== undefined)?.createdAt
+      if (leftCreated !== undefined && rightCreated !== undefined && leftCreated !== rightCreated) {
+        return leftCreated - rightCreated
+      }
+      if (leftCreated !== undefined) return -1
+      if (rightCreated !== undefined) return 1
+      return left.panelId.localeCompare(right.panelId)
+    })
+
+  return { supervisors }
+}
