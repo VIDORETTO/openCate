@@ -27,10 +27,12 @@ import { useAgentInfoByPanel } from '../hooks/useAgentPanelInfo'
 import { getAgentLogo } from '../lib/agent/agentLogos'
 import { workspaceDisplayName } from '../lib/fs/displayPath'
 import { workspaceRuntime } from '../lib/workspace/workspaceRuntime'
+import log from '../lib/logger'
 import { InlineEditInput } from './InlineEditInput'
 import { WorkspaceSkillsTree } from './WorkspaceSkillsTree'
 import { canvasKey, toggleCollapsed, useTreeCollapseStore } from './treeCollapse'
 import { Tooltip } from '../ui/Tooltip'
+import { Modal, btn, inputCls } from '../ui/Modal'
 import { useActiveChatWorktreeByPanel } from '../../cateAgent/renderer/cateAgentStore'
 import { ActivitySparkline } from '../canvas/ActivitySparkline'
 import {
@@ -40,6 +42,9 @@ import {
 } from '../../shared/codingAgentRuns'
 import type { AgentTreeWorker } from '../lib/agent/agentTree'
 import { useAgentTree } from '../lib/agent/useAgentTree'
+import {
+  handleCodingAgentMethod,
+} from '../lib/agent/codingAgentDriver'
 import { buildWorkspaceDigest, formatWorkspaceDigest } from './workspaceDigest'
 
 // Stable empty map so the ports selector returns a referentially-constant value
@@ -132,6 +137,62 @@ export interface TerminalPanelRowProps {
 
 const AWAIT_COLOR = '#c08a5a'
 
+/** Sidebar mission actions reuse the canonical driver contract. The dialog
+ *  payload is intentionally narrow so it can render compact facts without
+ *  duplicating the full inspector or worktree review model here. */
+type AgentWorkerAction = 'inspect' | 'send' | 'stop' | 'review'
+type AgentWorkerActionResult = Record<string, unknown> & {
+  recentOutput?: string
+  statusLine?: string
+  failureReason?: string
+  branch?: string
+  baseBranch?: string
+  dirty?: boolean
+  canApply?: boolean
+  message?: string
+  commits?: Array<{ hash: string; message: string }>
+  files?: Array<{ path: string; status: string }>
+  workingFiles?: string[]
+}
+
+interface AgentWorkerActionDialogState {
+  action: 'inspect' | 'review'
+  worker: AgentTreeWorker
+  title: string
+  loading: boolean
+  error?: string
+  result?: AgentWorkerActionResult
+}
+
+/** Availability is a UI gate only; the driver remains authoritative and every
+ *  action still receives its canonical not-found/not-ready error. */
+function isAgentWorkerActionAvailable(worker: AgentTreeWorker, action: AgentWorkerAction): boolean {
+  switch (action) {
+    case 'inspect': return true
+    case 'review': return Boolean(worker.worktreeId)
+    case 'send': return worker.status !== 'stopped' && worker.status !== 'failed'
+    case 'stop': return worker.status !== 'stopped' && worker.status !== 'failed'
+  }
+}
+
+function isAgentWorkerPromotionReady(worker: AgentTreeWorker): boolean {
+  return Boolean(worker.worktreeId && worker.status === 'ready')
+}
+
+/** Driver errors are stable machine codes; translate the ones users can act on
+ *  and preserve unknown diagnostics instead of hiding them behind "failed". */
+function agentWorkerActionErrorMessage(error: string): string {
+  switch (error) {
+    case 'coding-agent-not-found': return 'This mission is no longer available.'
+    case 'coding-agent-not-isolated': return 'This mission has no isolated worktree to review.'
+    case 'coding-agent-not-ready': return 'Wait for this mission to finish before integrating it.'
+    case 'worker-does-not-own-worktree': return 'Only missions that created their worktree can discard it.'
+    case 'prompt-required': return 'Enter a follow-up prompt.'
+    case 'coding-agent-follow-up-unsupported': return 'This agent does not support follow-up prompts.'
+    default: return `Action failed: ${error}`
+  }
+}
+
 /** Compact sidebar presentation for mission facts already derived upstream. */
 function agentTreeStatusColor(status: AgentTreeWorker['status']): string {
   switch (status) {
@@ -186,6 +247,72 @@ function agentTreeMetrics(worker: AgentTreeWorker): string | null {
   if (cost) parts.push(cost)
   if (duration) parts.push(duration)
   return parts.length > 0 ? parts.join(' · ') : null
+}
+
+/** One compact, read-only action result. This is the sidebar's first inspector:
+ *  it surfaces canonical driver facts without pretending to be a full diff UI. */
+function AgentWorkerActionDialog({
+  state,
+  onClose,
+}: {
+  state: AgentWorkerActionDialogState
+  onClose: () => void
+}): JSX.Element {
+  const { worker, loading, error, result } = state
+  return (
+    <Modal title={state.title} onClose={onClose} width={640} height="min(70vh, 560px)">
+      <div className="flex h-full min-h-0 flex-col gap-3 p-4">
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+          <span>{worker.agentName}</span>
+          {worker.status && (
+            <>
+              <span aria-hidden>·</span>
+              <span style={{ color: agentTreeStatusColor(worker.status) }}>{worker.status}</span>
+            </>
+          )}
+        </div>
+
+        {loading && <div className="text-[13px] text-muted">Loading…</div>}
+        {!loading && error && (
+          <div className="rounded-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-[12px] text-red-300">
+            {error}
+          </div>
+        )}
+
+        {!loading && !error && result?.branch && (
+          <div className="rounded-md bg-surface-0 border border-subtle p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[12px] font-medium text-primary">{result.branch}</span>
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[9px] uppercase tracking-wide ${
+                  result.canApply ? 'bg-green-500/15 text-green-300' : 'bg-amber-500/15 text-amber-300'
+                }`}
+              >
+                {result.canApply ? 'Ready to apply' : 'Needs attention'}
+              </span>
+            </div>
+            {result.baseBranch && <p className="mt-1 text-[11px] text-muted">Target: {result.baseBranch}</p>}
+            {!!result.files?.length && (
+              <ul className="mt-2 max-h-24 space-y-0.5 overflow-auto text-[11px] text-secondary">
+                {result.files.slice(0, 30).map((file) => (
+                  <li key={`${file.path}:${file.status}`} className="truncate">{file.path} — {file.status}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {!loading && !error && state.action === 'inspect' && (
+          <pre
+            data-testid="agent-worker-output"
+            className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words rounded-md bg-surface-0 border border-subtle p-2.5 text-[12px] leading-relaxed text-secondary"
+          >
+            {(result?.recentOutput ?? '').trim() || 'No terminal output yet.'}
+          </pre>
+        )}
+      </div>
+    </Modal>
+  )
 }
 
 /** Durable stashed-agent facts. Live status remains the owner window's job;
@@ -483,6 +610,11 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
   // the matching panel row renders an inline input in place of its label.
   const [renamingPanelId, setRenamingPanelId] = useState<string | null>(null)
   const [panelRenameValue, setPanelRenameValue] = useState('')
+  const [agentWorkerAction, setAgentWorkerAction] = useState<AgentWorkerActionDialogState | null>(null)
+  const [agentWorkerError, setAgentWorkerError] = useState('')
+  const [agentWorkerPrompt, setAgentWorkerPrompt] = useState<AgentTreeWorker | null>(null)
+  const [agentWorkerPromptValue, setAgentWorkerPromptValue] = useState('')
+  const [agentWorkerSubmitting, setAgentWorkerSubmitting] = useState(false)
   // The value the rename input was seeded with. The seed is the row's DERIVED
   // label (file basename / browser URL / type when the panel has no title), so
   // committing it unchanged would freeze that derived label as a permanent
@@ -738,6 +870,156 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
       case 'close': void window.electronAPI.closeWindowPanel?.(panelId); break
     }
   }, [])
+
+  // Mission rows are a compact control surface. Every mutation funnels through
+  // the canonical coding-agent driver; destructive discard asks first because
+  // it removes both the worktree and its branch.
+  const runAgentWorkerAction = useCallback(async (worker: AgentTreeWorker, action: AgentWorkerAction) => {
+    if (!isAgentWorkerActionAvailable(worker, action)) return
+
+    if (action === 'send') {
+      setAgentWorkerPromptValue('')
+      setAgentWorkerError('')
+      setAgentWorkerPrompt(worker)
+      return
+    }
+
+    if (action === 'stop') {
+      const outcome = await handleCodingAgentMethod(workspace.id, worker.panelId, 'cate.codingAgent.stop', {
+        runId: worker.runId,
+      })
+      if (!outcome.ok) log.error('[WorkspaceTab] stop mission failed', outcome.error)
+      return
+    }
+
+    const actionName = action === 'inspect' ? 'Inspect Mission' : `Review ${worker.title || 'Mission'}`
+    setAgentWorkerAction({ action, worker, title: actionName, loading: true })
+    const outcome = await handleCodingAgentMethod(workspace.id, worker.panelId, `cate.codingAgent.${action}`, {
+      runId: worker.runId,
+    })
+    if (!outcome.ok) {
+      setAgentWorkerAction({
+        action,
+        worker,
+        title: actionName,
+        loading: false,
+        error: agentWorkerActionErrorMessage(outcome.error),
+      })
+      return
+    }
+    setAgentWorkerAction({
+      action,
+      worker,
+      title: actionName,
+      loading: false,
+      result: outcome.result as AgentWorkerActionResult,
+    })
+  }, [workspace.id])
+
+  const submitAgentWorkerFollowUp = useCallback(async () => {
+    const worker = agentWorkerPrompt
+    const prompt = agentWorkerPromptValue.trim()
+    if (!worker || !prompt) return
+    setAgentWorkerSubmitting(true)
+    setAgentWorkerError('')
+    try {
+      const outcome = await handleCodingAgentMethod(workspace.id, worker.panelId, 'cate.codingAgent.send', {
+        runId: worker.runId,
+        prompt,
+      })
+      if (outcome.ok) {
+        setAgentWorkerPrompt(null)
+        setAgentWorkerPromptValue('')
+        return
+      }
+      const message = agentWorkerActionErrorMessage(outcome.error)
+      setAgentWorkerError(message)
+      log.error('[WorkspaceTab] send mission follow-up failed', outcome.error)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unexpected error'
+      setAgentWorkerError(message)
+      log.error('[WorkspaceTab] send mission follow-up failed', error)
+    } finally {
+      setAgentWorkerSubmitting(false)
+    }
+  }, [agentWorkerPrompt, agentWorkerPromptValue, workspace.id])
+
+  const handleAgentWorkerContextMenu = useCallback(async (e: React.MouseEvent, worker: AgentTreeWorker) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!window.electronAPI) return
+
+    const items: NativeContextMenuItem[] = [
+      { id: 'inspect', label: 'Inspect', enabled: isAgentWorkerActionAvailable(worker, 'inspect') },
+      { id: 'review', label: 'Review Changes', enabled: isAgentWorkerActionAvailable(worker, 'review') },
+      { type: 'separator' },
+      {
+        id: 'send',
+        label: 'Send Follow-up',
+        enabled: isAgentWorkerActionAvailable(worker, 'send'),
+      },
+      {
+        id: 'stop',
+        label: worker.status === 'stopped' ? 'Stopped' : 'Stop',
+        enabled: isAgentWorkerActionAvailable(worker, 'stop'),
+      },
+      { type: 'separator' },
+      {
+        id: 'apply',
+        label: 'Apply to Branch',
+        enabled: isAgentWorkerPromotionReady(worker),
+      },
+      {
+        id: 'keep',
+        label: 'Keep Branch',
+        enabled: isAgentWorkerPromotionReady(worker),
+      },
+      {
+        id: 'discard',
+        label: 'Discard Worktree',
+        enabled: Boolean(worker.worktreeId && worker.status === 'ready'),
+      },
+    ]
+    const id = await window.electronAPI.showContextMenu(items)
+    switch (id) {
+      case 'inspect':
+      case 'review':
+      case 'send':
+      case 'stop':
+        void runAgentWorkerAction(worker, id)
+        break
+      case 'apply': {
+        if (!isAgentWorkerPromotionReady(worker)) break
+        const confirmed = window.confirm(`Apply "${worker.title}" to the base branch?`)
+        if (!confirmed) break
+        const outcome = await handleCodingAgentMethod(workspace.id, worker.panelId, 'cate.codingAgent.apply', {
+          runId: worker.runId,
+        })
+        if (!outcome.ok) window.alert(agentWorkerActionErrorMessage(outcome.error))
+        break
+      }
+      case 'keep': {
+        if (!isAgentWorkerPromotionReady(worker)) break
+        const outcome = await handleCodingAgentMethod(workspace.id, worker.panelId, 'cate.codingAgent.keep', {
+          runId: worker.runId,
+        })
+        if (!outcome.ok) window.alert(agentWorkerActionErrorMessage(outcome.error))
+        break
+      }
+      case 'discard': {
+        if (!(worker.worktreeId && worker.status === 'ready')) break
+        const confirmed = window.confirm(
+          `Discard the "${worker.title}" worktree and branch? This cannot be undone.`,
+        )
+        if (!confirmed) break
+        const outcome = await handleCodingAgentMethod(workspace.id, worker.panelId, 'cate.codingAgent.discard', {
+          runId: worker.runId,
+        })
+        if (!outcome.ok) window.alert(agentWorkerActionErrorMessage(outcome.error))
+        break
+      }
+    }
+  }, [runAgentWorkerAction, workspace.id])
 
   // Local panels plus panels in detached windows — drives the expand toggle and
   // the count badge so a workspace whose only panels are detached still expands.
@@ -1036,11 +1318,16 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
         void window.electronAPI.focusWindowPanel(worker.panelId)
       }
     }
-    // Local mission rows already expose rename/metadata actions through the
-    // normal tree; detached workers need the cross-window menu.
-    const onContextMenu = isLocal ? undefined : (e: React.MouseEvent): void => {
-      void handleDetachedContextMenu(e, worker.panelId)
-    }
+    // Local rows get the canonical mission actions; detached workers keep the
+    // cross-window reveal/close menu because their owner window must supply
+    // the richer action context.
+    const onContextMenu = isLocal
+      ? (e: React.MouseEvent): void => {
+          void handleAgentWorkerContextMenu(e, worker)
+        }
+      : (e: React.MouseEvent): void => {
+          void handleDetachedContextMenu(e, worker.panelId)
+        }
     const status = agentTreeStatusColor(worker.status)
     const metrics = agentTreeMetrics(worker)
     return (
@@ -1345,6 +1632,57 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
               one row per agent, its skills nested beneath. No separate section. */}
           <WorkspaceSkillsTree workspaceId={workspace.id} rootPath={workspace.rootPath} />
         </div>
+      )}
+
+      {agentWorkerPrompt && (
+        <Modal
+          title="Send Follow-up"
+          onClose={() => setAgentWorkerPrompt(null)}
+          width={520}
+          dismissable={!agentWorkerSubmitting}
+          closeOnEscape={!agentWorkerSubmitting}
+        >
+          <form
+            className="flex flex-col gap-3 p-4"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void submitAgentWorkerFollowUp()
+            }}
+          >
+            <p className="text-[12px] text-muted">
+              Send to {agentWorkerPrompt.title || agentWorkerPrompt.agentName}
+            </p>
+            <textarea
+              autoFocus
+              className={`${inputCls} min-h-[110px] resize-y`}
+              placeholder="Follow-up prompt"
+              value={agentWorkerPromptValue}
+              onChange={(event) => setAgentWorkerPromptValue(event.target.value)}
+            />
+            {agentWorkerError && (
+              <div className="rounded-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-[12px] text-red-300" role="alert">
+                {agentWorkerError}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className={btn.secondary}
+                onClick={() => setAgentWorkerPrompt(null)}
+                disabled={agentWorkerSubmitting}
+              >
+                Cancel
+              </button>
+              <button type="submit" className={btn.primary} disabled={!agentWorkerPromptValue.trim() || agentWorkerSubmitting}>
+                {agentWorkerSubmitting ? 'Sending…' : 'Send'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {agentWorkerAction && (
+        <AgentWorkerActionDialog state={agentWorkerAction} onClose={() => setAgentWorkerAction(null)} />
       )}
     </div>
   )
