@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, PaperPlaneTilt, WarningCircle, X } from '@phosphor-icons/react'
+import { Check, FileText, NotePencil, PaperPlaneTilt, Plus, WarningCircle, X } from '@phosphor-icons/react'
 import { useShallow } from 'zustand/shallow'
 import type { CodingAgentRunSnapshot } from '../../shared/codingAgentRuns'
 import { codingAgentSnapshot, sendCodingAgentFollowUp } from '../lib/agent/codingAgentDriver'
@@ -9,6 +9,7 @@ import {
   eligibleCodingAgentBroadcastTargets,
   translateBroadcastSlashCommand,
 } from '../lib/agent/codingAgentBroadcast'
+import { useAgentContextBus } from '../lib/agent/useAgentContextBus'
 import { useAppStore } from '../stores/appStore'
 import { Tooltip } from '../ui/Tooltip'
 
@@ -47,6 +48,8 @@ export const GlobalAgentComposer: React.FC<GlobalAgentComposerProps> = ({ worksp
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<{ sent: number; failures: Array<{ name: string; error: string }> } | null>(null)
   const [anchor, setAnchor] = useState<AnchorPosition | null>(null)
+  const contextBus = useAgentContextBus()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [, setStatusTick] = useState(0)
 
   // The terminal/status stores are intentionally not coupled to the canvas
@@ -145,7 +148,7 @@ export const GlobalAgentComposer: React.FC<GlobalAgentComposerProps> = ({ worksp
   }
 
   const send = async () => {
-    const prompt = translation.text.trim()
+    const prompt = [contextBus.prompt, translation.text.trim()].filter(Boolean).join('\n\n')
     if (!prompt || selectedRuns.length === 0 || sending) return
     if (selectedRuns.length > 1 && !confirming) {
       setConfirming(true)
@@ -240,6 +243,41 @@ export const GlobalAgentComposer: React.FC<GlobalAgentComposerProps> = ({ worksp
           </label>
         )}
         {translation.translated && <div className="mt-1 px-1 text-[10px] text-muted">Translated /{translation.command} into a provider-neutral prompt.</div>}
+        <div className="mt-3 border-t border-subtle pt-2">
+          <div className="flex items-center justify-between px-1 pb-1">
+            <span className="text-[10px] uppercase tracking-wide text-muted">Explicit context</span>
+            <span className="text-[10px] text-muted">{contextBus.items.length}/10</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5 px-1">
+            <button type="button" aria-label="Stage note as explicit context" onClick={() => contextBus.stage({ kind: 'note', title: 'Note', content: draft.trim() })} disabled={!draft.trim()} className="inline-flex items-center gap-1 rounded-md border border-subtle px-2 py-1 text-[10px] text-secondary hover:text-primary hover:bg-hover disabled:opacity-40"><NotePencil size={11} /> Note</button>
+            <button type="button" aria-label="Stage artifact as explicit context" onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-1 rounded-md border border-subtle px-2 py-1 text-[10px] text-secondary hover:text-primary hover:bg-hover"><Plus size={11} /> Artifact</button>
+            <input ref={fileInputRef} type="file" hidden onChange={(event) => {
+              const file = event.target.files?.[0]
+              if (!file) return
+              void file.text().then((content) => contextBus.stage({
+                kind: 'artifact',
+                title: file.name,
+                source: file.name,
+                content,
+              }))
+              event.target.value = ''
+            }} />
+          </div>
+          {contextBus.items.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {contextBus.items.map((item) => (
+                <div key={item.id} className="flex items-center gap-2 rounded-lg border border-subtle bg-surface-0 px-2 py-1">
+                  {item.kind === 'note' && <NotePencil size={12} className="text-muted" />}
+                  {(item.kind === 'file' || item.kind === 'artifact') && <FileText size={12} className="text-muted" />}
+                  <span className="min-w-0 flex-1 truncate text-[10px] text-primary">{item.title}</span>
+                  <button type="button" aria-label={`Remove ${item.title}`} onClick={() => contextBus.remove(item.id)} className="p-0.5 rounded text-muted hover:text-primary hover:bg-hover"><X size={11} /></button>
+                </div>
+              ))}
+              <button type="button" onClick={() => contextBus.clear()} className="px-1 text-[10px] text-muted hover:text-primary">Clear all</button>
+            </div>
+          )}
+          {contextBus.error && <div className="mt-1 px-1 text-[10px] text-warning">{contextBus.error}</div>}
+        </div>
         {result && (
           <div className="mt-2 rounded-lg border border-subtle px-2 py-1.5 text-[10px] text-secondary">
             {result.sent > 0 && <span>{result.sent} prompt{result.sent === 1 ? '' : 's'} sent.</span>}

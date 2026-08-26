@@ -21,6 +21,14 @@ const h = vi.hoisted(() => {
     useAppStore: vi.fn((selector: (state: typeof appState) => unknown) => selector(appState)),
     codingAgentSnapshot: vi.fn((_workspaceId: string, _ownerPanelId: string, runId: string) => snapshots[runId] ?? null),
     sendCodingAgentFollowUp: vi.fn(async (_workspaceId: string, _ownerPanelId: string, _runId: string, _prompt: string) => ({ ok: true, result: null })),
+    useAgentContextBus: vi.fn(() => ({
+      items: [] as Array<{ id: string; kind: 'artifact'; title: string; createdAt: number; source?: string; content: string }>,
+      prompt: '',
+      error: null as string | null,
+      stage: vi.fn(),
+      remove: vi.fn(),
+      clear: vi.fn(),
+    })),
   }
 })
 
@@ -29,6 +37,7 @@ vi.mock('../lib/agent/codingAgentDriver', () => ({
   codingAgentSnapshot: h.codingAgentSnapshot,
   sendCodingAgentFollowUp: h.sendCodingAgentFollowUp,
 }))
+vi.mock('../lib/agent/useAgentContextBus', () => ({ useAgentContextBus: h.useAgentContextBus }))
 vi.mock('../ui/Tooltip', () => ({ Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</> }))
 
 import { GlobalAgentComposer } from './GlobalAgentComposer'
@@ -59,6 +68,14 @@ beforeEach(() => {
   h.snapshots['run-b'] = snapshot('run-b', 'UI worker', 'owner-b')
   h.codingAgentSnapshot.mockClear()
   h.sendCodingAgentFollowUp.mockClear()
+  h.useAgentContextBus.mockImplementation(() => ({
+    items: [],
+    prompt: '',
+    error: null,
+    stage: vi.fn(),
+    remove: vi.fn(),
+    clear: vi.fn(),
+  }))
   host = document.createElement('div')
   document.body.appendChild(host)
   root = createRoot(host)
@@ -109,5 +126,44 @@ describe('GlobalAgentComposer', () => {
     const checkbox = document.body.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[1]
     expect(checkbox.disabled).toBe(true)
     expect(document.body.textContent).toContain('finished')
+  })
+
+  it('prepends staged explicit context to the guarded follow-up prompt', async () => {
+    let stageEvidence = ''
+    h.useAgentContextBus.mockImplementation(() => ({
+      items: [{ id: 'context-1', kind: 'artifact', title: 'failure.log', createdAt: 1, source: 'failure.log', content: 'boom' }],
+      prompt: '--- Context 1: failure.log (failure.log) ---\n\nboom',
+      error: null,
+      stage: Object.assign(vi.fn((input: { content?: string }) => {
+        stageEvidence = input.content ?? ''
+        return true
+      }), {}),
+      remove: vi.fn(),
+      clear: vi.fn(),
+    }))
+
+    act(() => root.render(<GlobalAgentComposer workspaceId="ws" />))
+    act(() => document.body.querySelector<HTMLButtonElement>('[aria-label="Broadcast prompt to agent sessions"]')?.click())
+    inputPrompt('Fix the failing test')
+    await act(async () => {
+      await Promise.resolve()
+    })
+    act(() => document.body.querySelector<HTMLButtonElement>('[aria-label="Stage note as explicit context"]')?.click())
+    expect(stageEvidence).toBe('Fix the failing test')
+
+    await act(async () => document.body.querySelector<HTMLButtonElement>('[aria-label="Send broadcast"]')?.click())
+    await act(async () => document.body.querySelector<HTMLButtonElement>('[aria-label="Confirm broadcast to 2 agents"]')?.click())
+    expect(h.sendCodingAgentFollowUp).toHaveBeenCalledWith(
+      'ws',
+      'owner-a',
+      'run-a',
+      expect.stringContaining('--- Context 1: failure.log'),
+    )
+    expect(h.sendCodingAgentFollowUp).toHaveBeenCalledWith(
+      'ws',
+      'owner-b',
+      'run-b',
+      expect.stringContaining('Fix the failing test'),
+    )
   })
 })
