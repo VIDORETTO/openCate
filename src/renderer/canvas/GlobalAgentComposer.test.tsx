@@ -9,9 +9,10 @@ const h = vi.hoisted(() => {
   const appState = {
     workspaces: [{
       id: 'ws',
+      rootPath: '/repo',
       panels: {
         panelA: { id: 'panelA', type: 'terminal', codingAgentRun: { id: 'run-a', ownerPanelId: 'owner-a' } },
-        panelB: { id: 'panelB', type: 'terminal', codingAgentRun: { id: 'run-b', ownerPanelId: 'owner-b' } },
+        panelB: { id: 'panelB', type: 'terminal', title: 'UI worker', codingAgentRun: { id: 'run-b', ownerPanelId: 'owner-b' } },
       },
     }],
   }
@@ -21,6 +22,9 @@ const h = vi.hoisted(() => {
     useAppStore: vi.fn((selector: (state: typeof appState) => unknown) => selector(appState)),
     codingAgentSnapshot: vi.fn((_workspaceId: string, _ownerPanelId: string, runId: string) => snapshots[runId] ?? null),
     sendCodingAgentFollowUp: vi.fn(async (_workspaceId: string, _ownerPanelId: string, _runId: string, _prompt: string) => ({ ok: true, result: null })),
+    useWorktrees: vi.fn((): Array<Record<string, unknown>> => []),
+    getActivePanelId: vi.fn((): string | null => null),
+    getEntry: vi.fn((): unknown => undefined),
     useAgentContextBus: vi.fn(() => ({
       items: [] as Array<{ id: string; kind: 'artifact'; title: string; createdAt: number; source?: string; content: string }>,
       prompt: '',
@@ -38,7 +42,10 @@ vi.mock('../lib/agent/codingAgentDriver', () => ({
   sendCodingAgentFollowUp: h.sendCodingAgentFollowUp,
 }))
 vi.mock('../lib/agent/useAgentContextBus', () => ({ useAgentContextBus: h.useAgentContextBus }))
+vi.mock('../stores/useWorktrees', () => ({ useWorktrees: h.useWorktrees }))
 vi.mock('../ui/Tooltip', () => ({ Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</> }))
+vi.mock('../lib/activePanel', () => ({ getActivePanelId: h.getActivePanelId }))
+vi.mock('../lib/terminal/registryState', () => ({ getEntry: h.getEntry }))
 
 import { GlobalAgentComposer } from './GlobalAgentComposer'
 
@@ -68,6 +75,17 @@ beforeEach(() => {
   h.snapshots['run-b'] = snapshot('run-b', 'UI worker', 'owner-b')
   h.codingAgentSnapshot.mockClear()
   h.sendCodingAgentFollowUp.mockClear()
+  h.useWorktrees.mockReturnValue([
+    { id: 'wt-feature', path: '/repo/.cate/worktrees/feature', branch: 'feature', label: 'Feature' },
+  ])
+  h.getActivePanelId.mockReturnValue(null)
+  h.getEntry.mockReturnValue(undefined)
+  ;(window as unknown as { electronAPI?: Record<string, unknown> }).electronAPI = {
+    fsSearch: vi.fn(async () => []),
+    fsReadFile: vi.fn(async () => ''),
+    gitStatus: vi.fn(async () => ({ current: 'main' })),
+    gitWorktreeReview: vi.fn(async () => ({ diff: 'diff --git a/app.ts b/app.ts' })),
+  }
   h.useAgentContextBus.mockImplementation(() => ({
     items: [],
     prompt: '',
@@ -95,6 +113,25 @@ function inputPrompt(value: string): void {
     const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
     setter?.call(textarea, value)
     textarea.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
+function setInputValue(selector: string, value: string): void {
+  const input = document.body.querySelector<HTMLInputElement>(selector)
+  expect(input).toBeTruthy()
+  if (!input) return
+  const prototype = input instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype
+  act(() => {
+    const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set
+    setter?.call(input, value)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+}
+
+async function flushMicrotasks(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve()
   })
 }
 
@@ -164,6 +201,95 @@ describe('GlobalAgentComposer', () => {
       'owner-b',
       'run-b',
       expect.stringContaining('Fix the failing test'),
+    )
+  })
+
+  it('captures the focused terminal selection explicitly', () => {
+    const stageTerminalSelection = vi.fn(() => true)
+    h.useAgentContextBus.mockImplementation(() => ({
+      items: [],
+      prompt: '',
+      error: null,
+      stage: vi.fn(),
+      remove: vi.fn(),
+      clear: vi.fn(),
+      stageTerminalSelection,
+    }))
+    h.getActivePanelId.mockReturnValue('panelB')
+    h.getEntry.mockReturnValue({
+      terminal: { hasSelection: () => true },
+    })
+
+    act(() => root.render(<GlobalAgentComposer workspaceId="ws" />))
+    act(() => document.body.querySelector<HTMLButtonElement>('[aria-label="Broadcast prompt to agent sessions"]')?.click())
+    act(() => document.body.querySelector<HTMLButtonElement>('[aria-label="Stage focused terminal selection as explicit context"]')?.click())
+
+    expect(stageTerminalSelection).toHaveBeenCalledWith('panelB', 'UI worker — selected')
+  })
+
+  it('searches and stages an explicit workspace file', async () => {
+    const stageWorkspaceFile = vi.fn(async () => true)
+    h.useAgentContextBus.mockImplementation(() => ({
+      items: [],
+      prompt: '',
+      error: null,
+      stage: vi.fn(),
+      remove: vi.fn(),
+      clear: vi.fn(),
+      stageWorkspaceFile,
+    }))
+    const fsSearch = vi.fn(async () => [{
+      path: '/repo/src/app.ts',
+      name: 'app.ts',
+      relativePath: 'src/app.ts',
+      isDirectory: false,
+    }])
+    ;(window as unknown as { electronAPI: { fsSearch: typeof fsSearch } }).electronAPI = { fsSearch }
+
+    act(() => root.render(<GlobalAgentComposer workspaceId="ws" />))
+    act(() => document.body.querySelector<HTMLButtonElement>('[aria-label="Broadcast prompt to agent sessions"]')?.click())
+    setInputValue('[aria-label="Search workspace file to stage"]', 'app')
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 190))
+    })
+
+    const choice = document.body.querySelector<HTMLButtonElement>('[data-workspace-file-choice]')
+    expect(choice).toBeTruthy()
+    await act(async () => choice?.click())
+
+    expect(fsSearch).toHaveBeenCalledWith('/repo', 'app', { maxResults: 8 }, 'ws')
+    expect(stageWorkspaceFile).toHaveBeenCalledWith('ws', '/repo/src/app.ts', 'src/app.ts')
+  })
+
+  it('reviews the selected worktree and stages its diff against the primary branch', async () => {
+    const stageWorktreeDiff = vi.fn(async () => true)
+    h.useAgentContextBus.mockImplementation(() => ({
+      items: [],
+      prompt: '',
+      error: null,
+      stage: vi.fn(),
+      remove: vi.fn(),
+      clear: vi.fn(),
+      stageWorktreeDiff,
+    }))
+    const gitStatus = vi.fn(async () => ({ current: 'main' }))
+    const gitWorktreeReview = vi.fn(async () => ({ diff: 'diff --git a/app.ts b/app.ts' }))
+    ;(window as unknown as { electronAPI: { gitStatus: typeof gitStatus; gitWorktreeReview: typeof gitWorktreeReview } }).electronAPI = {
+      gitStatus,
+      gitWorktreeReview,
+    }
+
+    act(() => root.render(<GlobalAgentComposer workspaceId="ws" />))
+    act(() => document.body.querySelector<HTMLButtonElement>('[aria-label="Broadcast prompt to agent sessions"]')?.click())
+    setInputValue('[aria-label="Select worktree for diff context"]', 'wt-feature')
+    await act(async () => document.body.querySelector<HTMLButtonElement>('[aria-label="Stage worktree diff as explicit context"]')?.click())
+
+    expect(gitStatus).toHaveBeenCalledWith('/repo', 'ws')
+    expect(gitWorktreeReview).toHaveBeenCalledWith('/repo/.cate/worktrees/feature', 'main', 'ws')
+    expect(stageWorktreeDiff).toHaveBeenCalledWith(
+      '/repo/.cate/worktrees/feature',
+      'main',
+      'diff --git a/app.ts b/app.ts',
     )
   })
 })

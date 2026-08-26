@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, FileText, NotePencil, PaperPlaneTilt, Plus, WarningCircle, X } from '@phosphor-icons/react'
+import { Check, FileText, GitBranch, GitDiff, NotePencil, PaperPlaneTilt, Plus, TerminalWindow, WarningCircle, X } from '@phosphor-icons/react'
 import { useShallow } from 'zustand/shallow'
 import type { CodingAgentRunSnapshot } from '../../shared/codingAgentRuns'
 import { codingAgentSnapshot, sendCodingAgentFollowUp } from '../lib/agent/codingAgentDriver'
@@ -11,7 +11,16 @@ import {
 } from '../lib/agent/codingAgentBroadcast'
 import { useAgentContextBus } from '../lib/agent/useAgentContextBus'
 import { useAppStore } from '../stores/appStore'
+import { useWorktrees } from '../stores/useWorktrees'
 import { Tooltip } from '../ui/Tooltip'
+import { getActivePanelId } from '../lib/activePanel'
+import { getEntry } from '../lib/terminal/registryState'
+
+interface WorkspaceFileChoice {
+  path: string
+  name: string
+  relativePath: string
+}
 
 const POPOVER_WIDTH = 380
 
@@ -35,6 +44,24 @@ function errorLabel(error: string): string {
   }
 }
 
+async function searchWorkspaceFiles(
+  rootPath: string,
+  query: string,
+  workspaceId: string,
+): Promise<WorkspaceFileChoice[]> {
+  if (!query.trim()) return []
+  try {
+    const results = await window.electronAPI.fsSearch(rootPath, query.trim(), { maxResults: 8 }, workspaceId)
+    return results.filter((result) => !result.isDirectory).map((result) => ({
+      path: result.path,
+      name: result.name,
+      relativePath: result.relativePath,
+    }))
+  } catch {
+    return []
+  }
+}
+
 /** A compact, canvas-owned composer for one prompt sent to selected Cate-owned
  * missions. It deliberately does not target arbitrary terminal panels. */
 export const GlobalAgentComposer: React.FC<GlobalAgentComposerProps> = ({ workspaceId, placement = 'top' }) => {
@@ -50,6 +77,11 @@ export const GlobalAgentComposer: React.FC<GlobalAgentComposerProps> = ({ worksp
   const [anchor, setAnchor] = useState<AnchorPosition | null>(null)
   const contextBus = useAgentContextBus()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [fileQuery, setFileQuery] = useState('')
+  const [fileChoices, setFileChoices] = useState<WorkspaceFileChoice[]>([])
+  const [stagingFile, setStagingFile] = useState(false)
+  const [diffWorktreeId, setDiffWorktreeId] = useState('')
+  const [stagingDiff, setStagingDiff] = useState(false)
   const [, setStatusTick] = useState(0)
 
   // The terminal/status stores are intentionally not coupled to the canvas
@@ -63,8 +95,14 @@ export const GlobalAgentComposer: React.FC<GlobalAgentComposerProps> = ({ worksp
 
   const missionPanels = useAppStore(useShallow((state) => {
     const workspace = state.workspaces.find((candidate) => candidate.id === workspaceId)
-    return Object.values(workspace?.panels ?? {}).filter((panel) => panel.codingAgentRun)
+    return Object.values(workspace?.panels ?? {}).filter((panel) => panel.codingAgentRun || panel.type === 'terminal')
   }))
+
+  const terminalPanels = useMemo(() => missionPanels.filter((panel) => panel.type === 'terminal'), [missionPanels])
+
+  const workspace = useAppStore(useShallow((state) => state.workspaces.find((candidate) => candidate.id === workspaceId)))
+  const rootPath = workspace?.rootPath ?? ''
+  const worktrees = useWorktrees(rootPath, workspaceId)
 
   const runs = missionPanels
     .map((panel) => panel.codingAgentRun
@@ -117,6 +155,17 @@ export const GlobalAgentComposer: React.FC<GlobalAgentComposerProps> = ({ worksp
       window.removeEventListener('scroll', updateAnchor, true)
     }
   }, [open, placement])
+
+  useEffect(() => {
+    if (!open || !rootPath) {
+      setFileChoices([])
+      return
+    }
+    const timer = window.setTimeout(async () => {
+      setFileChoices(await searchWorkspaceFiles(rootPath, fileQuery, workspaceId))
+    }, 180)
+    return () => window.clearTimeout(timer)
+  }, [fileQuery, open, rootPath, workspaceId])
 
   useEffect(() => {
     if (!open) return
@@ -250,6 +299,23 @@ export const GlobalAgentComposer: React.FC<GlobalAgentComposerProps> = ({ worksp
           </div>
           <div className="flex flex-wrap gap-1.5 px-1">
             <button type="button" aria-label="Stage note as explicit context" onClick={() => contextBus.stage({ kind: 'note', title: 'Note', content: draft.trim() })} disabled={!draft.trim()} className="inline-flex items-center gap-1 rounded-md border border-subtle px-2 py-1 text-[10px] text-secondary hover:text-primary hover:bg-hover disabled:opacity-40"><NotePencil size={11} /> Note</button>
+            <button type="button" aria-label="Stage focused terminal selection as explicit context" onClick={() => {
+              const activeId = getActivePanelId()
+              const candidate = activeId
+                ? terminalPanels.find((panel) => panel.id === activeId)
+                : undefined
+              const fallback = candidate ?? terminalPanels[0]
+              if (!fallback) {
+                contextBus.stage({ kind: 'terminal-selection', title: 'Terminal selection', source: 'Terminal', content: '' })
+                return
+              }
+              const entry = getEntry(fallback.id)
+              const baseLabel = fallback.title || fallback.id
+              const label = entry?.terminal.hasSelection()
+                ? `${baseLabel} — selected`
+                : baseLabel
+              contextBus.stageTerminalSelection(fallback.id, label)
+            }} className="inline-flex items-center gap-1 rounded-md border border-subtle px-2 py-1 text-[10px] text-secondary hover:text-primary hover:bg-hover"><TerminalWindow size={11} /> Selection</button>
             <button type="button" aria-label="Stage artifact as explicit context" onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-1 rounded-md border border-subtle px-2 py-1 text-[10px] text-secondary hover:text-primary hover:bg-hover"><Plus size={11} /> Artifact</button>
             <input ref={fileInputRef} type="file" hidden onChange={(event) => {
               const file = event.target.files?.[0]
@@ -263,11 +329,58 @@ export const GlobalAgentComposer: React.FC<GlobalAgentComposerProps> = ({ worksp
               event.target.value = ''
             }} />
           </div>
+
+          <div className="mt-2 px-1">
+            <input
+              value={fileQuery}
+              onChange={(event) => setFileQuery(event.target.value)}
+              placeholder="Search a workspace file…"
+              aria-label="Search workspace file to stage"
+              className="w-full rounded-lg border border-subtle bg-surface-0 px-2 py-1 text-[10px] text-primary placeholder:text-muted outline-none focus:border-strong"
+            />
+            {fileChoices.length > 0 && (
+              <div className="mt-1 space-y-0.5">
+                {fileChoices.map((choice) => (
+                  <button key={choice.path} type="button" data-workspace-file-choice={choice.path} disabled={stagingFile} onClick={async () => {
+                    setStagingFile(true)
+                    await contextBus.stageWorkspaceFile(workspaceId, choice.path, choice.relativePath)
+                    setStagingFile(false)
+                  }} className="block w-full truncate rounded-md px-2 py-1 text-left text-[10px] text-secondary hover:bg-hover hover:text-primary disabled:opacity-40">{choice.name}<span className="ml-1 text-muted">· {choice.relativePath}</span></button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-2 flex items-center gap-1.5 px-1">
+            <GitBranch size={12} className="text-muted" />
+            <select value={diffWorktreeId} onChange={(event) => setDiffWorktreeId(event.target.value)} aria-label="Select worktree for diff context" className="min-w-0 flex-1 rounded-md border border-subtle bg-surface-0 px-1.5 py-1 text-[10px] text-primary outline-none focus:border-strong">
+              <option value="">Select worktree…</option>
+              {worktrees.map((worktree) => (
+                <option key={worktree.id} value={worktree.id}>{worktree.label || worktree.path.split(/[\\/]/).pop()}</option>
+              ))}
+            </select>
+            <button type="button" aria-label="Stage worktree diff as explicit context" disabled={!diffWorktreeId || stagingDiff} onClick={async () => {
+              const selected = worktrees.find((worktree) => worktree.id === diffWorktreeId)
+              if (!selected || !rootPath) return
+              setStagingDiff(true)
+              try {
+                const primaryStatus = await window.electronAPI.gitStatus(rootPath, workspaceId)
+                const baseBranch = primaryStatus.current
+                if (!baseBranch) throw new Error('target-branch-not-found')
+                const review = await window.electronAPI.gitWorktreeReview(selected.path, baseBranch, workspaceId)
+                await contextBus.stageWorktreeDiff(selected.path, baseBranch, review.diff)
+              } finally {
+                setStagingDiff(false)
+              }
+            }} className="inline-flex items-center gap-1 rounded-md border border-subtle px-2 py-1 text-[10px] text-secondary hover:text-primary hover:bg-hover disabled:opacity-40"><GitDiff size={11} /> Diff</button>
+          </div>
           {contextBus.items.length > 0 && (
             <div className="mt-2 space-y-1">
               {contextBus.items.map((item) => (
                 <div key={item.id} className="flex items-center gap-2 rounded-lg border border-subtle bg-surface-0 px-2 py-1">
                   {item.kind === 'note' && <NotePencil size={12} className="text-muted" />}
+                  {item.kind === 'terminal-selection' && <TerminalWindow size={12} className="text-muted" />}
+                  {item.kind === 'diff' && <GitDiff size={12} className="text-muted" />}
                   {(item.kind === 'file' || item.kind === 'artifact') && <FileText size={12} className="text-muted" />}
                   <span className="min-w-0 flex-1 truncate text-[10px] text-primary">{item.title}</span>
                   <button type="button" aria-label={`Remove ${item.title}`} onClick={() => contextBus.remove(item.id)} className="p-0.5 rounded text-muted hover:text-primary hover:bg-hover"><X size={11} /></button>
