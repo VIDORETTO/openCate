@@ -43,6 +43,7 @@ cate-extensions/
 # case a run is interrupted before afterAll fires)
 cate-local-ws-*/
 cate-local-install-*/
+cate-daemon-build-*/
 cate-daemon-ws-*/
 
 # Temp dirs from extension-daemon integration tests. These are created directly

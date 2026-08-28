@@ -58,7 +58,9 @@ describe('cate-runtime daemon (real subprocess)', () => {
   beforeAll(async () => {
     // The daemon sandboxes to --root; on the client side we also allow it so the
     // client-side lexical checks (if any) agree. The daemon process has its own.
-    workspace = await fs.realpath(await fs.mkdtemp(path.join(process.cwd(), 'cate-daemon-ws-')))
+    // Keep the fixture outside the checkout so an interrupted teardown cannot
+    // leave test workspaces mixed with the project's source files.
+    workspace = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'cate-daemon-ws-')))
     await fs.writeFile(path.join(workspace, 'hello.ts'), 'export const x = 1\n')
     await fs.mkdir(path.join(workspace, 'pkg'))
     await fs.writeFile(path.join(workspace, 'pkg', 'data.bin'), Buffer.from([9, 8, 7, 0, 255]))

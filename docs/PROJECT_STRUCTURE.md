@@ -34,7 +34,7 @@
 - `<projeto>/.cate/session.json` — estado local da máquina, sessões e preferências de painéis.
 - `<projeto>/.cate/memory.json` — notas curadas por projeto/worktree, com citações explícitas.
 - `dist/`, `dist-runtime/`, `release/` e `build/` — saídas de build/empacotamento.
-- `test-results/`, `cate-daemon-ws-*` e `cate-exte2e-*` — resíduos ou saídas temporárias de testes.
+- `test-results/`, `cate-daemon-build-*`, `cate-daemon-ws-*` e `cate-exte2e-*` — resíduos ou saídas temporárias de testes.
 - `tasks/todo.md` e `tasks/lessons.md` — controle de continuidade do produto, versionado junto ao código.
 
 Arquivos gerados não devem ser movidos para `src/`, `docs/` ou `research/`.

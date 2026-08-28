@@ -364,3 +364,11 @@ Todos os 5 itens da Fase 1 finalizados. Suíte unitária completa: 3057 aprovado
 - Diretórios temporários `cate-exte2e-*` passaram a ser ignorados. A remoção física dos resíduos existentes foi bloqueada pelo executor e não foi forçada; nenhum arquivo de código foi apagado.
 - Verificação: `bun run typecheck` aprovado; `bun run lint` aprovado com 0 erros e 23 avisos herdados; `src/main/ipc/ipcConformance.test.ts` aprovado com 5/5; `git diff --check` aprovado.
 - **Próximo trabalho funcional:** implementar o contrato de tarefa em disco (objetivo, restrições, resultado validado, logs e artefatos), seguindo a ordem registrada no ponto de parada acima.
+
+## Higienização de temporários do daemon — 2026-08-27 (concluída)
+
+- [x] Confirmar que `cate-daemon-ws-*` são fixtures temporários do teste de subprocesso e não dados do produto.
+- [x] Remover os diretórios residuais já confirmados, usando somente os caminhos exatos da raiz do projeto; 35 pastas foram enviadas para a Lixeira do Windows.
+- [x] Fazer o teste criar workspaces em `os.tmpdir()` e ignorar também bundles interrompidos `cate-daemon-build-*`.
+- [x] Rodar o teste focado e validar que a raiz do repositório não recebe novos `cate-daemon-ws-*`.
+- [x] Verificar gates: teste focado `3 aprovados / 2 ignorados`, typecheck aprovado e lint aprovado com `0 erros / 23 avisos herdados`.
