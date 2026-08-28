@@ -8,7 +8,7 @@ Accepted — 2026-08-23.
 
 We evaluated Cate, Paseo, Claude Squad, Nimbalyst, TermCanvas and the original TermCanvas fork. Requirements include an infinite canvas, resizable persistent terminals, multiple AI CLI agents, naming/discovery, shared context, subagent visibility, Git worktrees, durable sessions and future remote access.
 
-The comparison and codebase evidence are recorded in `../../work/research/project-analysis.md`.
+The comparison and codebase evidence are recorded in [`../../research/project-analysis.md`](../../research/project-analysis.md).
 
 ## Decision
 

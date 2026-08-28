@@ -45,5 +45,9 @@ cate-local-ws-*/
 cate-local-install-*/
 cate-daemon-ws-*/
 
+# Temp dirs from extension-daemon integration tests. These are created directly
+# under the repository when a test teardown is interrupted.
+cate-exte2e-*/
+
 # Superpowers planning artifacts (plans/specs) — scratch, not tracked
 docs/superpowers/

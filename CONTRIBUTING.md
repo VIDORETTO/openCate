@@ -110,7 +110,10 @@ Packaged binaries land in `release/`. The runtime daemon is rebuilt by `bun run 
 
 ## Project Structure
 
-See [`CLAUDE.md`](CLAUDE.md) for detailed guidance on the codebase.
+See the [repository structure guide](docs/PROJECT_STRUCTURE.md) for module
+boundaries and the [architecture document](docs/ARCHITECTURE.md) for process,
+IPC, persistence and security details. `CLAUDE.md` remains the concise
+assistant-specific coding guidance.
 
 ## Code Style
 

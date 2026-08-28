@@ -1,6 +1,6 @@
 # Arquitetura — Modelo de Processos, IPC, Persistência e Segurança
 
-> Documento técnico para desenvolvedores. Descreve como o Cate funciona internamente, baseado na leitura do código-fonte (não no README). Última atualização: Fase 3 — histórico e composer global de agentes.
+> Documento técnico para desenvolvedores. Descreve como o Cate funciona internamente, baseado na leitura do código-fonte (não no README). Última atualização: 2026-08-27 — memória por projeto/worktree e organização documental.
 
 ## Visão geral dos processos
 
@@ -56,6 +56,7 @@ Canares declarados em `src/shared/ipc-channels.ts`. O preload expõe via `contex
 | Git | `GIT_IS_REPO/STATUS/DIFF/COMMIT...` | invoke |
 | Search | `SEARCH_START/CANCEL` → `SEARCH_RESULT/DONE` | stream |
 | Project state | `PROJECT_STATE_SAVE/LOAD` | invoke |
+| Project memory | `PROJECT_MEMORY_SAVE/LOAD` | invoke |
 | Session flush | `SESSION_FLUSH_SAVE` / `SESSION_FLUSH_SAVE_DONE` | quit-time sync |
 | Runtime | `RUNTIME_CONNECT/STATUS/INSTALL/DELETE` | invoke + broadcast |
 | Window panels | cross-window panel union | broadcast |
@@ -80,6 +81,13 @@ Contém estado "de projeto": nome, cor do workspace, dockState (árvore de zonas
 ### `.cate/session.json` (machine-local, gitignored)
 
 Fatos que NÃO devem ser commitados: worktree tag por terminal, working directory live, conteúdo unsaved de scratch, sessões CLI retomáveis, starred/tags/cor por terminal, stashed panels, worktrees registry.
+
+### `.cate/memory.json` (machine-local, gitignored)
+
+Notas curadas pelo usuário, separadas por projeto ou por caminho de worktree.
+Cada nota exige uma citação estruturada de origem; o sistema não captura nem
+compartilha scrollback de terminal implicitamente. A persistência é atômica no
+host local e usa a API de arquivos do runtime para projetos remotos.
 
 ### Ciclo de gravação
 

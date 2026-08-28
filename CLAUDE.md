@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Before You Code
 
-Read and follow the **karpathy-guidelines** skill (`.claude/skills/karpathy-guidelines`) when writing, reviewing, or refactoring code here — surface assumptions, make surgical changes, keep it simple, and define verifiable success criteria.
+Read and follow the **karpathy-guidelines** skill (`.codex/skills/karpathy-guidelines/SKILL.md`) when writing, reviewing, or refactoring code here — surface assumptions, make surgical changes, keep it simple, and define verifiable success criteria.
 
 ## Project Overview
 
@@ -14,12 +14,16 @@ Cate is a desktop application that provides an infinite zoomable canvas where ed
 
 The Electron app lives at the project root. Uses **electron-vite** for bundling.
 
+Local development uses Bun, while CI/release use the committed npm lockfile:
+
 ```bash
-npm install        # install dependencies
-npm run dev        # start dev server with hot reload
-npm run build      # production build
-npm test           # run vitest suite
+bun run setup      # install dependencies and build the local runtime
+bun run dev        # start dev server with hot reload
+bun run build      # production build
+bun run test       # run vitest suite
 ```
+
+Use `npm ci` only when reproducing the CI environment.
 
 Tests use **Vitest** and live alongside the code they cover (`*.test.ts` / `*.test.tsx`). A few git-touching tests assume a clean working repo and may fail when the dev tree has a branch named `main` or local modifications — those failures are environmental, not regressions.
 
