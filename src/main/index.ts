@@ -16,6 +16,7 @@ import { registerHandlers as registerStoreHandlers, loadSettingsSyncFromDisk, ge
 import { registerUIStateHandlers } from './uiStateStore'
 import { registerProjectStateHandlers } from './projectWorkspaceStore'
 import { registerProjectChatsHandlers } from './projectChatsStore'
+import { registerProjectMemoryHandlers } from './projectMemoryStore'
 import { registerHandlers as registerMenuHandlers } from './ipc/menu'
 import { registerHandlers as registerNotificationHandlers } from './ipc/notifications'
 import { registerCodingHandlers } from '../cateAgent/main/ipcCoding'
@@ -92,6 +93,7 @@ function registerCriticalHandlers(): void {
   registerUIStateHandlers()
   registerProjectStateHandlers()
   registerProjectChatsHandlers()
+  registerProjectMemoryHandlers()
   registerWorkspaceHandlers()
   registerFilesystemHandlers()
   registerTerminalHandlers()

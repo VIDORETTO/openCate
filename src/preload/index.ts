@@ -83,6 +83,8 @@ import {
   PROJECT_STATE_LOAD,
   PROJECT_CHATS_LOAD,
   PROJECT_CHATS_SAVE,
+  PROJECT_MEMORY_LOAD,
+  PROJECT_MEMORY_SAVE,
   WORKSPACE_EXTERNAL_EDIT,
   WORKSPACE_EXTERNAL_EDIT_DISMISS,
   BOOT_SNAPSHOT_WRITE,
@@ -435,6 +437,8 @@ const invokeForwarders = {
   projectStateLoad: makeInvoker<'projectStateLoad'>(PROJECT_STATE_LOAD),
   projectChatsLoad: makeInvoker<'projectChatsLoad'>(PROJECT_CHATS_LOAD),
   projectChatsSave: makeInvoker<'projectChatsSave'>(PROJECT_CHATS_SAVE),
+  projectMemoryLoad: makeInvoker<'projectMemoryLoad'>(PROJECT_MEMORY_LOAD),
+  projectMemorySave: makeInvoker<'projectMemorySave'>(PROJECT_MEMORY_SAVE),
 
   // Dialog
   openFolderDialog: makeInvoker<'openFolderDialog'>(DIALOG_OPEN_FOLDER),

@@ -30,6 +30,7 @@ import { workspaceRuntime } from '../lib/workspace/workspaceRuntime'
 import log from '../lib/logger'
 import { InlineEditInput } from './InlineEditInput'
 import { WorkspaceSkillsTree } from './WorkspaceSkillsTree'
+import { WorkspaceMemorySection } from './WorkspaceMemorySection'
 import { canvasKey, toggleCollapsed, useTreeCollapseStore } from './treeCollapse'
 import { Tooltip } from '../ui/Tooltip'
 import { Modal, btn, inputCls } from '../ui/Modal'
@@ -1631,6 +1632,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
           {/* Skills the workspace's agents already have — folded into the tree:
               one row per agent, its skills nested beneath. No separate section. */}
           <WorkspaceSkillsTree workspaceId={workspace.id} rootPath={workspace.rootPath} />
+          <WorkspaceMemorySection rootPath={workspace.rootPath} worktrees={worktrees} />
         </div>
       )}
 

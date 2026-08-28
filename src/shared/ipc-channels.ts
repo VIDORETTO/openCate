@@ -136,6 +136,11 @@ export const WORKSPACE_EXTERNAL_EDIT_DISMISS = 'project:externalEditDismiss' // 
 export const PROJECT_CHATS_LOAD = 'project:chatsLoad' // renderer -> main
 export const PROJECT_CHATS_SAVE = 'project:chatsSave' // renderer -> main
 
+// Project/worktree memory notes (.cate/memory.json). The file is machine-local
+// like chats/session state: citations may point at local checkout paths.
+export const PROJECT_MEMORY_LOAD = 'project:memoryLoad' // renderer -> main
+export const PROJECT_MEMORY_SAVE = 'project:memorySave' // renderer -> main
+
 // Boot snapshot — a tiny JSON file (geometry, theme, last workspace id, native
 // tabs flag) written by the renderer whenever the relevant settings change.
 // Read synchronously at launch by the main process to construct the

@@ -8,6 +8,7 @@ import type { SavedSkill, InstalledSkill, SkillEntry, SkillSource, SkillTargetId
 import type { AgentHookEvent, AgentHookAgentState } from './agentHooks'
 import type { AgentSessionRef, AgentSessionSummary, AgentTranscriptMessage } from './agentSessions'
 import type { ExtensionListEntry, ExtensionManifest } from './extensions'
+import type { ProjectMemoryNote } from './projectMemory'
 
 /** Lifecycle state of the auto-updater, surfaced to the renderer for the
  *  in-app "update ready" modal. `downloaded` is the one the modal acts on. */
@@ -484,6 +485,12 @@ export interface ElectronAPI {
 
   /** Persist the whole per-workspace Cate Agent chat list to .cate/chats.json. */
   projectChatsSave(rootPath: string, chats: import('./types').Chat[]): Promise<void>
+
+  /** Load user-curated project/worktree memory notes from .cate/memory.json. */
+  projectMemoryLoad(rootPath: string): Promise<ProjectMemoryNote[]>
+
+  /** Persist the complete user-curated project/worktree memory note list. */
+  projectMemorySave(rootPath: string, notes: ProjectMemoryNote[]): Promise<void>
 
   // ---------------------------------------------------------------------------
   // App
