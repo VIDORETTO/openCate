@@ -21,48 +21,17 @@
 // claude's SessionStart fires at TUI launch BEFORE any transcript exists, and
 // resuming a transcript-less id FAILS (pinned live by
 // agentHookContracts.itest.ts) — so claude is only stamped from its first
-// turn event. See RESUMABLE_FROM_SESSION_START below.
+// turn event. The per-agent decision lives on AgentDef.resumeFromSessionStart
+// in the shared registry.
 // =============================================================================
 
 import { SHELL_AGENT_SESSION_UPDATE } from '../../shared/ipc-channels'
 import type { AgentHookEvent } from '../../shared/agentHooks'
-import type { AgentId } from '../../shared/agents'
+import { AGENTS } from '../../shared/agents'
 import type { Runtime } from '../runtime/types'
 import type { TerminalAgentSession } from '../../shared/types'
 import { getTerminalOwner } from './terminal'
 import { sendToWindow } from '../windowRegistry'
-
-/**
- * Whether this agent's session is already resumable when its session-start
- * event arrives. Every CLI persists its session lazily, but only claude both
- * announces a session BEFORE anything is persisted (SessionStart at TUI
- * launch, and again on /clear rotation) and FAILS to resume that empty id —
- * so claude waits for the first turn event (turn-start = prompt submitted;
- * turn-end / permission-wait equally prove a submitted prompt). Everyone
- * else's first sessionId-bearing event is already tied to a persisted store:
- * codex's TUI pushes nothing until the first submit (exec pushes at start,
- * with the rollout as transcript), pi/opencode create-or-resume by exact id.
- * Contracts pinned live in agentHookContracts.itest.ts.
- */
-const RESUMABLE_FROM_SESSION_START: Record<AgentId, boolean> = {
-  'claude-code': false,
-  codex: true,
-  // A never-used sessionStart id is resumable (--resume even ADOPTS unknown
-  // ids as a fresh chat rather than failing) — pinned live.
-  cursor: true,
-  // grok's TUI defers SessionStart to the first prompt submit, so a session is
-  // already open and on disk when the id arrives — a session killed mid-turn,
-  // before its Stop, still resumes (pinned live).
-  grok: true,
-  pi: true,
-  opencode: true,
-  // Both CLIs fire their SessionStart hook again on resume, and the id is
-  // already tied to persisted session state at that point.
-  gemini: true,
-  copilot: true,
-  // No hook stream / session id: never stamp what cannot be resumed exactly.
-  aider: false,
-}
 
 interface StampState {
   /** Dedup key of the last SHELL_AGENT_SESSION_UPDATE sent, so an unchanged
@@ -120,7 +89,8 @@ export function ingestAgentSessionStamp(runtime: Runtime, event: AgentHookEvent)
     return
   }
   if (event.sessionId == null) return
-  if (event.kind === 'session-start' && !RESUMABLE_FROM_SESSION_START[event.agentId]) return
+  const agent = AGENTS.find((candidate) => candidate.id === event.agentId)
+  if (event.kind === 'session-start' && !agent?.resumeFromSessionStart) return
   const { agentId, sessionId } = event
   if (event.cwd) {
     emit(terminalId, {

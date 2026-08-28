@@ -17,7 +17,7 @@
 // loosen these to Partial:
 //   • hooks — AGENT_HOOK_SPECS in src/shared/agentHooks.ts (injection channel +
 //     payload normalizer).
-//   • resumability — RESUMABLE_FROM_SESSION_START in
+//   • resumability — AgentDef.resumeFromSessionStart, consumed by
 //     src/main/ipc/agentSessionStamps.ts.
 // The one table that CANNOT be exhaustive is the logo map
 // (src/renderer/lib/agent/agentLogos.ts): it is renderer-only because it
@@ -94,6 +94,9 @@ export interface AgentDef {
    *  restore, or null when this CLI cannot resume by id. Every contract here is
    *  pinned live by agentHookContracts.itest.ts. */
   resumeArgs: ((sessionId: string) => string[]) | null
+  /** Whether a session-start hook is already safe to persist as a resume
+   *  stamp, or whether the first turn must prove the session exists. */
+  resumeFromSessionStart: boolean
   /** Project-skills integration, or null when Cate installs no skills for this
    *  agent. Verified against each CLI's own docs — see the per-agent notes. */
   skills: AgentSkillTarget | null
@@ -144,6 +147,7 @@ export const AGENTS: readonly AgentDef[] = [
     codingAgentFollowUp: true,
     matchProcess: (n) => n === 'claude' || n === 'claude-code' || n.startsWith('claude'),
     resumeArgs: (sid) => ['--resume', sid],
+    resumeFromSessionStart: false,
     // claude is the standard's origin: it REQUIRES frontmatter name === dir name.
     skills: folderSkills('claude-code', ['.claude', 'skills'], { nameMatchesDir: true }),
     launchPreferences: {
@@ -163,6 +167,7 @@ export const AGENTS: readonly AgentDef[] = [
     codingAgentFollowUp: true,
     matchProcess: (n) => n === 'codex',
     resumeArgs: (sid) => ['resume', sid],
+    resumeFromSessionStart: true,
     skills: folderSkills('codex', ['.codex', 'skills']),
     launchPreferences: {
       model: { args: (model) => ['-m', model] },
@@ -189,6 +194,7 @@ export const AGENTS: readonly AgentDef[] = [
     // --resume ADOPTS an unknown id (fresh chat under that id, exit 0) rather
     // than failing — a stale stamp degrades to a fresh session, never a wrong one.
     resumeArgs: (sid) => ['--resume', sid],
+    resumeFromSessionStart: true,
     // Per cursor's own bundled create-skill skill: personal ~/.cursor/skills,
     // project .cursor/skills. (~/.cursor/skills-cursor is cursor's internal
     // built-ins dir and is explicitly off-limits — we never write there.)
@@ -207,6 +213,7 @@ export const AGENTS: readonly AgentDef[] = [
     // --resume ERRORS on an id with no session on disk (pinned live), so a stale
     // stamp falls back to a plain shell instead of silently opening a fresh chat.
     resumeArgs: (sid) => ['--resume', sid],
+    resumeFromSessionStart: true,
     // grok reads .grok/skills, .agents/skills, .claude/skills AND .cursor/skills
     // (verified live via `grok inspect --json`). We install to its OWN dir: the
     // compat dirs belong to the agents that own them, and grok dedupes by name
@@ -226,6 +233,7 @@ export const AGENTS: readonly AgentDef[] = [
     codingAgentFollowUp: true,
     matchProcess: (n) => n === 'opencode',
     resumeArgs: (sid) => ['--session', sid],
+    resumeFromSessionStart: true,
     skills: folderSkills('opencode', ['.opencode', 'skills']),
   },
   // @earendil-works/pi-coding-agent — runs as the `pi` binary.
@@ -238,6 +246,7 @@ export const AGENTS: readonly AgentDef[] = [
     matchProcess: (n) => n === 'pi',
     // pi's --resume is an interactive picker; --session takes an exact id.
     resumeArgs: (sid) => ['--session', sid],
+    resumeFromSessionStart: true,
     // `.agents/skills` is the cross-tool shared location pi (and others) read,
     // so pi's target id is 'pi-native' rather than the dir-derived name.
     skills: folderSkills('pi-native', ['.agents', 'skills'], { label: 'Pi' }),
@@ -257,6 +266,7 @@ export const AGENTS: readonly AgentDef[] = [
     matchProcess: (n) => n === 'gemini',
     // UUID, numeric index, or no argument for the latest session.
     resumeArgs: (sid) => ['--resume', sid],
+    resumeFromSessionStart: true,
     skills: folderSkills('gemini', ['.gemini', 'skills']),
     launchPreferences: {
       model: { args: (model) => ['-m', model] },
@@ -277,6 +287,7 @@ export const AGENTS: readonly AgentDef[] = [
     codingAgentFollowUp: true,
     matchProcess: (n) => n === 'copilot',
     resumeArgs: (sid) => ['--resume', sid],
+    resumeFromSessionStart: true,
     skills: folderSkills('copilot', ['.github', 'skills']),
   },
   // Aider has neither Agent Skills nor an event/hook system. It does support a
@@ -291,6 +302,7 @@ export const AGENTS: readonly AgentDef[] = [
     matchProcess: (n) => n === 'aider',
     // Only --restore-chat-history exists: there is no stable session id.
     resumeArgs: null,
+    resumeFromSessionStart: false,
     skills: null,
   },
 ]

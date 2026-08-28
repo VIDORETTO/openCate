@@ -98,6 +98,7 @@ describe('agent registry coverage', () => {
       expect(a.command, `${a.id} command`).toBeTruthy()
       expect(a.matchProcess(a.command.toLowerCase()) || a.id === 'claude-code',
         `${a.id} does not detect its own command name`).toBe(true)
+      expect(typeof a.resumeFromSessionStart, `${a.id} session-start resume decision`).toBe('boolean')
       // resumeArgs is nullable by design (a CLI may not resume by id) — assert
       // it is a real decision, and that the argv it builds is non-empty.
       if (a.resumeArgs) expect(a.resumeArgs('abc').length).toBeGreaterThan(0)

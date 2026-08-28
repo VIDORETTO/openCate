@@ -501,7 +501,7 @@ describe.skipIf(!LIVE || !hasBin('claude'))('claude hook contract', () => {
       .toBe('waitingForInput')
 
     // transcript_path points at a real transcript once the first prompt ran —
-    // the moment the RESUMABLE_FROM_SESSION_START gating counts on.
+    // the moment AgentDef.resumeFromSessionStart's safety condition matters.
     expect(existsSync(transcript1), 'transcript exists after first prompt').toBe(true)
 
     // Presence lineage contract: every hook process is a descendant of the
@@ -2276,7 +2276,7 @@ describe.skipIf(!LIVE || !hasBin('grok'))('grok hook contract', () => {
     ).rejects.toThrow()
   })
 
-  // The gate behind RESUMABLE_FROM_SESSION_START (agentSessionStamps.ts): is
+  // The gate behind AgentDef.resumeFromSessionStart (agentSessionStamps.ts): is
   // the id announced by SessionStart resumable BEFORE the turn it opened for
   // finished? For claude it is not — it announces at TUI launch, and resuming
   // that empty id fails, so claude is stamped only from its first turn event.
