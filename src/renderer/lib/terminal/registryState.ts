@@ -159,10 +159,9 @@ export function has(panelId: string): boolean {
   return registry.has(panelId)
 }
 
-/**
- * Iterate over every registered terminal. Used by the agent-screen detector
- * to poll each xterm buffer for prompt markers.
- */
+/** Iterate over every registered terminal for renderer-side inspections that
+ * need the live xterm object. Screen-state fallback normally samples directly
+ * on PTY output and deliberately does not walk scrollback here. */
 export function entries(): Array<[string, RegistryEntry]> {
   return Array.from(registry.entries())
 }

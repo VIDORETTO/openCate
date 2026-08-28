@@ -1,7 +1,7 @@
 // Per-panel agent status (state + name + logo) for the sidebar tree and dock
 // tabs. Owns the two bits of glue both consumers used to re-derive by hand:
 //   1. the ptyId→panelId translation (status is keyed by ptyId, tabs by panelId)
-//   2. the `agentPresent` gate on the name/logo
+//   2. the live-agent gate on the name/logo (hook presence or screen fallback)
 // so the invariant lives in one place instead of being copied per consumer.
 
 import { useStoreWithEqualityFn } from 'zustand/traditional'
@@ -33,11 +33,14 @@ export function selectAgentInfoByPanel(
   if (!ws) return out
   for (const [key, terminal] of Object.entries(ws.terminals)) {
     // `agentName` is kept populated after the agent exits so the status
-    // footer can still read "Finished (Claude Code)". Gate the name/logo on
-    // `agentPresent` so the icon reverts to the terminal glyph the moment
-    // the process is gone; leave `state` ungated so the finished/awaiting
-    // indicators still render.
-    const name = terminal.agentPresent ? terminal.agentName : null
+    // footer can still read "Finished (Claude Code)". A screen-fallback agent
+    // has no hook presence, but its live running/waiting state is still enough
+    // to keep the agent logo visible. Once the state becomes finished or
+    // notRunning, the icon reverts to the terminal glyph.
+    const agentLive = terminal.agentPresent ||
+      terminal.agentState === 'running' ||
+      terminal.agentState === 'waitingForInput'
+    const name = agentLive ? terminal.agentName : null
     out[resolvePanelId(key)] = {
       state: terminal.agentState,
       name,

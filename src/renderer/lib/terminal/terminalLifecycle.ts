@@ -40,7 +40,8 @@ import { useStatusStore } from '../../stores/statusStore'
 import { awaitWorkspaceSync, useAppStore } from '../../stores/appStore'
 import { replayTerminalLog } from '../workspace/session'
 import type { CodingAgentLaunch } from '../../../shared/codingAgentRuns'
-import { noteAgentInputSubmitted } from '../agent/agentScreenDetector'
+import { noteAgentInputSubmitted, noteAgentProcess, noteAgentScreenSnapshot } from '../agent/agentScreenDetector'
+import { readVisibleTerminalText } from '../agent/agentScreenHeuristics'
 import { clearActivityHistory, noteTerminalActivity } from './activityHistory'
 
 interface CreateOpts {
@@ -183,6 +184,9 @@ export function wireTerminalListeners(args: {
       sawOutput = true
       noteTerminalActivity(panelId, data.length)
       terminal.write(data)
+      // Feed only the rendered viewport to the optional screen fallback. The
+      // detector never receives raw PTY data or scrollback from this path.
+      noteAgentScreenSnapshot(ptyId, readVisibleTerminalText(terminal))
     }
   })
   cleanupListeners.push(removeDataListener)
@@ -192,6 +196,7 @@ export function wireTerminalListeners(args: {
   // and the exit line is visible until the panel is disposed).
   const removeExitListener = electronAPI.onTerminalExit((id: string, exitCode: number) => {
     if (id === ptyId) {
+      noteAgentProcess(id, null)
       const e = registry.get(panelId)
       if (e) e.alive = false
       const panel = useAppStore.getState().workspaces
@@ -234,6 +239,9 @@ export function wireTerminalListeners(args: {
   })
   cleanupListeners.push(() => resizeDisposable.dispose())
 
+  // A Cate-owned launch is a trusted identity hint for the screen fallback.
+  // Manual launches are identified later by the host process monitor.
+  noteAgentProcess(ptyId, opts.codingAgentLaunch?.agentId ?? null)
   useStatusStore.getState().registerTerminal(ptyId, opts.workspaceId)
 }
 

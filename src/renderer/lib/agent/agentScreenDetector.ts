@@ -1,5 +1,6 @@
 // =============================================================================
-// Agent activity coordinator: a hook-event FSM plus presence edges.
+// Agent activity coordinator: a hook-event FSM plus a registry-gated screen
+// fallback and presence edges.
 //
 // Running/idle for all agents (claude/codex/cursor/pi/opencode) is driven by the
 // normalized agent-hook event stream (SHELL_AGENT_HOOK_EVENT →
@@ -22,17 +23,19 @@
 // SessionEnd), so notRunning/finished still come from the scan's falling
 // edge.
 //
-// Hook injection is best-effort, and hooks are the ONLY detection channel:
-// an agent that never speaks them (codex before its native trust prompt is
-// answered, a CLI launched before Cate injected the files, an unparseable
-// settings file) is simply not detected — no indicator, no notifications,
-// like any other process in the terminal.
+// Hook injection is best-effort. Hooks remain authoritative whenever they are
+// observed; only an agent whose canonical registry entry explicitly enables
+// `screenFallback` may use the tiny visible-screen classifier. That fallback is
+// status-only: it never reads scrollback, creates a session identity, or
+// produces an OS notification on its own.
 // =============================================================================
 
 import { useStatusStore, workspaceIdForTerminal } from '../../stores/statusStore'
 import { sendOsNotification } from '../notifications/osNotificationSend'
 import type { AgentHookEvent } from '../../../shared/agentHooks'
 import type { AgentState } from '../../../shared/types'
+import { AGENTS, type AgentId } from '../../../shared/agents'
+import { resolveAgentScreenState, type HeuristicAgentState } from './agentScreenHeuristics'
 
 export interface DetectorSignals {
   /** Main's process-tree scan found the agent CLI for this terminal. */
@@ -51,15 +54,24 @@ export function resolveAgentState(s: DetectorSignals): AgentState {
   return 'waitingForInput'
 }
 
-// The Tracker holds ONLY hook/FSM-edge state. The agent name and presence are
-// owned by statusStore (the single home); the tracker reads them from there at
-// commit time rather than caching a second copy that two writers could clobber
-// on the same 1 Hz tick. `present/wasPresent/state` remain here because they
-// are load-bearing FSM edge-detection memory (resolveAgentState's finished
-// edge and commit's transition gate).
+// The Tracker holds hook/FSM-edge state plus ephemeral fallback evidence. The
+// agent name remains owned by statusStore (the single home); the tracker reads
+// it from there at commit time rather than caching a second copy that two
+// writers could clobber on the same 1 Hz tick. `present/wasPresent/state`
+// remain here because they are load-bearing FSM edge-detection memory
+// (resolveAgentState's finished edge and commit's transition gate).
 interface Tracker {
+  /** Effective presence: hook presence OR an explicitly allowed screen agent. */
   present: boolean
   wasPresent: boolean
+  /** Main's hook-registered liveness, kept separate from the screen fallback. */
+  hookPresent: boolean
+  /** Process/launch identity for the registry-enabled screen fallback. */
+  fallbackPresent: boolean
+  fallbackAgentId: AgentId | null
+  fallbackScreenState: HeuristicAgentState | null
+  /** Once true, the structured FSM owns state and screen samples are ignored. */
+  hookObserved: boolean
   /** Current CLI session identity. Used to make a deferred/replayed
    *  session-start idempotent instead of letting it overwrite a turn event
    *  from the same session that already arrived. */
@@ -83,6 +95,11 @@ function trackerFor(terminalId: string): Tracker {
     t = {
       present: false,
       wasPresent: false,
+      hookPresent: false,
+      fallbackPresent: false,
+      fallbackAgentId: null,
+      fallbackScreenState: null,
+      hookObserved: false,
       sessionId: null,
       hookTurnActive: false,
       hookPermissionWait: false,
@@ -91,6 +108,33 @@ function trackerFor(terminalId: string): Tracker {
     trackers.set(terminalId, t)
   }
   return t
+}
+
+function screenFallbackAgent(agentId: AgentId | null): AgentId | null {
+  if (!agentId) return null
+  return AGENTS.find((agent) => agent.id === agentId && agent.screenFallback)?.id ?? null
+}
+
+function effectivePresent(t: Tracker): boolean {
+  return t.hookPresent || t.fallbackPresent
+}
+
+function effectiveActive(t: Tracker): boolean {
+  return t.hookObserved
+    ? t.hookTurnActive && !t.hookPermissionWait
+    : t.fallbackScreenState === 'running'
+}
+
+/** Update the finished-edge memory after either presence source changes. */
+function reconcilePresence(t: Tracker): void {
+  t.wasPresent = t.present
+  t.present = effectivePresent(t)
+  if (!t.present) {
+    // The process is gone; any in-flight turn died with it. The next launch
+    // starts idle and re-proves itself through fresh evidence.
+    t.hookTurnActive = false
+    t.hookPermissionWait = false
+  }
 }
 
 function workspaceFor(terminalId: string): string | undefined {
@@ -113,7 +157,11 @@ function commit(terminalId: string, state: AgentState, notify: boolean, permissi
 
   t.state = state
   const status = useStatusStore.getState()
-  const agentName = status.workspaces[workspaceId]?.terminals[terminalId]?.agentName ?? null
+  const agentName =
+    status.workspaces[workspaceId]?.terminals[terminalId]?.agentName ??
+    (t.fallbackAgentId
+      ? AGENTS.find((agent) => agent.id === t.fallbackAgentId)?.displayName ?? null
+      : null)
   status.setAgentState(workspaceId, terminalId, state, agentName)
   window.electronAPI?.shellReportAgentScreenState?.(terminalId, state)
 
@@ -159,7 +207,7 @@ function recompute(terminalId: string, notifyOnIdle = false, permissionBody?: st
   const raw = resolveAgentState({
     present: t.present,
     wasPresent: t.wasPresent,
-    active: t.hookTurnActive && !t.hookPermissionWait,
+    active: effectiveActive(t),
   })
   commit(terminalId, raw, notifyOnIdle, permissionBody)
 }
@@ -167,6 +215,7 @@ function recompute(terminalId: string, notifyOnIdle = false, permissionBody?: st
 /** A normalized agent-hook event arrived for a terminal this window owns. */
 export function noteAgentHookEvent(event: AgentHookEvent): void {
   const t = trackerFor(event.terminalId)
+  t.hookObserved = true
   switch (event.kind) {
     case 'turn-start':
       t.sessionId = event.sessionId
@@ -227,10 +276,20 @@ export function noteAgentHookEvent(event: AgentHookEvent): void {
  *  also resumes the agent while it processes that answer, before its Stop. */
 export function noteAgentInputSubmitted(terminalId: string): void {
   const t = trackers.get(terminalId)
-  if (!t?.hookPermissionWait) return
-  t.hookTurnActive = true
-  t.hookPermissionWait = false
-  recompute(terminalId)
+  if (!t) return
+  if (t.hookPermissionWait) {
+    t.hookTurnActive = true
+    t.hookPermissionWait = false
+    recompute(terminalId)
+    return
+  }
+  // Aider has no lifecycle hooks. Enter is the earliest truthful signal that
+  // its visible prompt was submitted; the next screen sample can settle it
+  // back to waiting if the CLI rejects an empty/invalid answer.
+  if (!t.hookObserved && t.fallbackPresent) {
+    t.fallbackScreenState = 'running'
+    recompute(terminalId)
+  }
 }
 
 /** Main's scan reported whether the hook-registered agent pid is alive. The
@@ -238,14 +297,34 @@ export function noteAgentInputSubmitted(terminalId: string): void {
  *  BEFORE this runs, so commit reads a current name. */
 export function noteAgentPresence(terminalId: string, present: boolean): void {
   const t = trackerFor(terminalId)
-  t.wasPresent = t.present
-  t.present = present
-  if (!present) {
-    // The process is gone; any in-flight turn died with it. The next launch
-    // starts idle and re-proves itself through fresh hook events.
-    t.hookTurnActive = false
-    t.hookPermissionWait = false
-  }
+  t.hookPresent = present
+  reconcilePresence(t)
+  recompute(terminalId)
+}
+
+/**
+ * Main's process scan (or a trusted Cate-owned launch) identified the
+ * foreground agent. Only registry entries with `screenFallback` participate;
+ * hook-capable CLIs remain invisible here until their structured channel
+ * speaks. Passing null clears the fallback and supplies the finished edge.
+ */
+export function noteAgentProcess(terminalId: string, agentId: AgentId | null): void {
+  const t = trackerFor(terminalId)
+  const nextAgentId = screenFallbackAgent(agentId)
+  if (nextAgentId !== t.fallbackAgentId) t.fallbackScreenState = null
+  t.fallbackAgentId = nextAgentId
+  t.fallbackPresent = nextAgentId !== null
+  reconcilePresence(t)
+  recompute(terminalId)
+}
+
+/** Feed a status-only sample from the active xterm viewport into the fallback. */
+export function noteAgentScreenSnapshot(terminalId: string, screenText: string): void {
+  const t = trackers.get(terminalId)
+  if (!t || t.hookObserved || !t.fallbackAgentId) return
+  const nextState = resolveAgentScreenState(screenText, t.fallbackAgentId)
+  if (!nextState || nextState === t.fallbackScreenState) return
+  t.fallbackScreenState = nextState
   recompute(terminalId)
 }
 
@@ -256,6 +335,7 @@ export function forgetAgentTracker(terminalId: string): void {
 
 export function startAgentScreenDetector(): void {
   started = true
+  for (const terminalId of trackers.keys()) recompute(terminalId)
 }
 
 export function stopAgentScreenDetector(): void {

@@ -5,6 +5,8 @@ import {
   startAgentScreenDetector,
   stopAgentScreenDetector,
   noteAgentPresence,
+  noteAgentProcess,
+  noteAgentScreenSnapshot,
   noteAgentHookEvent,
   noteAgentInputSubmitted,
   forgetAgentTracker,
@@ -270,5 +272,47 @@ describe('agent activity coordinator (hook FSM + presence edges)', () => {
     noteAgentPresence(PTY, true)
     expect(state()).toBe('waitingForInput') // store untouched after stop
     expect(sendOsNotification).not.toHaveBeenCalled()
+  })
+
+  it('uses the registry-enabled screen fallback when Aider has no hooks', () => {
+    noteAgentProcess(PTY, 'aider')
+    expect(state()).toBe('waitingForInput')
+
+    noteAgentScreenSnapshot(PTY, 'Working on the requested changes…')
+    expect(state()).toBe('running')
+
+    noteAgentScreenSnapshot(PTY, 'Aider\n> ')
+    expect(state()).toBe('waitingForInput')
+
+    // A normal answer is the earliest resume edge when there is no hook event.
+    noteAgentInputSubmitted(PTY)
+    expect(state()).toBe('running')
+
+    // A process falling edge still resolves the terminal honestly.
+    noteAgentProcess(PTY, null)
+    expect(state()).toBe('finished')
+  })
+
+  it('lets structured hooks take precedence over screen samples', () => {
+    noteAgentProcess(PTY, 'aider')
+    noteAgentScreenSnapshot(PTY, 'Working…')
+    expect(state()).toBe('running')
+
+    noteAgentHookEvent(hookEvent('turn-start', 'claude-code'))
+    noteAgentHookEvent(hookEvent('turn-end', 'claude-code'))
+    expect(state()).toBe('waitingForInput')
+
+    noteAgentScreenSnapshot(PTY, 'Working…')
+    expect(state()).toBe('waitingForInput')
+  })
+
+  it('does not enable screen fallback for a hook-capable agent', () => {
+    noteAgentProcess(PTY, 'codex')
+    noteAgentScreenSnapshot(PTY, 'Working…')
+    expect(state()).toBe('notRunning')
+
+    noteAgentPresence(PTY, true)
+    noteAgentScreenSnapshot(PTY, 'Working…')
+    expect(state()).toBe('waitingForInput')
   })
 })

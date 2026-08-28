@@ -124,8 +124,13 @@ vi.mock('./terminalFileLinkProvider', () => ({
 const noteAgentInputSubmitted = vi.fn()
 vi.mock('../agent/agentScreenDetector', () => ({
   noteAgentPresence: vi.fn(),
+  noteAgentProcess: vi.fn(),
+  noteAgentScreenSnapshot: vi.fn(),
   forgetAgentTracker: vi.fn(),
   noteAgentInputSubmitted,
+}))
+vi.mock('../agent/agentScreenHeuristics', () => ({
+  readVisibleTerminalText: vi.fn(() => ''),
 }))
 vi.mock('../themeManager', () => ({
   getActiveTheme: () => ({ terminal: {} }),

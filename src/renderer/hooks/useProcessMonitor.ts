@@ -2,11 +2,11 @@ import { useEffect } from 'react'
 import { useStatusStore, workspaceIdForTerminal } from '../stores/statusStore'
 import { useAppStore } from '../stores/appStore'
 import { terminalRegistry } from '../lib/terminal/terminalRegistry'
-import { noteAgentPresence } from '../lib/agent/agentScreenDetector'
+import { noteAgentPresence, noteAgentProcess } from '../lib/agent/agentScreenDetector'
 import { isWorkspaceMonitorReady } from './workspaceMonitorReady'
 import { syncWorktrees } from '../lib/worktreeSync'
 import log from '../lib/logger'
-import { matchAgentProcess } from '../../shared/agents'
+import { matchAgentDef } from '../../shared/agents'
 import type { TerminalActivity } from '../../shared/types'
 
 /** Retained for the statusStore.unregisterTerminal wiring. The per-terminal
@@ -45,6 +45,9 @@ export function useOwnedTerminalTelemetry(): void {
         const terminalActivity = activityRaw as TerminalActivity
         const agentName = (agentNameRaw as string | null) ?? null
         const agentPresent = agentPresentRaw === true
+        const scannedAgent = terminalActivity.type === 'running'
+          ? matchAgentDef(terminalActivity.processName ?? '')
+          : null
 
         // terminal->workspace identity is owned by terminalRegistry's bimap. The
         // terminal is registered in THIS window (it owns it), so the resolve
@@ -56,10 +59,12 @@ export function useOwnedTerminalTelemetry(): void {
         store().setTerminalActivity(actualWorkspaceId, terminalId, terminalActivity)
         store().setAgentPresent(actualWorkspaceId, terminalId, agentPresent)
         store().setAgentName(actualWorkspaceId, terminalId, agentName)
-        // Running-state comes from hook events; feed presence into the
-        // coordinator for the notRunning/finished edges. The name is already
-        // in statusStore (above, deliberately BEFORE this call) so the
-        // coordinator can read it at commit.
+        // Hooks remain authoritative for hook-capable CLIs. A registry-enabled
+        // screen fallback may use the process identity plus visible xterm
+        // samples, so feed that identity before the hook presence edge.
+        noteAgentProcess(terminalId, scannedAgent?.id ?? null)
+        // The hook presence still owns the main liveness fact; the coordinator
+        // combines it with the explicitly allowed fallback internally.
         noteAgentPresence(terminalId, agentPresent)
 
         // Agent tab title: the clean detected agent name (e.g. "Codex", "Claude
@@ -68,8 +73,7 @@ export function useOwnedTerminalTelemetry(): void {
         // whose hooks aren't installed still gets a clean name instead of its
         // raw session title. updatePanelTitleFromAgent numbers duplicates and
         // skips tabs the user has manually renamed, and no-ops when unchanged.
-        const scannedName =
-          terminalActivity.type === 'running' ? matchAgentProcess(terminalActivity.processName ?? '') : null
+        const scannedName = scannedAgent?.displayName ?? null
         const displayName = agentName ?? scannedName
         if (displayName) {
           const panelId = terminalRegistry.panelIdForPty(terminalId) ?? terminalId
