@@ -35,6 +35,7 @@ import { sendOsNotification } from '../notifications/osNotificationSend'
 import type { AgentHookEvent } from '../../../shared/agentHooks'
 import type { AgentState } from '../../../shared/types'
 import { AGENTS, type AgentId } from '../../../shared/agents'
+import { resolveAgentLifecycleState, terminalStateForLifecycle } from '../../../shared/agentLifecycle'
 import { resolveAgentScreenState, type HeuristicAgentState } from './agentScreenHeuristics'
 
 export interface DetectorSignals {
@@ -45,13 +46,14 @@ export interface DetectorSignals {
   /** A turn is in flight (hook turn-start seen more recently than a turn-end)
    *  and not parked on a permission prompt. */
   active: boolean
+  /** Reserved for callers that have a trusted terminal/mission error. */
+  error?: boolean
+  /** Reserved for the shared no-output/stall policy. */
+  stalled?: boolean
 }
 
 export function resolveAgentState(s: DetectorSignals): AgentState {
-  if (!s.present && s.wasPresent) return 'finished'
-  if (!s.present) return 'notRunning'
-  if (s.active) return 'running'
-  return 'waitingForInput'
+  return terminalStateForLifecycle(resolveAgentLifecycleState(s))
 }
 
 // The Tracker holds hook/FSM-edge state plus ephemeral fallback evidence. The

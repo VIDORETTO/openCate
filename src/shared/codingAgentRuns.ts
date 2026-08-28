@@ -1,4 +1,5 @@
 import { AGENTS, type AgentDef, type AgentId } from './agents'
+import { resolveAgentLifecycleState, type AgentLifecycleState } from './agentLifecycle'
 
 /** A coding agent process Cate created and owns inside a terminal panel. */
 export interface CodingAgentRun {
@@ -399,20 +400,39 @@ export function deriveCodingAgentRunStatus(
 ): CodingAgentRunStatus {
   if (run.stoppedAt) return 'stopped'
   if (run.endedAt) return run.exitCode === 0 ? 'ready' : 'failed'
-  if (runtime.terminalFailed) return 'failed'
-  if (!runtime.terminalStarted) return 'starting'
-  if (!runtime.terminalAlive) return 'ready'
-  switch (runtime.agentState) {
-    case 'running':
-      return runtime.lastOutputAt !== undefined && now - runtime.lastOutputAt >= CODING_AGENT_STALLED_AFTER_MS
-        ? 'stalled'
-        : 'working'
-    case 'waitingForInput': return 'waiting'
+  const lifecycle = resolveCodingAgentLifecycle(runtime, now)
+  switch (lifecycle) {
+    case 'working': return 'working'
+    case 'waiting': return 'waiting'
+    case 'stalled': return 'stalled'
     case 'finished': return 'ready'
-    case 'notRunning':
-    default:
-      return runtime.agentPresent ? 'working' : 'starting'
+    case 'error': return 'failed'
+    case 'idle': return 'starting'
   }
+}
+
+/** Resolve the canonical lifecycle first, then let the mission layer project
+ *  it into its more specific durable vocabulary (`starting`/`ready`/`failed`). */
+function resolveCodingAgentLifecycle(
+  runtime: CodingAgentRuntimeState,
+  now: number,
+): AgentLifecycleState {
+  if (runtime.terminalFailed) return 'error'
+  if (!runtime.terminalStarted) return 'idle'
+  if (!runtime.terminalAlive) return 'finished'
+
+  const stalled = runtime.agentState === 'running' &&
+    runtime.lastOutputAt !== undefined &&
+    now - runtime.lastOutputAt >= CODING_AGENT_STALLED_AFTER_MS
+  const terminalState = runtime.agentState ?? 'notRunning'
+  return resolveAgentLifecycleState({
+    present: terminalState === 'running' || terminalState === 'waitingForInput' ||
+      (terminalState === 'notRunning' && runtime.agentPresent === true),
+    wasPresent: terminalState === 'finished',
+    active: terminalState === 'running' ||
+      (terminalState === 'notRunning' && runtime.agentPresent === true),
+    stalled,
+  })
 }
 
 export interface CodingAgentRunSnapshot extends CodingAgentRun {
