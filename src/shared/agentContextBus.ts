@@ -15,6 +15,8 @@ export interface AgentContextItem {
   createdAt: number
   /** User-visible provenance. This is metadata only and is not re-read at send time. */
   source?: string
+  /** Panel that produced this evidence. Edges are created only when this is set. */
+  originPanelId?: string
   /** Selected evidence captured when the user staged the item. */
   content: string
 }
@@ -46,6 +48,7 @@ export function createAgentContextItem(input: {
   kind: AgentContextKind
   title: string
   source?: string
+  originPanelId?: string
   content: string
   now?: number
 }): AgentContextItem {
@@ -64,6 +67,9 @@ export function createAgentContextItem(input: {
     title: normalizeAgentContextTitle(input.title),
     createdAt: typeof input.now === 'number' && Number.isFinite(input.now) ? input.now : Date.now(),
     ...(input.source?.trim() ? { source: input.source.trim().slice(0, 500) } : {}),
+    ...(input.originPanelId?.trim() && !input.originPanelId.includes('\0')
+      ? { originPanelId: input.originPanelId.trim() }
+      : {}),
     content,
   }
 }

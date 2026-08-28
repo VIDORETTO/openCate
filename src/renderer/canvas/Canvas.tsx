@@ -17,6 +17,7 @@ import CanvasBackgroundImage from './CanvasBackgroundImage'
 import SnapGuides from './SnapGuides'
 import GhostPlacementLayer from './GhostPlacementLayer'
 import PlacementVizOverlay from './placementViz/PlacementVizOverlay'
+import AgentContextEdgesOverlay from './AgentContextEdgesOverlay'
 import { WorktreeTerritoryLayer } from './worktree'
 import type { Point, PanelType } from '../../shared/types'
 import { isWorktreePanelType, type WorktreePanelType } from '../../shared/panels'
@@ -646,6 +647,7 @@ const Canvas: React.FC<CanvasProps> = ({ children, onCreateAtPoint, panelId }) =
         onClick={handleWorldClick}
       >
         <SnapGuides />
+        <AgentContextEdgesOverlay />
         {marqueeRect && (
           <div
             style={{

@@ -60,6 +60,7 @@ export function useAgentContextBus() {
       kind: 'terminal-selection',
       title,
       source: title,
+      originPanelId: panelId,
       content,
     })
     if (staged) {

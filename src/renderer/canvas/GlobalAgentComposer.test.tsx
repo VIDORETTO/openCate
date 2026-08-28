@@ -2,6 +2,7 @@ import React from 'react'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRoot, type Root } from 'react-dom/client'
+import type { AgentContextItem } from '../../shared/agentContextBus'
 import type { CodingAgentRunSnapshot } from '../../shared/codingAgentRuns'
 
 const h = vi.hoisted(() => {
@@ -25,8 +26,9 @@ const h = vi.hoisted(() => {
     useWorktrees: vi.fn((): Array<Record<string, unknown>> => []),
     getActivePanelId: vi.fn((): string | null => null),
     getEntry: vi.fn((): unknown => undefined),
+    recordDelivery: vi.fn(),
     useAgentContextBus: vi.fn(() => ({
-      items: [] as Array<{ id: string; kind: 'artifact'; title: string; createdAt: number; source?: string; content: string }>,
+      items: [] as Array<AgentContextItem>,
       prompt: '',
       error: null as string | null,
       stage: vi.fn(),
@@ -42,6 +44,9 @@ vi.mock('../lib/agent/codingAgentDriver', () => ({
   sendCodingAgentFollowUp: h.sendCodingAgentFollowUp,
 }))
 vi.mock('../lib/agent/useAgentContextBus', () => ({ useAgentContextBus: h.useAgentContextBus }))
+vi.mock('../lib/agent/agentContextGraphStore', () => ({
+  useAgentContextGraphStore: (selector: (state: { recordDelivery: typeof h.recordDelivery }) => unknown) => selector({ recordDelivery: h.recordDelivery }),
+}))
 vi.mock('../stores/useWorktrees', () => ({ useWorktrees: h.useWorktrees }))
 vi.mock('../ui/Tooltip', () => ({ Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</> }))
 vi.mock('../lib/activePanel', () => ({ getActivePanelId: h.getActivePanelId }))
@@ -75,6 +80,7 @@ beforeEach(() => {
   h.snapshots['run-b'] = snapshot('run-b', 'UI worker', 'owner-b')
   h.codingAgentSnapshot.mockClear()
   h.sendCodingAgentFollowUp.mockClear()
+  h.recordDelivery.mockClear()
   h.useWorktrees.mockReturnValue([
     { id: 'wt-feature', path: '/repo/.cate/worktrees/feature', branch: 'feature', label: 'Feature' },
   ])
@@ -202,6 +208,42 @@ describe('GlobalAgentComposer', () => {
       'run-b',
       expect.stringContaining('Fix the failing test'),
     )
+  })
+
+  it('records only successful explicit context deliveries for the visual graph', async () => {
+    h.snapshots['run-b'] = snapshot('run-b', 'Finished worker', 'owner-b')
+    h.snapshots['run-b'].status = 'ready'
+    const contextItems: AgentContextItem[] = [{
+      id: 'selection-1',
+      kind: 'terminal-selection',
+      title: 'API selection',
+      createdAt: 1,
+      source: 'API worker',
+      originPanelId: 'panel-source',
+      content: 'failing assertion',
+    }]
+    h.useAgentContextBus.mockImplementation(() => ({
+      items: contextItems,
+      prompt: '--- Context 1: API selection (API worker) ---\n\nfailing assertion',
+      error: null,
+      stage: vi.fn(),
+      remove: vi.fn(),
+      clear: vi.fn(),
+    }))
+
+    act(() => root.render(<GlobalAgentComposer workspaceId="ws" />))
+    act(() => document.body.querySelector<HTMLButtonElement>('[aria-label="Broadcast prompt to agent sessions"]')?.click())
+    inputPrompt('Investigate this failure')
+    await act(async () => document.body.querySelector<HTMLButtonElement>('[aria-label="Send broadcast"]')?.click())
+
+    expect(h.sendCodingAgentFollowUp).toHaveBeenCalledWith(
+      'ws',
+      'owner-a',
+      'run-a',
+      expect.stringContaining('failing assertion'),
+    )
+    expect(h.recordDelivery).toHaveBeenCalledTimes(1)
+    expect(h.recordDelivery).toHaveBeenCalledWith(contextItems, ['panel-a'])
   })
 
   it('captures the focused terminal selection explicitly', () => {

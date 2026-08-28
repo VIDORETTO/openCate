@@ -9,6 +9,7 @@ import {
   eligibleCodingAgentBroadcastTargets,
   translateBroadcastSlashCommand,
 } from '../lib/agent/codingAgentBroadcast'
+import { useAgentContextGraphStore } from '../lib/agent/agentContextGraphStore'
 import { useAgentContextBus } from '../lib/agent/useAgentContextBus'
 import { useAppStore } from '../stores/appStore'
 import { useWorktrees } from '../stores/useWorktrees'
@@ -76,6 +77,7 @@ export const GlobalAgentComposer: React.FC<GlobalAgentComposerProps> = ({ worksp
   const [result, setResult] = useState<{ sent: number; failures: Array<{ name: string; error: string }> } | null>(null)
   const [anchor, setAnchor] = useState<AnchorPosition | null>(null)
   const contextBus = useAgentContextBus()
+  const recordContextDelivery = useAgentContextGraphStore((state) => state.recordDelivery)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [fileQuery, setFileQuery] = useState('')
   const [fileChoices, setFileChoices] = useState<WorkspaceFileChoice[]>([])
@@ -206,12 +208,16 @@ export const GlobalAgentComposer: React.FC<GlobalAgentComposerProps> = ({ worksp
     setSending(true)
     setConfirming(false)
     const failures: Array<{ name: string; error: string }> = []
+    const deliveredTo: string[] = []
     let sent = 0
     for (const run of selectedRuns) {
       const outcome = await sendCodingAgentFollowUp(workspaceId, run.ownerPanelId, run.id, prompt)
-      if (outcome.ok) sent++
-      else failures.push({ name: run.title ?? run.agentName, error: errorLabel(outcome.error) })
+      if (outcome.ok) {
+        sent++
+        deliveredTo.push(run.panelId)
+      } else failures.push({ name: run.title ?? run.agentName, error: errorLabel(outcome.error) })
     }
+    if (deliveredTo.length > 0) recordContextDelivery(contextBus.items, deliveredTo)
     setSending(false)
     setResult({ sent, failures })
     if (sent > 0) setDraft('')

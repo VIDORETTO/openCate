@@ -59,6 +59,7 @@ describe('useAgentContextBus explicit captures', () => {
     expect(observed!.items).toHaveLength(1)
     const item = observed!.items[0] as AgentContextItem
     expect(item.kind).toBe('terminal-selection')
+    expect(item.originPanelId).toBe('panel-a')
     expect(item.content).toBe('failing assertion')
     expect(observed!.prompt).toContain('failing assertion')
   })
