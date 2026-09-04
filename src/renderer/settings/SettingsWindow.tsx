@@ -47,7 +47,7 @@ const SECTIONS = [
   { title: 'File Explorer', component: FileExplorerSettings },
   { title: 'Worktrees', component: WorktreeSettings },
   { title: 'Notifications', component: NotificationSettings },
-  { title: 'Cate Agent', component: CanvasCateAgentSettings },
+  { title: 'openCate Agent', component: CanvasCateAgentSettings },
   { title: 'Skills', component: SkillsSettings },
   { title: 'Extensions', component: ExtensionsSettings },
   { title: 'Companion', component: CompanionSettings },
@@ -80,7 +80,7 @@ export function SettingsWindow({ isOpen, onClose, initialTab }: SettingsWindowPr
   useEffect(() => {
     if (!isOpen) return
     setRawQuery('')
-    // Keep old deep links working after Providers moved under Cate Agent.
+    // Keep old deep links working after Providers moved under openCate Agent.
     const requested = (initialTab ?? SECTIONS[0].title).toLowerCase()
     const target = requested === 'providers' ? 'cate agent' : requested
     setActiveId(target)
@@ -148,7 +148,7 @@ export function SettingsWindow({ isOpen, onClose, initialTab }: SettingsWindowPr
     return () => document.removeEventListener('keydown', onKey, { capture: true })
   }, [isOpen, rawQuery, onClose])
 
-  // Open the underlying settings.json in a Cate editor panel (VS Code's "Open
+  // Open the underlying settings.json in a openCate editor panel (VS Code's "Open
   // Settings (JSON)"). Main grants this window access to the file and returns
   // its path; we then close the dialog and mount an editor on it. Edits saved
   // there write back to the file, which the watcher reloads into the UI live.

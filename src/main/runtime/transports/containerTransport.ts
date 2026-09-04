@@ -77,7 +77,7 @@ const fiftyChars = 50
 
 function containerName(id: string): string {
   const safe = id.replace(/[^A-Za-z0-9_.-]/g, '-').replace(/^-+|-+$/g, '').slice(-fiftyChars)
-  return `cate-runtime-${safe || 'session'}`
+  return `opencate-runtime-${safe || 'session'}`
 }
 
 function mountSpec(options: ContainerOptions): string {

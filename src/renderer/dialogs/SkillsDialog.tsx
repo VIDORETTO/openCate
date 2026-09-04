@@ -9,7 +9,7 @@
 //     click away in any workspace, even offline.
 //
 // Sections, all filtered together by the search box:
-//   • Cate      — Cate's own first-party skills, pinned to the top.
+//   • openCate      — openCate's own first-party skills, pinned to the top.
 //   • Installed — what's in this workspace now.
 //   • Saved     — your library, ready to re-add here.
 //   • Browse    — the catalog (curated index ∪ user repos), shown by default.
@@ -51,7 +51,7 @@ const api = () => window.electronAPI
 // The list of repos the curated catalog is crawled from. Linked at the bottom so
 // anyone can PR a missing skill's source repo in (the CI crawler turns this into
 // skills-index.json).
-const SKILL_SOURCES_URL = 'https://github.com/0-AI-UG/cate/blob/main/registry/sources.json'
+const SKILL_SOURCES_URL = 'https://github.com/VIDORETTO/openCate/blob/main/registry/sources.json'
 
 function matches(entry: SkillEntry, terms: string[]): boolean {
   if (terms.length === 0) return true
@@ -196,7 +196,7 @@ export function SkillsDialog() {
     [saved, installedIds, byId, terms],
   )
   // Catalog entries not already saved or installed, matching the query — split
-  // into Cate's own (pinned to the top) and the rest (Browse), so each shows once.
+  // into openCate's own (pinned to the top) and the rest (Browse), so each shows once.
   const available = useCallback(
     (e: SkillEntry) => !savedIds.has(e.id) && !installedIds.has(e.id) && matches(e, terms),
     [savedIds, installedIds, terms],
@@ -283,7 +283,7 @@ export function SkillsDialog() {
         <div className="flex-1 overflow-y-auto pb-2">
           {cateRows.length > 0 && (
             <>
-              <GroupLabel>Cate · {cateRows.length}</GroupLabel>
+              <GroupLabel>openCate · {cateRows.length}</GroupLabel>
               {cateRows.map((e) => renderRow(e, false))}
             </>
           )}

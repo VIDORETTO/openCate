@@ -15,7 +15,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { PuzzlePiece, CaretRight } from '@phosphor-icons/react'
 import { useAppStore } from '../stores/appStore'
 import { useUIStore } from '../stores/uiStore'
-import { CateLogo } from '../ui/CateLogo'
+import { OpenCateLogo } from '../ui/OpenCateLogo'
 import { getAgentLogoById } from '../lib/agent/agentLogos'
 import { SKILL_TARGETS, type SkillTargetId } from '../../shared/skills'
 import { agentForSkillTarget, type AgentId } from '../../shared/agents'
@@ -31,7 +31,7 @@ const TARGET_LABEL: Record<string, string> = Object.fromEntries(
 
 // Skill target → agent id for the logo lookup, resolved through the canonical
 // registry so a newly declared target picks up its agent's logo automatically.
-// cate-agent is Cate's embedded integration and uses the Cate wordmark instead
+// cate-agent is openCate's embedded integration and uses the openCate wordmark instead
 // of an external CLI logo.
 const targetLogoId = (targetId: SkillTargetId): AgentId | null => {
   const integration = agentForSkillTarget(targetId)
@@ -40,7 +40,7 @@ const targetLogoId = (targetId: SkillTargetId): AgentId | null => {
 
 const AgentIcon: React.FC<{ targetId: SkillTargetId }> = ({ targetId }) => {
   if (targetId === 'cate-agent') {
-    return <CateLogo size={11} className="flex-shrink-0 text-[rgb(var(--agent-rgb))]" style={{ opacity: 0.9 }} />
+    return <OpenCateLogo size={11} className="flex-shrink-0 text-[rgb(var(--agent-rgb))]" style={{ opacity: 0.9 }} />
   }
   const logo = getAgentLogoById(targetLogoId(targetId))
   if (logo) {

@@ -28,7 +28,7 @@ import {
   CircleNotch,
 } from '@phosphor-icons/react'
 import { Tooltip } from '../ui/Tooltip'
-import { CateLogo } from '../ui/CateLogo'
+import { OpenCateLogo } from '../ui/OpenCateLogo'
 import { CreateWorktreeForm } from '../sidebar/CreateWorktreeForm'
 import { WorktreeMissionForm, type WorktreeMissionDraft } from './WorktreeMissionForm'
 import { WorktreeCommitDialog } from './WorktreeCommitDialog'
@@ -598,8 +598,8 @@ const WorktreeRow: React.FC<{
               onClick={() => onLaunch('terminal')}
             />
             <SpawnButton
-              icon={<CateLogo size={12} />}
-              title="Cate Agent"
+              icon={<OpenCateLogo size={12} />}
+              title="openCate Agent"
               panelType="cateAgent"
               cwd={wt.path}
               worktreeId={wt.id}
@@ -634,7 +634,7 @@ const WorktreeRow: React.FC<{
               )}
               {openAgents > 0 && (
                 <span className="flex items-center gap-0.5">
-                  <CateLogo size={10} />
+                  <OpenCateLogo size={10} />
                   {openAgents}
                 </span>
               )}

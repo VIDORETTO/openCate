@@ -68,7 +68,7 @@ export function createWindow(params?: CateWindowParams): BrowserWindow {
     show: false,
     minWidth: isDock ? 400 : 800,
     minHeight: isDock ? 300 : 600,
-    title: 'Cate',
+    title: 'openCate',
     // macOS: hide the native title bar and draw a themed strip in its place (the
     // macOS native bar can't be tinted to a theme color — only dark/light — so we
     // always use `hiddenInset` and render TitlebarStrip).

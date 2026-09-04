@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Cate will be documented in this file.
+All notable changes to openCate will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
@@ -16,7 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Dock active-tab stability**: removing or moving a tab before the active
   tab, and inserting a background tab, preserve the user's active selection.
 - **Companion PWA delivery**: the web companion now ships an installable
-  manifest, Cate icon, and safe offline app-shell cache without caching relay
+  manifest, openCate icon, and safe offline app-shell cache without caching relay
   responses.
 - **Companion relay recovery**: responder polling no longer leaves rejected
   tracking promises unhandled when a relay or proxy is restarted.
@@ -41,7 +41,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Container smoke coverage**: Docker/Podman validation now asserts that an
   absent image fails under `--pull never` before running the real runtime image.
 - **Repository boundary gate**: CI now rejects tracked credential/key files,
-  machine-local Cate state, and high-confidence secret signatures.
+  machine-local openCate state, and high-confidence secret signatures.
 - **Release workflow guard**: CI and release jobs now verify the platform matrix,
   gate ordering, artifact checks and publish dependencies before packaging.
 - **Browser popup safety**: remote content can open only HTTP(S) or
@@ -68,16 +68,16 @@ This beta makes browser panels faster and more reliable across canvas, focus, an
 
 ## [1.6.1-beta.1] - 2026-08-13
 
-This beta opens Cate's coding-agent orchestration to terminal-based agents, improves agent follow-ups, and hardens Windows workspace paths.
+This beta opens openCate's coding-agent orchestration to terminal-based agents, improves agent follow-ups, and hardens Windows workspace paths.
 
 ### Added
 
-- **Recursive agent orchestration through Cate CLI**: terminal agents can create, inspect, message, wait for, review, apply, keep, discard, and stop visible coding-agent workers, including nested workers and isolated worktrees.
+- **Recursive agent orchestration through openCate CLI**: terminal agents can create, inspect, message, wait for, review, apply, keep, discard, and stop visible coding-agent workers, including nested workers and isolated worktrees.
 - **Agent CLI permissions**: Settings now exposes separate read and control permissions for coding-agent orchestration.
 
 ### Changed
 
-- **Shared orchestration contract**: Cate Agent now uses the public Cate CLI workflow instead of a private orchestration tool, so built-in and terminal-based agents manage the same workers.
+- **Shared orchestration contract**: openCate Agent now uses the public openCate CLI workflow instead of a private orchestration tool, so built-in and terminal-based agents manage the same workers.
 - **OpenCode follow-ups**: running OpenCode workers can receive additional instructions through the shared agent workflow.
 - **Updated skills and document support**: refreshed the bundled skills index and updated PDF and YAML dependencies.
 
@@ -87,11 +87,11 @@ This beta opens Cate's coding-agent orchestration to terminal-based agents, impr
 
 ## [1.6.0] - 2026-08-07
 
-Cate 1.6 brings agent mission orchestration, native browser automation, safer remote workspaces, and a more reliable terminal and agent experience.
+openCate 1.6 brings agent mission orchestration, native browser automation, safer remote workspaces, and a more reliable terminal and agent experience.
 
 ### Added
 
-- **Agent mission orchestration**: Cate Agent can plan work, delegate tasks to coding agents in isolated worktrees, monitor them in the background, review results, and clean up completed missions.
+- **Agent mission orchestration**: openCate Agent can plan work, delegate tasks to coding agents in isolated worktrees, monitor them in the background, review results, and clean up completed missions.
 - **Agent-ready browser controls and credential profiles**: automation can inspect and operate native browser panels, manage tabs and dialogs, capture screenshots, and use saved credentials without exposing secrets to page scripts.
 - **Flexible agent workspaces**: unified chats can move between the sidebar and panels, multiple custom AI providers are supported, and workspace commands are available from the command palette.
 
@@ -99,11 +99,11 @@ Cate 1.6 brings agent mission orchestration, native browser automation, safer re
 
 - **Native browser foundation**: browser panels now use native views and a consolidated agent-browser command surface with stronger authorization and panel targeting.
 - **Remote workspace transport**: remote connections use the system OpenSSH client for better compatibility with existing SSH configuration and authentication.
-- **Safer, clearer automation**: Cate CLI permissions are split by capability, workspace trust protects repo-controlled layouts, and worktree-aware setup keeps agent configuration consistent across checkouts.
+- **Safer, clearer automation**: openCate CLI permissions are split by capability, workspace trust protects repo-controlled layouts, and worktree-aware setup keeps agent configuration consistent across checkouts.
 
 ### Fixed
 
-- **Agent startup and recovery**: stopped or failed Cate Agent sessions can be recreated cleanly, restored sessions retain their lifecycle state, Windows hooks launch reliably, and obsolete managed subagent installs no longer cause duplicate-tool failures.
+- **Agent startup and recovery**: stopped or failed openCate Agent sessions can be recreated cleanly, restored sessions retain their lifecycle state, Windows hooks launch reliably, and obsolete managed subagent installs no longer cause duplicate-tool failures.
 - **Terminal rendering and sizing**: new terminals receive their real dimensions, split panes retain focus, and zoom or display-density changes no longer leave unstable glyph sizing or rendering artifacts.
 - **Workspace and canvas reliability**: remote paths are validated, worktree failures roll back cleanly, moved panels survive canvas closure, and interrupted gestures no longer leave canvas input stuck.
 
@@ -113,12 +113,12 @@ This beta sharpens browser automation, workspace navigation, remote safety, and 
 
 ### Added
 
-- **Browser automation controls**: agents and the Cate CLI can inspect pages, manage tabs, enter trusted input, evaluate scripts, read console output, handle dialogs, and capture screenshots through a smaller, clearer command surface.
+- **Browser automation controls**: agents and the openCate CLI can inspect pages, manage tabs, enter trusted input, evaluate scripts, read console output, handle dialogs, and capture screenshots through a smaller, clearer command surface.
 - **Workspace navigation commands**: the command palette can switch directly between workspaces, backed by repaired workspace keyboard shortcuts.
 
 ### Changed
 
-- **Clearer Cate CLI workflows**: the command set and skill guidance now focus on the supported browser, terminal, file, and panel workflows.
+- **Clearer openCate CLI workflows**: the command set and skill guidance now focus on the supported browser, terminal, file, and panel workflows.
 - **More reliable agent status**: running and waiting states now follow the coding-agent lifecycle more consistently.
 
 ### Fixed
@@ -144,7 +144,7 @@ Major agent, workspace, terminal, and security improvements for the 1.6 beta cyc
 
 ### Added
 
-- **Unified Cate Agent chats**: chats are workspace-owned, can be shared between sidebar and panel hosts, and survive moving between views.
+- **Unified openCate Agent chats**: chats are workspace-owned, can be shared between sidebar and panel hosts, and survive moving between views.
 - **Multiple custom AI providers**: configure and choose more than one OpenAI-compatible provider.
 - **Worktree-aware agent setup**: agent configuration and hooks work consistently from the main checkout and linked worktrees.
 
@@ -167,7 +167,7 @@ Major agent, workspace, terminal, and security improvements for the 1.6 beta cyc
 
 ### Changed
 
-- **Shared Cate Agent pickers**: the composer now reuses the standard model and worktree pickers for consistent selection behavior.
+- **Shared openCate Agent pickers**: the composer now reuses the standard model and worktree pickers for consistent selection behavior.
 
 ## [1.5.2] - 2026-07-21
 
@@ -176,13 +176,13 @@ Agent automation release centered on durable hook-driven status, explicit CLI pe
 ### Added
 
 - **Unified agent hooks**: supported coding agents report lifecycle, permission, and needs-input events through one hook system, with state surviving app restarts.
-- **Cate CLI permission matrix**: read and control capabilities can be granted independently, with a dedicated terminal command group and per-feature settings.
+- **openCate CLI permission matrix**: read and control capabilities can be granted independently, with a dedicated terminal command group and per-feature settings.
 - **URL-mode extensions**: extension panels can load a declared URL and still participate in off-screen culling.
 - **Grok support and centralized agent registry**: Grok joins the supported agents, with shared metadata and detection policy.
 
 ### Changed
 
-- **Non-disruptive Cate automation**: CLI-driven actions avoid stealing focus or disturbing the active workspace.
+- **Non-disruptive openCate automation**: CLI-driven actions avoid stealing focus or disturbing the active workspace.
 - **Detached window chrome**: detached-window controls share the dock tab-bar row for a more compact layout.
 
 ### Fixed
@@ -197,7 +197,7 @@ Agent automation release centered on durable hook-driven status, explicit CLI pe
 
 ## [1.5.0] - 2026-07-15
 
-Stable release of the 1.4 beta cycle, introducing the redesigned Cate Agent, extension platform, agent-facing Cate CLI, and major shell/navigation updates.
+Stable release of the 1.4 beta cycle, introducing the redesigned openCate Agent, extension platform, agent-facing openCate CLI, and major shell/navigation updates.
 
 ### Fixed
 
@@ -238,9 +238,9 @@ Stable release of the 1.4 beta cycle, introducing the redesigned Cate Agent, ext
 
 ### Added
 
-- **Cate Agent sidebar home**: dedicated composer, chat tabs, navigation rail, and merge-target controls.
-- **Agent-oriented Cate CLI**: the host API and CLI surface were reshaped around safe panel, terminal, browser, and workspace automation and enabled by default.
-- **Structured verifier results**: Cate Agent checks report individual verdicts instead of a single opaque outcome.
+- **openCate Agent sidebar home**: dedicated composer, chat tabs, navigation rail, and merge-target controls.
+- **Agent-oriented openCate CLI**: the host API and CLI surface were reshaped around safe panel, terminal, browser, and workspace automation and enabled by default.
+- **Structured verifier results**: openCate Agent checks report individual verdicts instead of a single opaque outcome.
 
 ### Changed
 
@@ -256,16 +256,16 @@ Stable release of the 1.4 beta cycle, introducing the redesigned Cate Agent, ext
 
 ### Changed
 
-- **Cate Agent chat motion**: the chat window now morphs cleanly into and out of the toolbar button with consolidated loading states.
+- **openCate Agent chat motion**: the chat window now morphs cleanly into and out of the toolbar button with consolidated loading states.
 - **Observer chat front door**: observer sessions can be selected and opened through the same chat surface.
 
 ## [1.4.0-beta.1] - 2026-07-07
 
-First public beta of the toolbar-driven Cate Agent and extension platform.
+First public beta of the toolbar-driven openCate Agent and extension platform.
 
 ### Added
 
-- **Always-on Cate Agent**: workspace chat can observe work, launch parallel attempts, control terminals, manage worktrees, and resume jobs through a toolbar-anchored interface.
+- **Always-on openCate Agent**: workspace chat can observe work, launch parallel attempts, control terminals, manage worktrees, and resume jobs through a toolbar-anchored interface.
 - **Extension system**: isolated, server-backed extension panels with permissions, storage, file-drop support, catalog provisioning, and agent conversation APIs.
 - **Agent-facing browser and CLI control**: terminal agents and extensions can drive browser panels and scoped `cate` command groups.
 - **Multi-repository Source Control**: repositories nested below a workspace root are discovered independently.
@@ -329,7 +329,7 @@ Stability and editor release with hardened persistence, external-file conflict h
 
 ### Changed
 
-- **Runtime naming**: the remote companion was renamed and packaged consistently as the Cate runtime.
+- **Runtime naming**: the remote companion was renamed and packaged consistently as the openCate runtime.
 - **Telemetry notice**: packaged builds use informational always-on telemetry with a one-time census for existing installs.
 
 ### Fixed
@@ -370,7 +370,7 @@ Bug-fix release for terminals detached into their own window.
 
 ### Added
 
-- **In-app update-ready modal**: downloaded updates offer restart-now or install-on-quit actions inside Cate.
+- **In-app update-ready modal**: downloaded updates offer restart-now or install-on-quit actions inside openCate.
 
 ## [1.2.5-beta.4] - 2026-06-08
 
@@ -448,7 +448,7 @@ Release-candidate rebuild of beta.3 with no additional user-facing changes.
 
 ### Fixed
 
-- **Update restart flow**: installing an update relaunches Cate, and the update affordance remains visible with an empty right sidebar.
+- **Update restart flow**: installing an update relaunches openCate, and the update affordance remains visible with an empty right sidebar.
 
 ## [1.2.0] - 2026-06-06
 
@@ -473,14 +473,14 @@ First beta of spatial worktrees and the hand-editable JSON persistence model.
 ### Added
 
 - **Spatial worktree territories**: worktrees appear as live, colored canvas territories with tab pills and session persistence.
-- **Hand-editable application state**: Cate settings and UI state moved to readable JSON files with consolidated provider preferences.
+- **Hand-editable application state**: openCate settings and UI state moved to readable JSON files with consolidated provider preferences.
 - **Hillside wallpaper**: a built-in canvas background joins custom background images.
 - **Worktree-aware minimap**: terminals running agents display the agent icon.
 
 ### Changed
 
 - **Single-source panel state**: panel, dock, canvas, and window records were consolidated to reduce conflicting state.
-- **Cate Agent naming**: the former Pi Agent UI was renamed and its tooltips and shortcuts were cleaned up.
+- **openCate Agent naming**: the former Pi Agent UI was renamed and its tooltips and shortcuts were cleaned up.
 - **Sidebar layout**: the sidebar pushes dock content instead of overlaying it.
 - **Update location**: update status moved to the right sidebar.
 
@@ -547,12 +547,12 @@ Large production-readiness beta introducing remote workspaces, saved layouts, co
 
 ### Changed
 
-- **Themed macOS title bar**: macOS consistently uses Cate's title bar instead of a separate native-tabs mode.
+- **Themed macOS title bar**: macOS consistently uses openCate's title bar instead of a separate native-tabs mode.
 - **Searchable settings**: settings use sidebar navigation, search, fixed sizing, and scroll-spy highlighting.
 
 ### Fixed
 
-- **Notification focus**: clicking an OS notification reliably brings its Cate window forward.
+- **Notification focus**: clicking an OS notification reliably brings its openCate window forward.
 - **Command palette results**: file-name matches no longer starve content-search results.
 - **Shortcut routing**: commands target the active canvas store, including new-file and VS Code/browser parity bindings.
 - **Foreground terminal close protection**: closing a terminal with a running foreground process asks for confirmation.
@@ -584,7 +584,7 @@ Polish release: grid snapping on the canvas, steadier sidebar and window handlin
 
 - **Deferred workspace activation**: activating a deferred workspace no longer wipes the canvas, and browser logins persist across sessions. (#220, #235)
 - **Chat scroll position**: the agent chat keeps its place across refocus, with a new scroll-to-bottom button. (#233)
-- **Shared-project reload loop**: two copies of Cate open on the same project no longer loop on reload. (#229)
+- **Shared-project reload loop**: two copies of openCate open on the same project no longer loop on reload. (#229)
 - **Empty file tree on new workspaces**: the explorer retries its initial load, and nested folders refresh to match disk. (#212, #219)
 - **Popover position and selectable replies**: chat input popovers stay correctly placed at any zoom, and chat replies can be selected. (#199, #189)
 - **Terminal scroll and file drop**: the terminal keeps its scroll position across dock-tab switches, and external file drops insert a path again. (#202, #200)
@@ -906,7 +906,7 @@ Patch release with two papercut fixes from the v0.3.0 cycle and a file-explorer 
 
 - **Folder double-click no longer opens every direct child as a tab** — folders now ignore double-click; single-click still toggles expansion.
 - **New terminal opens in the picked folder, not `$HOME`** — `setWorkspaceRootPath` only flipped `isRootPathPending` locally and waited for the main-process IPC roundtrip before exposing `rootPath`, so `WelcomePage` spawning a terminal right after picking a folder mounted the panel before the path was readable and the PTY fell back to `os.homedir()`. Now applies `rootPath` (and the derived name) optimistically before the IPC roundtrip.
-- **"Cate crashed unexpectedly" dialog after a clean shutdown** — React 18's `logCaughtError` wraps thrown DOM `Event`s as `"Uncaught [object Event]"`, but the existing renderer filter only matched the bare `"[object Event]"` form, so a single non-Error throw during teardown persisted a crash report and resurfaced the dialog on next launch. Extracted `isNonInformativeMessage()` (also matches `"Uncaught [object Object]"` and the generic `^Uncaught \[object …\]$` shape) and applied it on both the `window` error path and the `ErrorBoundary`.
+- **"openCate crashed unexpectedly" dialog after a clean shutdown** — React 18's `logCaughtError` wraps thrown DOM `Event`s as `"Uncaught [object Event]"`, but the existing renderer filter only matched the bare `"[object Event]"` form, so a single non-Error throw during teardown persisted a crash report and resurfaced the dialog on next launch. Extracted `isNonInformativeMessage()` (also matches `"Uncaught [object Object]"` and the generic `^Uncaught \[object …\]$` shape) and applied it on both the `window` error path and the `ErrorBoundary`.
 
 ### Internal
 
@@ -936,7 +936,7 @@ First minor release since the open-source drop. Major focus: unified **Spotlight
 
 ### Fixed
 
-- **Crash-report dialog loop** — `"Cate crashed unexpectedly"` was popping up on every packaged-app launch because `tryUnlink` silently swallowed deletion failures, leaving the report on the pickup path for the next startup. Now atomically renames the pending report into the archive as the *first* step, before parsing or dialog. Cross-device rename falls back to copy+unlink; last-resort delete on failure; all `tryUnlink` failures now log. Renderer side also filters resource-load failures (no more `[object Event]` noise reports) and dev mode skips the dialog entirely.
+- **Crash-report dialog loop** — `"openCate crashed unexpectedly"` was popping up on every packaged-app launch because `tryUnlink` silently swallowed deletion failures, leaving the report on the pickup path for the next startup. Now atomically renames the pending report into the archive as the *first* step, before parsing or dialog. Cross-device rename falls back to copy+unlink; last-resort delete on failure; all `tryUnlink` failures now log. Renderer side also filters resource-load failures (no more `[object Event]` noise reports) and dev mode skips the dialog entirely.
 - **Shell fallback with user-visible banner** — when `defaultShellPath` points at a missing or non-executable binary, terminals used to die instantly with a cryptic `execvp(3) failed.` New `resolveShell()` validates the configured path, falls back through a platform chain, and surfaces a yellow banner inside the PTY explaining what happened and where to fix it. Includes `shellResolver.test.ts` (12 tests) covering the fallback paths.
 - **Git monitor crash on unregistered root** — session restore could race ahead of the main-process allowed-roots registration, causing `validateCwd` to throw inside an `ipcMain.on` handler. With no promise boundary, the throw escaped as an uncaught exception and Electron showed a fatal dialog. Now wrapped in try/catch — monitor just doesn't start for the affected workspace, recoverable by re-opening the folder.
 - **Git panel stale branch list** — the monitor only emitted updates when the *current* branch or dirty flag changed, so `git branch -d foo` in an external terminal left the sidebar showing `foo` until the next remount. Now also tracks the full local branch list and emits on any membership change. Three poll calls now run in parallel via a small `runGit` wrapper.
@@ -964,7 +964,7 @@ Security and stability hardening release across workspace trust, filesystem boun
 
 ### Fixed
 
-- **Release icon generation**: restored the Cate logo asset required by the packaging pipeline.
+- **Release icon generation**: restored the openCate logo asset required by the packaging pipeline.
 
 ## [0.2.17] - 2026-04-14
 
@@ -1007,7 +1007,7 @@ Security and stability hardening release across workspace trust, filesystem boun
 ### Fixed
 
 - **Quit-time session restore**: workspace state is flushed reliably before exit.
-- **Zombie child processes**: terminals and other spawned processes are terminated when Cate closes.
+- **Zombie child processes**: terminals and other spawned processes are terminated when openCate closes.
 
 ## [0.2.11] - 2026-04-08
 
@@ -1074,11 +1074,11 @@ Broad work-in-progress stabilization release across docking, the sidebar, update
 
 ### Added
 
-- **Fallback installer**: when the native updater fails, Cate can download and launch a platform installer directly.
+- **Fallback installer**: when the native updater fails, openCate can download and launch a platform installer directly.
 
 ### Fixed
 
-- **Windows installer launch**: detached installers use `spawn` so they survive Cate exiting.
+- **Windows installer launch**: detached installers use `spawn` so they survive openCate exiting.
 - **Panel drag ghost**: the cross-window drag preview follows the cursor accurately.
 
 ## [0.2.3] - 2026-04-04
@@ -1162,7 +1162,7 @@ Major architecture release introducing detachable windows and a VS Code-style do
 
 ### Added
 
-- **Full Source Control panel**: push, pull, branch, stash, and diff workflows are available inside Cate.
+- **Full Source Control panel**: push, pull, branch, stash, and diff workflows are available inside openCate.
 
 ### Changed
 
@@ -1188,7 +1188,7 @@ Major architecture release introducing detachable windows and a VS Code-style do
 
 ### Added
 
-- **Automatic updates**: packaged builds can discover and install newer Cate releases.
+- **Automatic updates**: packaged builds can discover and install newer openCate releases.
 - **Collapsible sidebar**: reclaim canvas space without closing sidebar tools.
 
 ### Changed

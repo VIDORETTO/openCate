@@ -1,6 +1,6 @@
 // Real Docker/Podman integration coverage for the container transport.
 // Opt in with CATE_CONTAINER_E2E=1 and provide CATE_CONTAINER_IMAGE. The image
-// must contain the fixed Cate runtime paths documented in CONTAINER_RUNTIME.md.
+// must contain the fixed openCate runtime paths documented in CONTAINER_RUNTIME.md.
 
 import fs from 'node:fs/promises'
 import os from 'node:os'
@@ -23,7 +23,7 @@ let readOnlyClient: RuntimeRpcClient | undefined
 beforeAll(async () => {
   if (!enabled) return
   root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'cate-container-e2e-')))
-  await fs.writeFile(path.join(root, 'container-marker.txt'), 'read from Cate container\n')
+  await fs.writeFile(path.join(root, 'container-marker.txt'), 'read from openCate container\n')
   transport = new ContainerTransport({
     engine,
     image,
@@ -57,7 +57,7 @@ describe.skipIf(!enabled)(`ContainerTransport real ${engine} E2E`, () => {
     if (!client || !root) throw new Error('container fixture was not created')
     const runtime = new RemoteRuntime(`container-e2e-${process.pid}`, client)
     const marker = await runtime.validatePathStrict('/workspace/container-marker.txt')
-    expect(await runtime.file.readFile(marker)).toBe('read from Cate container\n')
+    expect(await runtime.file.readFile(marker)).toBe('read from openCate container\n')
 
     const written = path.join(root, 'written-by-container.txt')
     await runtime.file.writeFile('/workspace/written-by-container.txt', `written through ${engine}\n`)
@@ -89,7 +89,7 @@ describe.skipIf(!enabled)(`ContainerTransport real ${engine} E2E`, () => {
 
     const runtime = new RemoteRuntime(`container-e2e-readonly-${process.pid}`, readOnlyClient)
     const marker = await runtime.validatePathStrict('/workspace/container-marker.txt')
-    await expect(runtime.file.readFile(marker)).resolves.toBe('read from Cate container\n')
+    await expect(runtime.file.readFile(marker)).resolves.toBe('read from openCate container\n')
     await expect(runtime.file.writeFile('/workspace/should-not-write.txt', 'denied\n')).rejects.toThrow()
     readOnlyClient.dispose('read-only container smoke complete')
     await readOnlyTransport.dispose()

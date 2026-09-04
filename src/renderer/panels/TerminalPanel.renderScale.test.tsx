@@ -312,7 +312,7 @@ describe('render scale on a panel mounted while already zoomed', () => {
     // same font size, so xterm's option setter would not force a fresh measure.
     await act(async () => { moveToDisplay(2) })
 
-    // xterm's own MediaQueryList listener runs after Cate's callback but before
+    // xterm's own MediaQueryList listener runs after openCate's callback but before
     // the next animation frame, updating the terminal's geometry.
     h.renderedDpr = 2
     await flushFrames()

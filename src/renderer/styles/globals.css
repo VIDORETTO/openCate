@@ -433,7 +433,7 @@
   border-radius: 9999px;
 }
 
-/* Attention pulse on the toolbar Cate Agent button when there's unseen activity
+/* Attention pulse on the toolbar openCate Agent button when there's unseen activity
    and the feedback panel is closed. Overrides the button's static ring while it
    animates. */
 @keyframes cate-agent-attention {

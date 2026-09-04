@@ -77,7 +77,7 @@ describe('deriveCateAgentGate', () => {
   })
 
   it('gates on the CONFIGURED provider even when another usable one exists', () => {
-    // Cate Agent is pinned to anthropic (expired); openai works but won't be used.
+    // openCate Agent is pinned to anthropic (expired); openai works but won't be used.
     const gate = deriveCateAgentGate(
       true,
       ['anthropic', 'openai'],

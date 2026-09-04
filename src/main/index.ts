@@ -146,14 +146,14 @@ function registerDeferredHandlers(): void {
 // =============================================================================
 
 // Set app name before menu and window creation
-app.setName('Cate')
+app.setName('openCate')
 enableAgentBrowserBackend()
 
 // Windows: the toast notification system keys off the AppUserModelID, and it
 // must match the install shortcut's ID (electron-builder uses `appId`) for the
 // notification 'click' event to fire reliably. No-op on macOS/Linux.
 if (process.platform === 'win32') {
-  app.setAppUserModelId('com.cate.app')
+  app.setAppUserModelId('com.opencate.app')
 }
 
 // In dev mode, use a separate userData directory so dev and production don't collide
@@ -230,7 +230,7 @@ registerOpenFileHandler()
 // Build application menu
 buildApplicationMenu()
 
-log.info('Cate v%s starting (electron %s, node %s, platform %s)', app.getVersion(), process.versions.electron, process.versions.node, process.platform)
+log.info('openCate v%s starting (electron %s, node %s, platform %s)', app.getVersion(), process.versions.electron, process.versions.node, process.platform)
 
 // Load persisted settings synchronously so window-creation code paths can read
 // them before the async electron-store finishes initializing.
@@ -251,7 +251,7 @@ if (getSettingSync('disableGpuRasterization')) {
 }
 
 // Scope the onboarding tour to genuine first installs. Anyone who has launched
-// Cate before is marked past it, so an update never replays the tour. The
+// openCate before is marked past it, so an update never replays the tour. The
 // telemetry notice (WelcomeDialog) intentionally has NO such clause — every
 // user whose acknowledged notice version is below TELEMETRY_NOTICE_VERSION
 // sees it once, updaters included.
@@ -351,7 +351,7 @@ app.whenReady().then(async () => {
       applicationName: app.getName(),
       applicationVersion: app.getVersion(),
       version: app.getVersion(),
-      copyright: `© ${new Date().getFullYear()} Cate`,
+      copyright: `© ${new Date().getFullYear()} openCate`,
     })
   }
 

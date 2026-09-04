@@ -1,6 +1,6 @@
-// `cate` is a small client for the per-workspace loopback API injected into
-// Cate terminals. Browser page commands deliberately use agent-browser's
-// native argv. Cate only owns panel/tab lifecycle and canvas presentation.
+// `opencate` is a small client for the per-workspace loopback API injected into
+// openCate terminals. Browser page commands deliberately use agent-browser's
+// native argv. openCate only owns panel/tab lifecycle and canvas presentation.
 
 import {
   isReadOnlyAgentBrowserCommand,
@@ -95,8 +95,8 @@ function parseJsonObject(value: string, name: string): Record<string, unknown> {
   return parsed as Record<string, unknown>
 }
 
-/** Extract only Cate's four global flags. Everything else remains byte-for-byte
- * native agent-browser argv after `cate browser`. */
+/** Extract only openCate's four global flags. Everything else remains byte-for-byte
+ * native agent-browser argv after `opencate browser`. */
 export function parseCli(argv: string[]): Parsed {
   const flags: Flags = { json: false, help: false, version: false, foreground: false }
   const positionals: string[] = []
@@ -535,8 +535,8 @@ export async function send(
   const token = deps.env.CATE_TOKEN
   if (!api || !token) {
     throw new EnvError(
-      'the cate CLI endpoint is not available in this shell (CATE_API/CATE_TOKEN unset).\n' +
-      'Enable "Command-line control (cate CLI)" in Cate Settings → CLI, then open a new terminal.',
+      'the openCate CLI endpoint is not available in this shell (CATE_API/CATE_TOKEN unset).\n' +
+      'Enable "Command-line control (opencate CLI)" in openCate Settings → CLI, then open a new terminal.',
     )
   }
   const placementGroupId = deps.env.CATE_PLACEMENT_GROUP ?? deps.env.CATE_PANEL_ID
@@ -715,30 +715,30 @@ export function formatHuman(method: string, value: unknown): string {
 }
 
 const USAGE = `Usage:
-  cate browser <agent-browser-command> [args] [--panel <id>]
-  cate browser open|navigate|new-panel <url> [--panel <id>]
-  cate browser tabs|new-tab|select-tab|close-tab [args] [--panel <id>]
-  cate browser viewport compact|desktop|mobile|<width> <height>
-  cate browser resize <width> <height>
-  cate panel list|create|set|current|clear|close [args]
-  cate editor open <path[:line[:column]]>
-  cate terminal read|type|press [args] [--panel <id>]
-  cate agent list|create|send|wait|inspect|review|apply|keep|discard|stop [args]
-  cate project get
-  cate task list|get|create|update|delete [args] [--data <json>]
-  cate context list|get|create|update|delete [args] [--data <json>]
-  cate result list|get [task-or-result-id]
-  cate version
+  opencate browser <agent-browser-command> [args] [--panel <id>]
+  opencate browser open|navigate|new-panel <url> [--panel <id>]
+  opencate browser tabs|new-tab|select-tab|close-tab [args] [--panel <id>]
+  opencate browser viewport compact|desktop|mobile|<width> <height>
+  opencate browser resize <width> <height>
+  opencate panel list|create|set|current|clear|close [args]
+  opencate editor open <path[:line[:column]]>
+  opencate terminal read|type|press [args] [--panel <id>]
+  opencate agent list|create|send|wait|inspect|review|apply|keep|discard|stop [args]
+  opencate project get
+  opencate task list|get|create|update|delete [args] [--data <json>]
+  opencate context list|get|create|update|delete [args] [--data <json>]
+  opencate result list|get [task-or-result-id]
+  opencate version
 
-Browser page commands use native agent-browser syntax. Cate pins them to the
+Browser page commands use native agent-browser syntax. openCate pins them to the
 selected built-in webview; browser/session startup, native tabs, batch commands,
 and arbitrary host file paths are not exposed.
 
 Global flags: --panel <id> --data <json> --json -h|--help --version`
 
-const BROWSER_USAGE = `Usage: cate browser <command> [args] [--panel <id>]
+const BROWSER_USAGE = `Usage: opencate browser <command> [args] [--panel <id>]
 
-Cate lifecycle:
+openCate lifecycle:
   open <url>             open a new tab (the default)
   navigate <url>         replace the active tab
   new-panel <url>        create another browser panel
@@ -750,43 +750,43 @@ Cate lifecycle:
   resize <width> <height>
 
 Page automation uses native agent-browser syntax, for example:
-  cate browser snapshot -i
-  cate browser click @s1e3
-  cate browser find role button click --name Save
-  cate browser fill @s1e4 "hello"
-  cate browser press Enter
-  cate browser get text @s1e5
-  cate browser screenshot --full
+  opencate browser snapshot -i
+  opencate browser click @s1e3
+  opencate browser find role button click --name Save
+  opencate browser fill @s1e4 "hello"
+  opencate browser press Enter
+  opencate browser get text @s1e5
+  opencate browser screenshot --full
 
-Snapshot refs are revisioned by Cate (@s1e3) and become stale after the next
+Snapshot refs are revisioned by openCate (@s1e3) and become stale after the next
 snapshot. Use --panel whenever more than one browser could be the target.`
 
 const AGENT_USAGE = `Usage:
-  cate agent list
-  cate agent create <prompt...> [--agent <id>] [--title <title>]
+  opencate agent list
+  opencate agent create <prompt...> [--agent <id>] [--title <title>]
       [--profile <name>]
       [--worktree <id> | --new-worktree <name> [--base-ref <ref>]] [--foreground]
-  cate agent send <runId> <prompt...>
-  cate agent wait [runId...] [--wait-timeout <ms>]
-  cate agent inspect|review|apply|keep|discard|stop <runId>
+  opencate agent send <runId> <prompt...>
+  opencate agent wait [runId...] [--wait-timeout <ms>]
+  opencate agent inspect|review|apply|keep|discard|stop <runId>
 
-Run ids may be full ids or unique prefixes from \`cate agent list\`. A worker
+Run ids may be full ids or unique prefixes from \`opencate agent list\`. A worker
 may use the same commands to create and supervise its own workers.`
 
 function helpFor(positionals: string[]): string {
   if (positionals[0] === 'browser') return BROWSER_USAGE
   if (positionals[0] === 'agent') return AGENT_USAGE
   if (positionals[0] === 'panel') {
-    return 'Usage: cate panel list | create terminal|canvas | set <id> | current | clear | close <id>'
+    return 'Usage: opencate panel list | create terminal|canvas | set <id> | current | clear | close <id>'
   }
-  if (positionals[0] === 'editor') return 'Usage: cate editor open <path[:line[:column]]>'
+  if (positionals[0] === 'editor') return 'Usage: opencate editor open <path[:line[:column]]>'
   if (positionals[0] === 'terminal') {
-    return 'Usage: cate terminal read [--panel <id>] | type <text...> --panel <id> | press <key> --panel <id>'
+    return 'Usage: opencate terminal read [--panel <id>] | type <text...> --panel <id> | press <key> --panel <id>'
   }
-  if (positionals[0] === 'project') return 'Usage: cate project get'
-  if (positionals[0] === 'task') return 'Usage: cate task list | get <id> | create <objective...> | update <id> --data <json> | delete <id>'
-  if (positionals[0] === 'context') return 'Usage: cate context list | get <id> | create <title> <content...> | update <id> --data <json> | delete <id>'
-  if (positionals[0] === 'result') return 'Usage: cate result list [task-id] | get <result-id>'
+  if (positionals[0] === 'project') return 'Usage: opencate project get'
+  if (positionals[0] === 'task') return 'Usage: opencate task list | get <id> | create <objective...> | update <id> --data <json> | delete <id>'
+  if (positionals[0] === 'context') return 'Usage: opencate context list | get <id> | create <title> <content...> | update <id> --data <json> | delete <id>'
+  if (positionals[0] === 'result') return 'Usage: opencate result list [task-id] | get <result-id>'
   return USAGE
 }
 
@@ -799,8 +799,8 @@ export interface RunDeps {
 }
 
 function usageError(deps: RunDeps, error: unknown): number {
-  deps.stderr(`cate: ${error instanceof Error ? error.message : String(error)}`)
-  deps.stderr("Try 'cate --help' for usage.")
+  deps.stderr(`opencate: ${error instanceof Error ? error.message : String(error)}`)
+  deps.stderr("Try 'opencate --help' for usage.")
   return 2
 }
 
@@ -812,7 +812,7 @@ export async function run(argv: string[], deps: RunDeps): Promise<number> {
     return usageError(deps, error)
   }
   if (parsed.flags.version) {
-    deps.stdout(`cate cli ${CLI_VERSION}`)
+    deps.stdout(`opencate cli ${CLI_VERSION}`)
     return 0
   }
   if (parsed.flags.help) {
@@ -868,10 +868,10 @@ export async function run(argv: string[], deps: RunDeps): Promise<number> {
   } catch (error) {
     if (error instanceof UsageError) return usageError(deps, error)
     if (error instanceof ApiError) {
-      deps.stderr(`cate: ${error.method}: ${error.detail}`)
+      deps.stderr(`opencate: ${error.method}: ${error.detail}`)
       return 1
     }
-    deps.stderr(`cate: ${error instanceof Error ? error.message : String(error)}`)
+    deps.stderr(`opencate: ${error instanceof Error ? error.message : String(error)}`)
     return 3
   }
 }
@@ -886,7 +886,7 @@ if (typeof require !== 'undefined' && require.main === module) {
   }).then((code) => {
     process.exitCode = code
   }).catch((error) => {
-    process.stderr.write(`cate: ${error instanceof Error ? error.message : String(error)}\n`)
+    process.stderr.write(`opencate: ${error instanceof Error ? error.message : String(error)}\n`)
     process.exitCode = 3
   })
 }

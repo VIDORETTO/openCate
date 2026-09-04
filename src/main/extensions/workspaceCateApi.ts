@@ -62,7 +62,7 @@ export class WorkspaceCateApiManager {
     }
   }
 
-  /** Panel-bound endpoint for the embedded Cate Agent. It uses the same public
+  /** Panel-bound endpoint for the embedded openCate Agent. It uses the same public
    *  scopes as terminal CLI callers while retaining native panel/worktree
    *  affinity for the direct chat session. */
   async ensureCateAgentEndpoint(
@@ -87,10 +87,10 @@ export class WorkspaceCateApiManager {
       const keys = this.cateAgentKeys.get(workspaceId) ?? new Set<string>()
       keys.add(cateAgentEndpointKey(workspaceId, panelId))
       this.cateAgentKeys.set(workspaceId, keys)
-      log.info('[workspace-cateapi] Cate Agent endpoint up ws=%s panel=%s port=%d', workspaceId, panelId, endpoint.port)
+      log.info('[workspace-cateapi] openCate Agent endpoint up ws=%s panel=%s port=%d', workspaceId, panelId, endpoint.port)
       return { port: endpoint.port, token: endpoint.token }
     } catch (err) {
-      log.warn('[workspace-cateapi] failed to open Cate Agent listener for %s: %O', workspaceId, err)
+      log.warn('[workspace-cateapi] failed to open openCate Agent listener for %s: %O', workspaceId, err)
       return null
     }
   }

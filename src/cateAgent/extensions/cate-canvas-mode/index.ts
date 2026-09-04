@@ -1,8 +1,8 @@
 // =============================================================================
-// cate-canvas-mode — opt-in canvas instructions for Cate's direct agent.
+// cate-canvas-mode — opt-in canvas instructions for openCate's direct agent.
 //
 // `/canvas` toggles a prompt mode, mirroring `/plan`. While active the renderer
-// status drives the composer's mode chip and the system prompt tells Cate to
+// status drives the composer's mode chip and the system prompt tells openCate to
 // load the existing cate-cli skill and use the bundled CLI. `/canvas-config`
 // updates the session-scoped canvas access policy used by the prompt and guard.
 // =============================================================================
@@ -30,7 +30,7 @@ leaving unnecessary panels behind.`,
 
 const CANVAS_PROMPT = (access: CanvasAccess) => `
 <canvas_mode>
-Canvas mode is ACTIVE. Handle the user's request by controlling the live Cate
+Canvas mode is ACTIVE. Handle the user's request by controlling the live openCate
 workspace through the existing \`cate\` CLI.
 
 Before acting, read the bundled \`cate-cli\` skill and follow its instructions.
@@ -83,7 +83,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.registerCommand("canvas", {
-    description: "Toggle canvas mode (inspect and arrange Cate panels).",
+    description: "Toggle canvas mode (inspect and arrange openCate panels).",
     handler: async (args, ctx) => {
       if (active) disable(ctx)
       else {

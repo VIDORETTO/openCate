@@ -1,7 +1,7 @@
 // =============================================================================
 // Kitchen Sink extension SERVER — full-stack test of the example extension's own
 // compiled server (dist/server.js), spawned as a real Node process exactly as
-// Cate would (PORT,
+// openCate would (PORT,
 // CATE_TOKEN, WORKSPACE_ROOT, CATE_API in the env). We drive every route the
 // panel exercises and assert each proves its layer:
 //
@@ -9,7 +9,7 @@
 //   GET  /api/info           — HTTP tunnel + bearer gate
 //   POST /api/echo           — HTTP round-trip
 //   GET  /ws                 — WebSocket upgrade + echo (raw RFC6455 frames)
-//   POST /api/cate-roundtrip — the server calls BACK into Cate over CATE_API
+//   POST /api/cate-roundtrip — the server calls BACK into openCate over CATE_API
 //   POST /api/agent-run      — the server composes agent open -> send -> dispose
 //
 // A tiny stand-in CATE_API server implements storage.set/get/keys/delete,
@@ -204,7 +204,7 @@ describe.skipIf(!HAS_EXT)('Kitchen Sink extension server (spawned)', () => {
         else if (body.method === 'cate.storage.delete') { cateApiStore.delete(String(body.args?.key)); result = { ok: true } }
         else if (body.method === 'cate.ui.notify') { result = { ok: true } }
         else if (body.method === 'cate.version') { result = 1 }
-        // Stand in for Cate's bundled agent (open -> send -> dispose): send
+        // Stand in for openCate's bundled agent (open -> send -> dispose): send
         // echoes the prompt back as the turn's final text, so the test can
         // assert the server forwarded it verbatim.
         else if (body.method === 'cate.agent.open') { result = { sessionId: 'sess-1' } }
@@ -312,7 +312,7 @@ describe.skipIf(!HAS_EXT)('Kitchen Sink extension server (spawned)', () => {
     expect(cateApiAuths.every((a) => a === `Bearer ${TOKEN}`)).toBe(true)
   })
 
-  it('rejects an empty agent prompt before calling Cate', async () => {
+  it('rejects an empty agent prompt before calling openCate', async () => {
     cateApiMethods.length = 0
     const r = await httpRequest(port, {
       method: 'POST',

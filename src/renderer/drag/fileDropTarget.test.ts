@@ -10,7 +10,7 @@ function evt(types: string[] | undefined): DragEvent {
 }
 
 describe('isFileDrag', () => {
-  it('accepts Cate file, multi-file, and OS-file drags', () => {
+  it('accepts openCate file, multi-file, and OS-file drags', () => {
     expect(isFileDrag(evt([CATE_FILE_MIME]))).toBe(true)
     expect(isFileDrag(evt([CATE_FILES_MIME]))).toBe(true)
     expect(isFileDrag(evt(['Files']))).toBe(true)

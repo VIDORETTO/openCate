@@ -407,7 +407,7 @@ export function RemoteConnect({
             Enable container network
           </label>
           <div className="text-[11px] text-muted">
-            The image must contain Cate runtime files. No host environment variables are forwarded by default.
+            The image must contain openCate runtime files. No host environment variables are forwarded by default.
           </div>
         </>
       )}

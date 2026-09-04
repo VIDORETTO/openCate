@@ -1,18 +1,18 @@
 {
-  "name": "cate",
+  "name": "opencate",
   "version": "1.6.1-beta.2",
-  "productName": "Cate",
-  "desktopName": "Cate",
+  "productName": "openCate",
+  "desktopName": "openCate",
   "description": "An infinite zoomable canvas IDE",
   "license": "MIT",
   "packageManager": "bun@1.3.13",
   "repository": {
     "type": "git",
-    "url": "https://github.com/0-AI-UG/cate.git"
+    "url": "https://github.com/VIDORETTO/openCate.git"
   },
-  "homepage": "https://github.com/0-AI-UG/cate",
+  "homepage": "https://github.com/VIDORETTO/openCate",
   "bugs": {
-    "url": "https://github.com/0-AI-UG/cate/issues"
+    "url": "https://github.com/VIDORETTO/openCate/issues"
   },
   "author": {
     "name": "0-AI UG",

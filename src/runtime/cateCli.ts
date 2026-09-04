@@ -1,30 +1,33 @@
 // =============================================================================
-// cateCli (path helper) — resolves where the bundled `cate` CLI lives on the
-// runtime host. The CLI ships INSIDE the runtime tarball (cate/ next to runtime/
+// cateCli (path helper) — resolves where the bundled `opencate` CLI lives on the
+// runtime host. The CLI ships INSIDE the runtime tarball (opencate/ next to runtime/
 // and pi/), so it is present the moment the daemon is provisioned. The
 // env-injection layer prepends cateBinDir() to a terminal/agent shell's PATH so
-// `cate` is callable there.
+// `opencate` is callable there.
 // =============================================================================
 
 import path from 'path'
 import { existsSync } from 'fs'
 import { installRoot } from './installRoot'
 
-/** Directory holding the `cate` / `cate.cmd` launcher shims. Prepend this to a
- *  shell's PATH to make `cate` callable. */
+const CANONICAL_CLI_ROOT = 'opencate'
+const LEGACY_CLI_ROOT = 'cate'
+
+/** Directory holding the `opencate` / `opencate.cmd` launcher shims. Prepend
+ *  this to a shell's PATH to make `opencate` callable. */
 export function cateBinDir(): string {
-  return path.join(installRoot(), 'cate', 'bin')
+  return path.join(installRoot(), CANONICAL_CLI_ROOT, 'bin')
 }
 
-/** The bundled CLI entry (cate/dist/cli.cjs) the shims run under bundled node.
+/** The bundled CLI entry (opencate/dist/cli.cjs) the shims run under bundled node.
  *  Cross-platform JS — no win32 branch. */
 export function cateCliPath(): string {
-  return path.join(installRoot(), 'cate', 'dist', 'cli.cjs')
+  return path.join(installRoot(), CANONICAL_CLI_ROOT, 'dist', 'cli.cjs')
 }
 
-/** Put the bundled `cate` on a spawn env's PATH so agents and users can run it.
+/** Put the bundled `opencate` on a spawn env's PATH so agents and users can run it.
  *  Unconditional (not gated on CATE_API): the endpoint env is the real on/off
- *  switch, and keeping `cate` on PATH while the endpoint is disabled means
+ *  switch, and keeping `opencate` on PATH while the endpoint is disabled means
  *  running it prints how to enable the setting (see the EnvError message in
  *  src/cli/cate.ts) instead of a discoverability-killing "command not found".
  *  Runs daemon-side (process.execPath == the tarball node), where cateBinDir()
@@ -47,8 +50,10 @@ function presentBinDir(): string | null {
     const e2eBinDir = process.env.CATE_E2E === '1'
       ? process.env.CATE_E2E_CATE_BIN
       : undefined
-    const binDir = e2eBinDir && existsSync(e2eBinDir) ? e2eBinDir : cateBinDir()
-    cachedBinDir = existsSync(binDir) ? binDir : null
+    const candidates = e2eBinDir && existsSync(e2eBinDir)
+      ? [e2eBinDir]
+      : [cateBinDir(), path.join(installRoot(), LEGACY_CLI_ROOT, 'bin')]
+    cachedBinDir = candidates.find((candidate) => existsSync(candidate)) ?? null
   }
   return cachedBinDir
 }

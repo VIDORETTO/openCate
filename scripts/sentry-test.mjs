@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // =============================================================================
 // Send a single test event to the Sentry-protocol endpoint configured via
-// SENTRY_DSN (falls back to the Cate analytics endpoint). Used to verify the
+// SENTRY_DSN (falls back to the openCate analytics endpoint). Used to verify the
 // pipe end-to-end without launching the app.
 //
 // Usage: npm run sentry:test

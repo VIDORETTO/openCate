@@ -107,7 +107,7 @@ describe('coding agent launch presentation', () => {
     expect(row.className).not.toContain('border')
     expect(row.className).not.toContain('rounded')
     expect(row.className).not.toContain('bg-surface')
-    expect(host.querySelector('[aria-label="Cate"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="openCate"]')).not.toBeNull()
     expect(terminalLink.textContent).toBe('Test reliability')
     expect(terminalLink.className).not.toContain('rounded')
     expect(terminalLink.className).not.toContain('bg-surface')

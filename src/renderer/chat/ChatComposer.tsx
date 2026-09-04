@@ -1,8 +1,8 @@
 // =============================================================================
-// ChatComposer — the one composer both chat surfaces render: the Cate Agent
+// ChatComposer — the one composer both chat surfaces render: the openCate Agent
 // sidebar and the agent panel's bottom-of-thread input.
 //
-// Shape (from the Cate Agent sidebar): a stacked card. The main card holds the
+// Shape (from the openCate Agent sidebar): a stacked card. The main card holds the
 // textarea with a control row beneath it — model picker on the left, the run
 // controls on the right, so the send button always sits at the bottom-right,
 // never floating mid-height. A second card tucks under the main one and sticks
@@ -658,7 +658,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                   bodyClassName="max-h-[340px] overflow-y-auto no-scrollbar p-1.5"
                 >
                   <div role="listbox">
-                    <div className="px-2 pt-1 pb-1.5 text-[10px] leading-tight text-muted">How should Cate handle this prompt?</div>
+                    <div className="px-2 pt-1 pb-1.5 text-[10px] leading-tight text-muted">How should openCate handle this prompt?</div>
                     <MenuRow
                       selected={promptMode === 'plan'}
                       onClick={() => {
@@ -682,7 +682,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                       <BoundingBox size={13} className="flex-shrink-0 text-muted" />
                       <span className="flex-1">
                         <span className="block text-[12px]">Manage canvas</span>
-                        <span className="block text-[10px] text-muted">Control Cate panels with the Cate CLI</span>
+                        <span className="block text-[10px] text-muted">Control openCate panels with the openCate CLI</span>
                       </span>
                     </MenuRow>
                     <MenuRow

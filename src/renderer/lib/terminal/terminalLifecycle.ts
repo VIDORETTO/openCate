@@ -276,7 +276,7 @@ export function wireTerminalListeners(args: {
   })
   cleanupListeners.push(() => resizeDisposable.dispose())
 
-  // A Cate-owned launch is a trusted identity hint for the screen fallback.
+  // A openCate-owned launch is a trusted identity hint for the screen fallback.
   // Manual launches are identified later by the host process monitor.
   noteAgentProcess(ptyId, opts.codingAgentLaunch?.agentId ?? null)
   useStatusStore.getState().registerTerminal(ptyId, opts.workspaceId)

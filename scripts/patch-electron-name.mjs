@@ -12,7 +12,7 @@
 //    download is cached globally, so this is ~1s after the first
 //    machine-wide install). This is a no-op on npm installs where the binary
 //    is already in place.
-// 3. Patch Electron.app Info.plist so macOS dock shows "Cate" instead of
+// 3. Patch Electron.app Info.plist so macOS dock shows "openCate" instead of
 //    "Electron". Uses /usr/libexec/PlistBuddy (macOS system tool).
 
 import { chmodSync, copyFileSync, existsSync, readdirSync } from 'node:fs'
@@ -77,8 +77,8 @@ if (isMac) {
         execFileSync(plistBuddy, ['-c', `Set ${key} ${value}`, plist], { stdio: 'pipe' })
       } catch { /* key may not exist yet */ }
     }
-    setKey('CFBundleDisplayName', 'Cate')
-    setKey('CFBundleName', 'Cate')
+    setKey('CFBundleDisplayName', 'openCate')
+    setKey('CFBundleName', 'openCate')
     // Also replace the .icns (may not exist before first icon generation).
     const iconSource = path.join(root, 'build', 'icon.icns')
     if (existsSync(iconSource)) {

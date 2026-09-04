@@ -135,7 +135,7 @@ describe('cross-window panel discovery (main)', () => {
     expect(byId.top.parentCanvasId).toBeUndefined()
   })
 
-  it('passes through list metadata used by the cross-window Cate API', () => {
+  it('passes through list metadata used by the cross-window openCate API', () => {
     open(142, 'dock', 'ws-A')
     setWindowPanels(142, [
       {

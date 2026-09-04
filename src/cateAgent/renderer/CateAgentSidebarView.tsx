@@ -49,7 +49,7 @@ export const CateAgentSidebarView: React.FC<{
   if (!ready) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-        <span className="text-xs text-muted">Connect a provider to use the Cate Agent.</span>
+        <span className="text-xs text-muted">Connect a provider to use the openCate Agent.</span>
         <button
           className="rounded bg-surface-5 px-3 py-1.5 text-xs text-secondary transition-colors hover:bg-hover hover:text-primary"
           onClick={() => useUIStore.getState().openSettings('cate agent')}

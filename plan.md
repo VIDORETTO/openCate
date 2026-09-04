@@ -1,23 +1,23 @@
-# Cate Cloud: EC2 Remote Workspaces
+# openCate Cloud: EC2 Remote Workspaces
 
 ## Summary
 
-Cate Cloud will provide paid, remotely hosted development workspaces for users
+openCate Cloud will provide paid, remotely hosted development workspaces for users
 who do not want multiple terminal CLIs, agents, worktrees, and development
 servers consuming local resources.
 
 The initial architecture uses one EBS-backed EC2 instance per cloud workspace.
-AWS supplies VM isolation, lifecycle, storage, and networking. Cate supplies the
+AWS supplies VM isolation, lifecycle, storage, and networking. openCate supplies the
 workspace control plane, durable runtime connection, security policy, billing,
 and user experience.
 
-This is intentionally narrower than building a PaaS. Cate will not operate a
+This is intentionally narrower than building a PaaS. openCate will not operate a
 hypervisor, host scheduler, distributed volume system, or bare-metal fleet.
 
 ```text
-Cate desktop
+openCate desktop
     |
-    +-- HTTPS --> Cate Cloud API
+    +-- HTTPS --> openCate Cloud API
     |                +-- Authentication
     |                +-- Workspace lifecycle
     |                +-- PostgreSQL
@@ -25,7 +25,7 @@ Cate desktop
     |                +-- Billing ledger
     |                +-- AWS EC2/EBS APIs
     |
-    +-- WSS ----> Cate regional gateway
+    +-- WSS ----> openCate regional gateway
                           |
                           | outbound mTLS connection
                           v
@@ -49,11 +49,11 @@ The product must distinguish three concepts:
 - **Cloud workspace:** Durable machine identity, filesystem, repository,
   worktrees, settings, and billing owner.
 - **Workspace run:** Time during which the EC2 instance is running.
-- **Client connection:** A Cate desktop currently attached to the workspace.
+- **Client connection:** A openCate desktop currently attached to the workspace.
 
 | User action | EC2 state | Processes | Files | Compute billing |
 | --- | --- | --- | --- | --- |
-| Close Cate | Running | Continue | Persist | Continues |
+| Close openCate | Running | Continue | Persist | Continues |
 | Lose network | Running | Continue | Persist | Continues |
 | Reconnect | Running | Reattach | Persist | Continues |
 | Stop workspace | Stopped | Terminated | Persist | Stops |
@@ -192,7 +192,7 @@ The gateway connects the desktop to a runner without exposing the VM.
 
 Responsibilities:
 
-- Validate Cate user access tokens
+- Validate openCate user access tokens
 - Validate one-use connection tickets
 - Match desktop and runner by workspace and generation
 - Forward runtime protocol frames
@@ -210,7 +210,7 @@ A connection ticket must:
 - Grant either interactive or read-only access
 
 The gateway should not interpret filesystem or terminal operations. It forwards
-the existing Cate runtime protocol.
+the existing openCate runtime protocol.
 
 ## Durable terminal behavior
 
@@ -239,12 +239,12 @@ Recommended limits:
 | --- | --- |
 | Desktop network interruption | Existing RPC client reconnects |
 | Gateway restart | Runner and desktop reconnect; processes continue |
-| Cate application restart | Panels attach to persisted PTY IDs |
+| openCate application restart | Panels attach to persisted PTY IDs |
 | EC2 reboot | PTYs are gone; panels open replacement shells |
 | Explicit workspace stop | PTYs are gone; files remain |
 | EC2 host failure | Instance restarts from EBS; processes are gone |
 
-For Cate Agent panels, v1 can resume from the persisted agent session file after
+For openCate Agent panels, v1 can resume from the persisted agent session file after
 a full application restart. Reattaching to an already-running in-flight agent
 turn is a later protocol extension.
 
@@ -264,7 +264,7 @@ The existing `RuntimeTransport` abstraction remains the integration boundary.
 Add an `Ec2ManagedTransport` without changing filesystem, git, terminal, and
 editor consumers.
 
-## Cate desktop changes
+## openCate desktop changes
 
 ### Shared types
 
@@ -306,7 +306,7 @@ Add:
 
 - `Ec2ManagedTransport`
 - Cloud authentication and token storage
-- Cate Cloud API client
+- openCate Cloud API client
 - Short-lived connection-ticket retrieval
 - Runner/gateway reconnect logic
 - Cloud workspace IPC handlers
@@ -316,7 +316,7 @@ Add:
 
 Add:
 
-- Cate account login
+- openCate account login
 - Cloud workspace creation
 - Repository picker
 - Region and machine-size selection
@@ -332,11 +332,11 @@ Keep SSH and WSL as separate bring-your-own-host options.
 
 Use a GitHub App rather than customer personal access tokens.
 
-1. User installs the Cate GitHub App for selected repositories.
+1. User installs the openCate GitHub App for selected repositories.
 2. Control plane creates the workspace.
 3. Runner requests a short-lived installation token.
 4. Repository is cloned into `/workspace`.
-5. A Cate credential helper requests fresh tokens for later fetch and push
+5. A openCate credential helper requests fresh tokens for later fetch and push
    operations.
 
 Do not save installation tokens in `.git/config`, shell history, or EBS.
@@ -367,11 +367,11 @@ Examples include OpenAI, Anthropic, npm, and private registry credentials.
 
 For v1:
 
-- Cate desktop remains the credential authority.
+- openCate desktop remains the credential authority.
 - Deliver secrets after connection.
 - Store them in a root-created tmpfs owned by `cate`.
 - Remove them when the workspace stops.
-- Require Cate to reconnect and inject credentials after a normal restart.
+- Require openCate to reconnect and inject credentials after a normal restart.
 
 Running user code can read credentials intended for that user. The security
 promise is tenant isolation, not isolation between a user's agent and that
@@ -383,10 +383,10 @@ An opt-in cloud vault can be added later for unattended starts.
 
 Do not add inbound security-group rules for development servers.
 
-1. Cate detects a listening port.
+1. openCate detects a listening port.
 2. User selects **Open preview**.
 3. Gateway opens a tunnel through the runner.
-4. BrowserPanel receives a Cate-authenticated URL.
+4. BrowserPanel receives a openCate-authenticated URL.
 5. Gateway checks workspace membership on every connection.
 
 Preview defaults:
@@ -467,7 +467,7 @@ An EC2 API timeout must not be interpreted as proof that the operation failed.
 
 Internally meter:
 
-- Running instance seconds by Cate size
+- Running instance seconds by openCate size
 - Allocated EBS GB-hours
 - Snapshot GB-months
 - Internet egress
@@ -590,7 +590,7 @@ Success criteria:
 
 Scope:
 
-- Cate login
+- openCate login
 - GitHub App
 - Private repositories
 - Machine-size selection
@@ -603,7 +603,7 @@ Scope:
 
 Success criteria:
 
-- Provider usage and Cate's ledger reconcile within an agreed tolerance.
+- Provider usage and openCate's ledger reconcile within an agreed tolerance.
 - A user cannot access another workspace, preview, volume, or runner.
 - Delete removes the instance, active volume, credentials, and scheduled
   backups according to policy.
@@ -650,6 +650,6 @@ Success criteria:
 
 ## Initial commercial-quality goal
 
-A user can create an EC2-backed workspace, run several CLI agents, close Cate,
+A user can create an EC2-backed workspace, run several CLI agents, close openCate,
 reconnect later to the same PTYs, and stop the workspace knowing compute billing
 has ended while the repository and worktrees remain intact.

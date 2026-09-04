@@ -1,6 +1,6 @@
-// Real Cate CLI E2E. Unlike src/cli/cate.integration.test.ts (scripted HTTP),
-// this launches Electron, provisions Cate's runtime, types commands into a real
-// Cate terminal, and drives a real BrowserPanel webview through CATE_API.
+// Real openCate CLI E2E. Unlike src/cli/cate.integration.test.ts (scripted HTTP),
+// this launches Electron, provisions openCate's runtime, types commands into a real
+// openCate terminal, and drives a real BrowserPanel webview through CATE_API.
 
 import { test, expect } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
@@ -20,7 +20,7 @@ const FORM_HTML = `<!doctype html>
 <html>
   <head><title>Form Ready</title></head>
   <body style="min-height: 1200px">
-    <h1>Cate CLI browser fixture</h1>
+    <h1>openCate CLI browser fixture</h1>
     <form id="form">
       <label for="query">Query</label>
       <input id="query" type="search" />
@@ -113,7 +113,7 @@ async function runInCateTerminal(
   let output = screen!.slice(beginAt + begin.length, endAt).trim()
   if (process.platform === 'win32') {
     // cmd.exe echoes the prompt and every entered command. Keep only the
-    // bytes produced by Cate between the command echo and the end-marker
+    // bytes produced by openCate between the command echo and the end-marker
     // echo; PowerShell's old single-line wrapper did not need this cleanup.
     const lines = output.split(/\r?\n/)
     const commandLine = lines.findIndex((line) => line.includes(`>${command}`))
@@ -177,7 +177,7 @@ test.afterEach(async () => {
   rmSync(workspace, { recursive: true, force: true })
 })
 
-test('the core cate CLI workflow works from a real Cate terminal', async () => {
+test('the core cate CLI workflow works from a real openCate terminal', async () => {
   test.setTimeout(180_000)
   const controlNode = await seedTerminal(page, { x: 120, y: 120 })
   await expect.poll(

@@ -9,7 +9,7 @@ import { ipcRenderer, webFrame } from 'electron'
 // renderer preload makes electron-vite emit a chunk that Electron's sandboxed
 // preload loader cannot require.
 
-// Match Cate's thin, rounded panel scrollbar inside remote browser pages. The
+// Match openCate's thin, rounded panel scrollbar inside remote browser pages. The
 // guest cannot inherit renderer theme variables, so these colors mirror the
 // dark theme's --scrollbar-thumb tokens from globals.css.
 webFrame.insertCSS(`

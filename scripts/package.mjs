@@ -42,7 +42,7 @@ function run(command, commandArgs, options = {}) {
 // shippedRuntimeTarball() resolves at runtime: runtime-host-<arch>.tgz on macOS
 // (the daemon is arch-specific and one .app runs on either CPU), runtime-host.tgz
 // elsewhere. electron-builder can't compute the per-target name
-// (cate-runtime-<version>-<target>.tgz), and its extraResources glob
+// (opencate-runtime-<version>-<target>.tgz), and its extraResources glob
 // (runtime-host*.tgz) copies whatever is staged — so clear stale staged names
 // first to avoid shipping an outdated tarball.
 function plat(p) {
@@ -52,7 +52,7 @@ function stageHostRuntimeTarball() {
   const version = JSON.parse(readFileSync(path.join(repoRoot, 'package.json'), 'utf-8')).version
   const target = `${plat(process.platform)}-${process.arch}`
   const distRuntime = path.join(repoRoot, 'dist-runtime')
-  const src = path.join(distRuntime, `cate-runtime-${version}-${target}.tgz`)
+  const src = path.join(distRuntime, `opencate-runtime-${version}-${target}.tgz`)
   const destName =
     process.platform === 'darwin' ? `runtime-host-${process.arch}.tgz` : 'runtime-host.tgz'
   const dest = path.join(distRuntime, destName)

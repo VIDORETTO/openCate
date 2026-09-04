@@ -64,7 +64,7 @@ export interface AgentBrowserResult {
 type BrowserArgs = Record<string, unknown>
 
 /** Build the minimal environment needed by the native agent-browser child.
- * It is a third-party executable, so it must not receive Cate's ambient
+ * It is a third-party executable, so it must not receive openCate's ambient
  * credentials or process-injection options. */
 export function createAgentBrowserEnv(input: NodeJS.ProcessEnv, socketDir: string): NodeJS.ProcessEnv {
   return {
@@ -104,7 +104,7 @@ function binaryName(): string {
 }
 
 /** Resolve the native executable directly. This avoids the package's Node
- * wrapper and therefore works with Cate's Node 20-22 development toolchain. */
+ * wrapper and therefore works with openCate's Node 20-22 development toolchain. */
 export function agentBrowserBinaryPath(): string {
   const packageJson = require.resolve('agent-browser/package.json')
   const packed = path.join(path.dirname(packageJson), 'bin', binaryName())
@@ -728,7 +728,7 @@ export class AgentBrowserService {
         target.agentTabId = null
         // AGENT_BROWSER_IDLE_TIMEOUT_MS may have stopped the daemon. Its next
         // command auto-launches a blank browser, so force bind() to reconnect
-        // to Cate's Electron endpoint before looking for this guest again.
+        // to openCate's Electron endpoint before looking for this guest again.
         this.connected = false
         this.invalidateRefs()
         if (attempt === 1) throw error
@@ -948,7 +948,7 @@ export class AgentBrowserService {
       target.contents.goForward()
       result = { ok: true }
     } else if (action === 'press' && command[1]) {
-      // The native daemon's keyboard target is the top-level CDP page. Cate's
+      // The native daemon's keyboard target is the top-level CDP page. openCate's
       // selected target is an Electron webview guest, so send the key through
       // that guest's DOM instead. This also works while the app window is
       // hidden, where window-level input APIs are not reliable.

@@ -1,28 +1,28 @@
 ---
 name: cate-extension
-description: Build, test, and publish a Cate extension, a web panel (optionally backed by a local server) that runs on Cate's canvas. Use when the user wants to create or scaffold a Cate extension, add a panel to Cate, work with the extension manifest, cateApi scopes, or the window.cate host API, or submit an extension to the cate-extensions catalog.
+description: Build, test, and publish a openCate extension, a web panel (optionally backed by a local server) that runs on openCate's canvas. Use when the user wants to create or scaffold a openCate extension, add a panel to openCate, work with the extension manifest, cateApi scopes, or the window.cate host API, or submit an extension to the cate-extensions catalog.
 user-invocable: true
 ---
 
-# Authoring Cate Extensions
+# Authoring openCate Extensions
 
-A Cate extension adds panels to Cate's infinite canvas by shipping a **web
+A openCate extension adds panels to openCate's infinite canvas by shipping a **web
 frontend**, optionally plus a **local server process**. Panels render in
-isolated webviews and talk to Cate only through the injected `window.cate`
+isolated webviews and talk to openCate only through the injected `window.cate`
 bridge, gated by manifest-declared scopes.
 
 Two shapes:
 
-- **Frontend-only** (default): static web assets. Cate serves them and injects
+- **Frontend-only** (default): static web assets. openCate serves them and injects
   the `cate` bridge. No process, port, token, or lifecycle. Best for viewers,
   editors, formatters, dashboards over `cate.storage`.
 - **Server-backed**: also ships a local server for full OS access (filesystem,
-  processes, network). Cate spawns **one server per extension per workspace**;
+  processes, network). openCate spawns **one server per extension per workspace**;
   every panel webview of that extension connects to it (n:1).
 
 Official extensions live in the catalog repo
 **github.com/0-AI-UG/cate-extensions** (one folder per extension under
-`extensions/<id>/`). The Cate repo carries an in-tree mirror at
+`extensions/<id>/`). The openCate repo carries an in-tree mirror at
 `cate-extensions/` for offline dev and tests. When working inside either repo,
 read a shipped extension as a live reference: `cate.mermaid` (frontend-only),
 `cate.usage` (server-backed), `cate.frontendkit` / `cate.kitchensink`
@@ -133,7 +133,7 @@ returns `{ error: 'terminal-first-party-only' }` for extension callers.
 ## Host API (`window.cate`)
 
 The complete surface today. Canonical typings: `src/shared/cate-host-api.d.ts`
-in the Cate repo, mirrored as `kit/cate-host.d.ts` in the catalog repo and
+in the openCate repo, mirrored as `kit/cate-host.d.ts` in the catalog repo and
 synced into each extension's `src/_kit/`. Trust the `.d.ts` over any prose docs.
 
 ```ts
@@ -189,7 +189,7 @@ server-backed extension's own filesystem.
 ## UI kit and theming
 
 The catalog repo ships a shared kit at `kit/` so extensions look native to
-Cate:
+openCate:
 
 - `cate-kit.css`: design tokens (`--cate-*`) + component classes (`cate-*`) for
   app shell, buttons, inputs, cards, banners, drawer, empty state, spinner.
@@ -201,7 +201,7 @@ Cate:
   bring-your-own external service.
 - `server/http.ts`: Node HTTP scaffolding for server-backed extensions.
 - `api-client.ts`: `proxyBasePath()` / `apiFetch()` for panel-to-server calls
-  through Cate's proxy (the webview never holds the token; fetch relative
+  through openCate's proxy (the webview never holds the token; fetch relative
   paths and the proxy injects the bearer token).
 
 There is no monorepo: the kit is **copied** into consumers at `src/_kit/` by
@@ -212,7 +212,7 @@ in `scripts/sync-kit.mjs`, run the sync, and never edit `src/_kit/` directly
 
 ## Server-backed contract
 
-Only relevant when the manifest has `server`. Cate injects env on spawn:
+Only relevant when the manifest has `server`. openCate injects env on spawn:
 
 - `PORT`: free port to listen on. `HOST=127.0.0.1`: the server **must** bind
   this, never `0.0.0.0` (a wider bind exposes it on the network and defeats
@@ -222,7 +222,7 @@ Only relevant when the manifest has `server`. Cate injects env on spawn:
   calls and event streams.
 - `WORKSPACE_ROOT`: the workspace the server belongs to.
 
-Lifecycle: lazy spawn on first panel open per `(extensionId, workspace)`; Cate
+Lifecycle: lazy spawn on first panel open per `(extensionId, workspace)`; openCate
 probes `readyPath` before loading the webview (timeout/exit shows captured
 stderr + Restart). Many panels share the one server: route state and events by
 `cate.panel.id`, treat panel open/close as join/leave, and survive panel

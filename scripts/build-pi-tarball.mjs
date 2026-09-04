@@ -4,7 +4,7 @@
 // `--mode rpc`. pi is NOT bundled in the desktop app anymore; it's pulled per
 // version like the runtime daemon.
 //
-//   dist-runtime/cate-pi-<piVersion>.tgz
+//   dist-runtime/opencate-pi-<piVersion>.tgz
 //     dist/            (pi's built CLI — node dist/cli.js --mode rpc)
 //     node_modules/    (pruned: provider SDKs kept; native + TUI-only deps cut)
 //     package.json
@@ -100,7 +100,7 @@ if (!existsSync(path.join(stage, 'dist', 'cli.js'))) {
 }
 
 const stagedSize = dirSizeMb(stage)
-const outTar = path.join(dist, `cate-pi-${piVersion}.tgz`)
+const outTar = path.join(dist, `opencate-pi-${piVersion}.tgz`)
 rmSync(outTar, { force: true })
 // --no-xattrs: macOS provenance xattrs would make GNU tar warn on extraction.
 // Basename archive + relative -C (cwd = dist) keep Windows drive letters out of
@@ -173,7 +173,7 @@ function syncPiVersion(version) {
     '// =============================================================================\n' +
     '// pi version — GENERATED from the installed @earendil-works/pi-coding-agent by\n' +
     '// `npm run pi:tarball`. The runtime ships pi per this version; the host pulls\n' +
-    '// cate-pi-<PI_VERSION>.tgz from the release. Do not edit by hand.\n' +
+    '// opencate-pi-<PI_VERSION>.tgz from the release. Do not edit by hand.\n' +
     '// =============================================================================\n\n' +
     `export const PI_VERSION = '${version}'\n`
   if (!existsSync(file) || readFileSync(file, 'utf-8') !== next) {

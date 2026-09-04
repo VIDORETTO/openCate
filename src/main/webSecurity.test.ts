@@ -23,7 +23,7 @@ vi.mock('./logger', () => ({ default: { info: vi.fn(), warn: vi.fn(), error: vi.
 const { createdHandlers } = vi.hoisted(() => ({ createdHandlers: [] as Array<(e: unknown, c: unknown) => void> }))
 vi.mock('electron', () => ({
   app: {
-    getName: () => 'Cate',
+    getName: () => 'openCate',
     getLocale: () => 'en-US',
     on: (ev: string, cb: (e: unknown, c: unknown) => void) => {
       if (ev === 'web-contents-created') createdHandlers.push(cb)
@@ -36,7 +36,7 @@ function makeSession(): Record<string, unknown> {
   return {
     setPermissionRequestHandler: vi.fn(),
     setPermissionCheckHandler: vi.fn(),
-    getUserAgent: vi.fn(() => 'Mozilla/5.0 Chrome/142.0.0.0 Electron/41.0.0 Cate/1.0.0 Safari/537.36'),
+    getUserAgent: vi.fn(() => 'Mozilla/5.0 Chrome/142.0.0.0 Electron/41.0.0 openCate/1.0.0 Safari/537.36'),
     setUserAgent: vi.fn(),
     webRequest: { onBeforeRequest: vi.fn(), onBeforeSendHeaders: vi.fn() },
   }
@@ -110,7 +110,7 @@ describe('will-attach-webview — extension-proxy preload pinning', () => {
 })
 
 describe('browser popup policy', () => {
-  it('keeps HTTPS sign-in popups inside Cate and blocks unsafe schemes', () => {
+  it('keeps HTTPS sign-in popups inside openCate and blocks unsafe schemes', () => {
     const { contents, listeners } = webviewHarness()
     listeners['will-attach-webview'](
       { preventDefault: vi.fn() },

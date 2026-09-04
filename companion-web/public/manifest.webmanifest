@@ -1,12 +1,12 @@
 {
-  "name": "Cate Companion",
-  "short_name": "Cate",
+  "name": "openCate Companion",
+  "short_name": "openCate",
   "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone"],
-  "description": "Secure, host-approved workspace companion for Cate.",
+  "description": "Secure, host-approved workspace companion for openCate.",
   "lang": "en",
   "dir": "ltr",
   "orientation": "any",
@@ -15,7 +15,7 @@
   "categories": ["productivity", "utilities"],
   "icons": [
     {
-      "src": "./cate-logo.svg",
+      "src": "./opencate-logo.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

@@ -10,7 +10,7 @@ export function chatDragPayload(chat: Chat, rootPath: string): ChatDragPayload {
 }
 
 /** A chat's current run state. Conversation and autonomous work are capabilities
- * of the same Cate Agent, so the glyph communicates activity rather than mode. */
+ * of the same openCate Agent, so the glyph communicates activity rather than mode. */
 export const ChatStatusGlyph: React.FC<{ chat: Chat }> = ({ chat }) => (
   <span
     aria-hidden

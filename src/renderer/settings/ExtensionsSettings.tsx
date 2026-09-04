@@ -641,15 +641,15 @@ export function ExtensionsSettings() {
         <div className="mt-3">
           <span className="text-sm text-primary">Catalog sources</span>
           <p className="text-xs text-muted mt-0.5">
-            Remote URLs Cate fetches the extension catalog from.
+            Remote URLs openCate fetches the extension catalog from.
           </p>
 
           <div className="my-2 flex items-start gap-2.5 rounded-md border border-subtle bg-surface-2 px-3 py-2">
             <Warning size={13} className="mt-0.5 shrink-0 text-amber-400/80" />
             <p className="text-[11px] leading-relaxed text-muted">
               Only add sources you trust. An extension can run its own code on your machine, so a
-              malicious catalog can do anything you can. Stick to the official Cate catalog (governed
-              by the Cate team), or build and sideload your own extensions.
+              malicious catalog can do anything you can. Stick to the official openCate catalog (governed
+              by the openCate team), or build and sideload your own extensions.
             </p>
           </div>
 

@@ -26,7 +26,7 @@ import type { PanelType, Point, PanelState } from '../../shared/types'
 import type { PanelPlacement } from '../stores/appStore'
 import { useAppStore } from '../stores/appStore'
 import { PANEL_DEFINITIONS, type SharedPanelDefinition } from '../../shared/panels'
-import { CateLogo } from '../ui/CateLogo'
+import { OpenCateLogo } from '../ui/OpenCateLogo'
 import { PanelErrorBoundary } from '../ui/PanelErrorBoundary'
 import type { PanelProps } from './types'
 
@@ -143,7 +143,7 @@ export const PANEL_REGISTRY: Record<PanelType, RendererPanelDefinition> = {
   },
   cateAgent: {
     ...PANEL_DEFINITIONS.cateAgent,
-    icon: CateLogo,
+    icon: OpenCateLogo,
     Component: CateAgentPanel,
     create: ({ workspaceId, canvasPoint, placement }) =>
       trackCreated('cateAgent', useAppStore.getState().createCateAgent(workspaceId, canvasPoint, placement) || null),

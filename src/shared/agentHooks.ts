@@ -1,7 +1,7 @@
 // =============================================================================
 // Agent hook abstraction — the per-CLI declarations that turn the agent
 // CLIs' hook/extension/plugin surfaces into ONE normalized push event stream.
-// Each agent entry declares (a) WHICH workspace-scoped files Cate writes to
+// Each agent entry declares (a) WHICH workspace-scoped files openCate writes to
 // inject its hook bridge and (b) how that CLI's raw hook payload normalizes
 // into an AgentHookEvent. Adding a CLI is one entry here plus its AgentDef in
 // agents.ts.
@@ -91,7 +91,7 @@ export interface HookInjectionContext {
  *    exists in the repo (e.g. .claude, .codex) — a "this agent is relevant
  *    here" signal that avoids littering unrelated repos.
  *  - 'on': always inject, even in a repo with no such folder yet.
- *  - 'off': never inject, and strip any hook entries Cate previously wrote.
+ *  - 'off': never inject, and strip any hook entries openCate previously wrote.
  * The shared CATE_HOOK_* env (endpoint/token/terminal id) is planted on every
  * PTY regardless — it leaves no repo trace, and a hook file that never gets
  * written simply never reads it.
@@ -110,7 +110,7 @@ export interface AgentHookAgentState {
   /** The agent's own config folder (.claude, .codex, …) exists in the repo —
    *  the signal 'auto' gates on. */
   folderPresent: boolean
-  /** A repo hook file carrying Cate's marker is present (we've injected here). */
+  /** A repo hook file carrying openCate's marker is present (we've injected here). */
   injected: boolean
 }
 
@@ -123,15 +123,15 @@ export interface AgentHookSpec {
    *  - true: the CLI's interrupt path fires an event that normalize() turns
    *    into 'turn-end' (cursor's stop{status:aborted}, pi's agent_end,
    *    opencode's session.idle — each verified live and pinned in
-   *    agentHookContracts.itest.ts). Cate's FSM idles correctly, unaided.
+   *    agentHookContracts.itest.ts). openCate's FSM idles correctly, unaided.
    *  - false: the CLI pushes NOTHING on interrupt. claude and codex both do
    *    this — verified live with EVERY one of their hook events registered
    *    (claude's Stop emitter runs at end-turn, through the very abort signal
    *    the interrupt trips; codex is identically silent, proven against a
-   *    control turn that DID fire Stop). Cate's running indicator therefore
+   *    control turn that DID fire Stop). openCate's running indicator therefore
    *    stays stuck until the next prompt.
    *
-   * For the false agents Cate recovers the turn-end out-of-band, from the one
+   * For the false agents openCate recovers the turn-end out-of-band, from the one
    * interrupt channel that is still deterministic and file-based (not a
    * keystroke, not screen scraping, not a settle timer): the CLI writes an
    * interrupt MARKER into its own transcript, and `interruptRecovery.marker`
@@ -170,7 +170,7 @@ export interface AgentHookSpec {
    * settings, which also carries user config; codex's hooks.json, where users
    * may keep their own hooks) is merged — our entries (marked by the
    * CATE_HOOK_MARKER) are replaced/refreshed, every user entry is preserved,
-   * an unparseable file is left alone; a file Cate owns outright (pi's
+   * an unparseable file is left alone; a file openCate owns outright (pi's
    * extension, marked in its header comment) is rewritten whenever its
    * content differs.
    */
@@ -178,9 +178,9 @@ export interface AgentHookSpec {
     relPath: string
     build(existing: string | null, ctx: HookInjectionContext): string | null
     /**
-     * Inverse of `build` for the 'off' mode: remove Cate's entries from the
+     * Inverse of `build` for the 'off' mode: remove openCate's entries from the
      * existing file. Returns null to leave it untouched (nothing of ours is
-     * present), `{ delete: true }` to remove a file Cate owns outright (pi's
+     * present), `{ delete: true }` to remove a file openCate owns outright (pi's
      * extension), or `{ content }` to rewrite a SHARED file with only our
      * entries stripped (every user entry preserved). Absent → 'off' cannot
      * reclaim this file, so it is merely not refreshed.
@@ -188,12 +188,12 @@ export interface AgentHookSpec {
     strip?(existing: string): AgentHookStrip
   }>
   /** Normalize one raw payload posted by this agent's bridge. Null = drop
-   *  (an event Cate doesn't track, e.g. claude's idle_prompt notification). */
+   *  (an event openCate doesn't track, e.g. claude's idle_prompt notification). */
   normalize(payload: Record<string, unknown>): NormalizedHookFields | null
 }
 
 /** Marker every generated bridge/wrapper path contains — how the project-file
- *  merge recognizes (and refreshes) Cate's own entries when the bridge path
+ *  merge recognizes (and refreshes) openCate's own entries when the bridge path
  *  changes (the hooks dir is stable across boots, but an app relocation or a
  *  file written by an older per-boot-dir version leaves stale paths behind). */
 export const CATE_HOOK_MARKER = 'cate-hook'
@@ -221,7 +221,7 @@ interface SharedHooksJson {
  * Merge OUR one-command group into every tracked event of a SHARED hooks file.
  * Merge, never clobber: the file also carries user content (claude's "always
  * allow" grants, a user's own codex hooks), so every user field and every user
- * hook group is preserved. Only groups consisting solely of STALE Cate bridge
+ * hook group is preserved. Only groups consisting solely of STALE openCate bridge
  * entries (recognized by the marker) are dropped, then the fresh group is
  * appended per tracked event. Returns the new content, or null to leave the
  * file untouched (unparseable, or already correct).
@@ -586,16 +586,16 @@ const cursorSpec: AgentHookSpec = {
 // original `-e <tempfile>` argv channel was launch-method dependent (any
 // rc-file PATH prepend, alias, or absolute-path launch silently bypassed
 // it) — the same failure mode that moved claude's hooks into its settings
-// file. Cate owns
-// cate-hook.ts outright; it self-gates on the Cate env vars, so it is inert
+// file. openCate owns
+// cate-hook.ts outright; it self-gates on the openCate env vars, so it is inert
 // if committed and loaded by a teammate's pi. Identity from
 // ctx.sessionManager on every event; agent_start/agent_end bracket each turn.
 // The extension posts to the daemon itself (fetch), so no bridge process
 // runs.
 // ---------------------------------------------------------------------------
 
-const PI_EXTENSION_SOURCE = `// cate-hook — generated by Cate (agent hook injection); do not edit.
-// Inert outside Cate terminals: it no-ops unless the CATE_HOOK_* env vars are set.
+const PI_EXTENSION_SOURCE = `// cate-hook — generated by openCate (agent hook injection); do not edit.
+// Inert outside openCate terminals: it no-ops unless the CATE_HOOK_* env vars are set.
 const ENDPOINT = process.env.${CATE_HOOK_ENDPOINT_ENV};
 const TOKEN = process.env.${CATE_HOOK_TOKEN_ENV};
 export default function (pi: any) {
@@ -654,12 +654,12 @@ const piSpec: AgentHookSpec = {
   projectFiles: [
     {
       relPath: '.pi/extensions/cate-hook.ts',
-      // Cate owns this whole file (the header marker says so): rewrite on any
+      // openCate owns this whole file (the header marker says so): rewrite on any
       // drift — including a user edit — and leave every other file in
       // .pi/extensions/ alone. The content is boot-independent (the endpoint
       // rides in env), so an up-to-date file is never rewritten.
       build: (existing) => (existing === PI_EXTENSION_SOURCE ? null : PI_EXTENSION_SOURCE),
-      // Cate owns this file outright (header marker). Remove it wholesale;
+      // openCate owns this file outright (header marker). Remove it wholesale;
       // leave a user file that merely shares the name (no marker) alone.
       strip: (existing) => (existing.includes(CATE_HOOK_MARKER) ? { delete: true } : null),
     },
@@ -682,7 +682,7 @@ const piSpec: AgentHookSpec = {
 
 // ---------------------------------------------------------------------------
 // grok (xAI Grok Build) — hooks ride in <project>/.grok/hooks/cate.json. Grok
-// loads every *.json in that dir, so Cate owns one file there outright rather
+// loads every *.json in that dir, so openCate owns one file there outright rather
 // than merging into a shared one (pi-style ownership, codex-style trust).
 //
 // Two grok-specific quirks, both pinned live by agentHookContracts.itest.ts:
@@ -692,7 +692,7 @@ const piSpec: AgentHookSpec = {
 //    envelope (sessionId / workspaceRoot / toolName). Neither spelling is a
 //    typo; both are contract.
 //  · Grok also scans OTHER vendors' hook files — <project>/.claude/settings
-//    .json + settings.local.json — by default. Cate injects its claude bridge
+//    .json + settings.local.json — by default. openCate injects its claude bridge
 //    into settings.local.json, so a grok session fires the CLAUDE wrapper too,
 //    with a grok payload. The bridge drops those posts (see BRIDGE_JS's
 //    GROK_HOOK_EVENT guard); without it a grok terminal would be labelled
@@ -768,12 +768,12 @@ const grokSpec: AgentHookSpec = {
 // themselves, and it puts opencode on the same Auto/On/Off tri-state (and the
 // same ownership/strip rules) as every other agent.
 //
-// The plugin forwards only the five bus events Cate tracks; the bus is
+// The plugin forwards only the five bus events openCate tracks; the bus is
 // otherwise chatty (message parts, plugin.added, catalog.updated…).
 // ---------------------------------------------------------------------------
 
-const OPENCODE_PLUGIN_SOURCE = `// cate-hook — generated by Cate (agent hook injection); do not edit.
-// Inert outside Cate terminals: it no-ops unless the CATE_HOOK_* env vars are set.
+const OPENCODE_PLUGIN_SOURCE = `// cate-hook — generated by openCate (agent hook injection); do not edit.
+// Inert outside openCate terminals: it no-ops unless the CATE_HOOK_* env vars are set.
 const ENDPOINT = process.env.${CATE_HOOK_ENDPOINT_ENV}
 const TOKEN = process.env.${CATE_HOOK_TOKEN_ENV}
 const TRACKED = new Set(["session.created", "session.status", "session.idle", "permission.asked", "permission.replied"])
@@ -813,7 +813,7 @@ const opencodeSpec: AgentHookSpec = {
     {
       // `.js`, not `.mjs`: opencode's scan glob is `*.{ts,js}` only.
       relPath: '.opencode/plugin/cate-hook.js',
-      // Cate owns this whole file (the header marker says so): rewrite on any
+      // openCate owns this whole file (the header marker says so): rewrite on any
       // drift and leave every other file in .opencode/plugin/ alone. The
       // content is boot-independent (the endpoint rides in env), so an
       // up-to-date file is never rewritten.
@@ -844,7 +844,7 @@ const opencodeSpec: AgentHookSpec = {
 // ---------------------------------------------------------------------------
 // gemini — hooks ride in the project-scoped .gemini/settings.json under the
 // standard {hooks: {<Event>: [groups]}} shape. That file is SHARED with
-// Gemini's own settings, so Cate merges only its marked groups (the same rule
+// Gemini's own settings, so openCate merges only its marked groups (the same rule
 // as claude/codex). The bridge command must be stable because Gemini fingerprints
 // project hook files. Payloads are Claude-shaped JSON on stdin.
 //
@@ -897,7 +897,7 @@ const geminiSpec: AgentHookSpec = {
 
 // ---------------------------------------------------------------------------
 // copilot — repository-level hooks load every *.json from
-// <project>/.github/hooks/. Cate owns cate-hook.json outright, so a user's own
+// <project>/.github/hooks/. openCate owns cate-hook.json outright, so a user's own
 // files in that directory remain untouched. Configuring the event keys in
 // PascalCase selects the documented VS Code-compatible payload shape:
 // hook_event_name plus snake_case session_id/cwd/transcript_path fields.
@@ -936,7 +936,7 @@ function mergeCopilotHooksFile(existing: string | null, bridgeCommand: string): 
   } catch {
     return null
   }
-  // Cate owns this file by marker. Preserve any foreign fields, replace our
+  // openCate owns this file by marker. Preserve any foreign fields, replace our
   // generated map wholesale, and leave unparseable drift for explicit review.
   if (!JSON.stringify(parsed).includes(CATE_HOOK_MARKER)) return null
   const out = JSON.stringify({ ...parsed, ...ours() }, null, 2) + '\n'

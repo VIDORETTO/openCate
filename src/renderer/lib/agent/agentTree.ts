@@ -17,7 +17,7 @@ export interface AgentTreeWorker {
   agentName: string
   /** Detached reports can transiently arrive before their status stamp. */
   status?: CodingAgentRunStatus
-  /** Only Cate-owned runs restored locally carry durable launch ordering. */
+  /** Only openCate-owned runs restored locally carry durable launch ordering. */
   createdAt?: number
   usage?: CodingAgentUsage
   contextRemainingTokens?: number

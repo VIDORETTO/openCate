@@ -149,17 +149,17 @@ export interface CateHost {
   ui: {
     notify(message: string, level?: 'info' | 'warn' | 'error'): Promise<unknown>
   }
-  /** Files dropped onto this panel (from the OS or Cate's file explorer). Requires
+  /** Files dropped onto this panel (from the OS or openCate's file explorer). Requires
    *  the `files.drop` scope; the host reads each file and hands the guest its
    *  content, so the extension never gets raw filesystem access. */
   files: {
     /** Subscribe to drops on this panel. Returns an unsubscribe function. */
     onDrop(cb: (files: CateDroppedFile[]) => void): () => void
   }
-  /** Drive Cate's bundled agent (requires the `agent` scope + first-use user
+  /** Drive openCate's bundled agent (requires the `agent` scope + first-use user
    *  consent). pi owns all conversation state on its session file; the handle
    *  returned by `open` is that file's path, so a conversation can be resumed
-   *  later with nothing persisted on Cate's side. Turn-based: each `send`
+   *  later with nothing persisted on openCate's side. Turn-based: each `send`
    *  resolves on the agent's terminal `agent_end` (a turn can take minutes). One
    *  live session per extension; one turn in flight per session. */
   agent: {
@@ -172,7 +172,7 @@ export interface CateHost {
     /** Abort the in-flight turn of this extension's session. */
     cancel(): Promise<unknown>
   }
-  /** Drive Cate's browser panels (requires the `browser` scope). These panels
+  /** Drive openCate's browser panels (requires the `browser` scope). These panels
    *  hold the user's real, logged-in browser session — cookies, auth, and all —
    *  so anything the user can reach while signed in, the extension can too. Treat
    *  it accordingly. Every method targets a single panel; `panelId` picks it, and

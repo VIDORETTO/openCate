@@ -607,7 +607,7 @@ describe('CATE_API env injection into spawned terminals', () => {
     expect(skillsSync.run).not.toHaveBeenCalled()
   })
 
-  it('injects CATE_PANEL_ID when the PTY belongs to a Cate terminal panel', async () => {
+  it('injects CATE_PANEL_ID when the PTY belongs to a openCate terminal panel', async () => {
     cateApi.ensureEndpoint.mockResolvedValue({ port: 9876, token: 'tok-abc' })
 
     const env = await spawnAndGetEnv({ cols: 80, rows: 24, workspaceId: 'ws-1', panelId: 'panel-123' })
@@ -655,7 +655,7 @@ describe('CATE_API env injection into spawned terminals', () => {
   })
 })
 
-describe('Cate-owned coding-agent process launch', () => {
+describe('openCate-owned coding-agent process launch', () => {
   beforeEach(() => {
     vi.resetModules()
     handlers.clear()

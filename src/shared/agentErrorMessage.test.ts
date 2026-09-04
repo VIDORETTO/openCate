@@ -11,7 +11,7 @@ describe('agentErrorMessage', () => {
     const message = agentErrorMessage(raw)
 
     expect(message).toBe(
-      'Cate couldn’t load its agent tools. Restart Cate and start a new chat.',
+      'openCate couldn’t load its agent tools. Restart openCate and start a new chat.',
     )
     expect(message).not.toContain('/Users/')
     expect(message).not.toContain('Extension runtime')
@@ -25,7 +25,7 @@ describe('agentErrorMessage', () => {
 
   it('never echoes an unknown raw failure', () => {
     expect(agentErrorMessage('secret internal stack and /private/path')).toBe(
-      'The Cate agent ran into a problem. Try again.',
+      'The openCate agent ran into a problem. Try again.',
     )
   })
 })

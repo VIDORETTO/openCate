@@ -1,5 +1,5 @@
-const CACHE_NAME = 'cate-companion-v1'
-const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './cate-logo.svg']
+const CACHE_NAME = 'opencate-companion-v1'
+const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './opencate-logo.svg']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

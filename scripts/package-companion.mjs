@@ -11,8 +11,8 @@ const packageJson = JSON.parse(await readFile(path.join(repoRoot, 'package.json'
 const sourceDir = path.join(repoRoot, 'dist', 'companion-web')
 const releaseDir = path.join(repoRoot, 'release')
 const version = typeof packageJson.version === 'string' ? packageJson.version : 'dev'
-const output = path.join(releaseDir, `cate-companion-web-${version}.tgz`)
-const requiredFiles = ['index.html', 'manifest.webmanifest', 'sw.js', 'cate-logo.svg']
+const output = path.join(releaseDir, `opencate-companion-web-${version}.tgz`)
+const requiredFiles = ['index.html', 'manifest.webmanifest', 'sw.js', 'opencate-logo.svg']
 
 const missingFiles = requiredFiles.filter((file) => !existsSync(path.join(sourceDir, file)))
 if (missingFiles.length > 0) {
@@ -21,14 +21,14 @@ if (missingFiles.length > 0) {
 
 const manifest = JSON.parse(await readFile(path.join(sourceDir, 'manifest.webmanifest'), 'utf8'))
 const hasCateIcon = Array.isArray(manifest.icons)
-  && manifest.icons.some((icon) => icon?.src === './cate-logo.svg')
+  && manifest.icons.some((icon) => icon?.src === './opencate-logo.svg')
 if (manifest.start_url !== './' || manifest.scope !== './' || !hasCateIcon) {
-  throw new Error('companion web manifest must use the relative app scope and reference ./cate-logo.svg')
+  throw new Error('companion web manifest must use the relative app scope and reference ./opencate-logo.svg')
 }
 
 const serviceWorker = await readFile(path.join(sourceDir, 'sw.js'), 'utf8')
-if (!serviceWorker.includes("'./manifest.webmanifest'") || !serviceWorker.includes("'./cate-logo.svg'")) {
-  throw new Error('companion web service worker must cache the manifest and Cate icon')
+if (!serviceWorker.includes("'./manifest.webmanifest'") || !serviceWorker.includes("'./opencate-logo.svg'")) {
+  throw new Error('companion web service worker must cache the manifest and openCate icon')
 }
 
 await mkdir(releaseDir, { recursive: true })

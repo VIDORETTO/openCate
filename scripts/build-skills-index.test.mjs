@@ -4,7 +4,7 @@ import { curateSkills } from './build-skills-index.mjs'
 // The registry curation applies two independent quality floors:
 //   - description floor: applies to EVERYONE (a descriptionless skill renders as
 //     a broken empty row in SkillsDialog, no matter who authored it).
-//   - star floor: waived for first-party skills (Cate's own ship regardless of
+//   - star floor: waived for first-party skills (openCate's own ship regardless of
 //     adoption), enforced for everyone else.
 describe('curateSkills', () => {
   const firstPartyIds = new Set(['cate'])
@@ -15,7 +15,7 @@ describe('curateSkills', () => {
     description: 'A described skill.',
     tags: [],
     format: 'skill-md',
-    source: { repo: '0-AI-UG/cate', ref: 'main', path: 'skills/example' },
+    source: { repo: 'VIDORETTO/openCate', ref: 'main', path: 'skills/example' },
     provenance: 'curated',
     sourceId: 'cate',
     ...over,

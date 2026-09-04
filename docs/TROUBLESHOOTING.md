@@ -1,4 +1,4 @@
-# Troubleshooting Cate
+# Troubleshooting openCate
 
 ## The app does not start
 
@@ -37,7 +37,7 @@ live interactive PTY.
 
 ## SSH or WSL keeps disconnecting
 
-Check the host outside Cate first (`ssh host` or the WSL distribution), then
+Check the host outside openCate first (`ssh host` or the WSL distribution), then
 verify the runtime archive and the workspace path on that host. Reconnect is
 bounded; after the retry limit, reconnect manually from the runtime controls.
 The runtime telemetry history records connection lifecycle events without
@@ -55,8 +55,8 @@ disabled.
 
 ## CLI or SDK cannot connect
 
-The CLI must run in a Cate terminal or receive the endpoint and bearer token
-provided by Cate. Check the CLI permission rows for project read/control and
+The CLI must run in a openCate terminal or receive the endpoint and bearer token
+provided by openCate. Check the CLI permission rows for project read/control and
 the caller's scope. SDK callers should handle both `CateApiError` (an in-band
 API error) and `CateApiTransportError` (connection/timeout failure).
 

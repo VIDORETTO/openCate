@@ -12,14 +12,14 @@
 import { useState } from 'react'
 import { EnvelopeSimple } from '@phosphor-icons/react'
 import { useSettingsStore } from '../stores/settingsStore'
-import { CateLogo } from '../ui/CateLogo'
+import { OpenCateLogo } from '../ui/OpenCateLogo'
 import log from '../lib/logger'
 import headerImg from '../assets/welcome-header.jpg'
 import { AnimatedDotGrid } from './AnimatedDotGrid'
 import { TELEMETRY_NOTICE_VERSION } from '../../shared/types'
 import { Toggle } from '../settings/SettingsComponents'
 
-const GITHUB_REPO = 'https://github.com/0-AI-UG/cate'
+const GITHUB_REPO = 'https://github.com/VIDORETTO/openCate'
 const NEWSLETTER_URL = 'https://cate.cero-ai.com'
 const PRIVACY_URL = 'https://cate.cero-ai.com/privacy'
 
@@ -121,9 +121,9 @@ export function WelcomeDialog() {
                 maskComposite: 'exclude',
               }}
             />
-            <CateLogo size={30} className="relative text-white" />
+            <OpenCateLogo size={30} className="relative text-white" />
           </div>
-          <h2 className="mt-5 text-primary text-[22px] font-bold tracking-tight [text-shadow:0_2px_12px_rgba(0,0,0,0.5)]">Welcome to Cate</h2>
+          <h2 className="mt-5 text-primary text-[22px] font-bold tracking-tight [text-shadow:0_2px_12px_rgba(0,0,0,0.5)]">Welcome to openCate</h2>
           <p className="mt-1.5 px-10 text-center text-muted text-[12.5px] leading-relaxed">
             An infinite canvas for your terminals, editors, browsers, and agents.
           </p>

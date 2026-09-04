@@ -64,7 +64,7 @@ async function searchWorkspaceFiles(
   }
 }
 
-/** A compact, canvas-owned composer for one prompt sent to selected Cate-owned
+/** A compact, canvas-owned composer for one prompt sent to selected openCate-owned
  * missions. It deliberately does not target arbitrary terminal panels. */
 export const GlobalAgentComposer: React.FC<GlobalAgentComposerProps> = ({ workspaceId, placement = 'top' }) => {
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -287,7 +287,7 @@ export const GlobalAgentComposer: React.FC<GlobalAgentComposerProps> = ({ worksp
         </div>
 
         {runs.length === 0 && (
-          <div className="px-2 py-5 text-center text-[11px] text-muted">No Cate-owned agent sessions</div>
+          <div className="px-2 py-5 text-center text-[11px] text-muted">No openCate-owned agent sessions</div>
         )}
         {runs.length > 0 && (
           <div className="space-y-0.5">

@@ -134,13 +134,13 @@ export const SESSION_FLUSH_SAVE_DONE = 'session:flushSaveDone' // renderer -> ma
 export const PROJECT_STATE_SAVE = 'project:stateSave'     // renderer -> main
 export const PROJECT_STATE_LOAD = 'project:stateLoad'     // renderer -> main
 // Fired when a project's workspace.json is found to differ on disk from what
-// Cate last wrote (edited externally) — or back in sync after a reload.
+// openCate last wrote (edited externally) — or back in sync after a reload.
 export const WORKSPACE_EXTERNAL_EDIT = 'project:externalEdit' // main -> renderer
 // Renderer tells main the user declined the reload prompt — resume saving so
 // the current in-app layout overwrites the external edit.
 export const WORKSPACE_EXTERNAL_EDIT_DISMISS = 'project:externalEditDismiss' // renderer -> main
 
-// Per-workspace Cate Agent chats (.cate/chats.json) — the agent's front door.
+// Per-workspace openCate Agent chats (.cate/chats.json) — the agent's front door.
 export const PROJECT_CHATS_LOAD = 'project:chatsLoad' // renderer -> main
 export const PROJECT_CHATS_SAVE = 'project:chatsSave' // renderer -> main
 

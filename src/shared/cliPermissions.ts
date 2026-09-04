@@ -258,5 +258,5 @@ export function cliPermissionCellByKey(key: CliPermissionKey): CliPermissionCell
 /** Error returned when a cell is off. Names the cell so the caller can fix it. */
 export function cliPermissionDenied(cell: CliPermissionCell): string {
   const surface = CLI_PERMISSIONS.find((s) => s.read === cell || s.control === cell)
-  return `${cell.code}: enable ${surface?.label} → ${cell.access} in Cate Settings → CLI`
+  return `${cell.code}: enable ${surface?.label} → ${cell.access} in openCate Settings → CLI`
 }

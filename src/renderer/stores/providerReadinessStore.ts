@@ -2,7 +2,7 @@
 // providerReadinessStore — the single source of truth, per renderer window, for
 // "is an AI provider connected, and does it actually work?".
 //
-// Before this store, every consumer (the agent chat panel, the Cate Agent, the
+// Before this store, every consumer (the agent chat panel, the openCate Agent, the
 // settings screens) called authStatus() on its own and interpreted the result
 // differently — and none of them could tell "nothing connected" from "your
 // sign-in expired". This store centralises both questions:
@@ -152,11 +152,11 @@ function useEnsureStarted(): void {
 }
 
 // -----------------------------------------------------------------------------
-// Cate Agent gate
+// openCate Agent gate
 // -----------------------------------------------------------------------------
 
-/** Whether the Cate Agent can run right now. Unlike the agent panel (which lets
- *  the user pick + reconnect per chat), the Cate Agent is headless and hides
+/** Whether the openCate Agent can run right now. Unlike the agent panel (which lets
+ *  the user pick + reconnect per chat), the openCate Agent is headless and hides
  *  entirely unless a usable provider exists — a connected-but-expired OAuth
  *  sign-in counts as unusable (`needsReauth`), same as no provider at all. */
 export type CateAgentGate = 'ok' | 'noProvider' | 'needsReauth'
@@ -214,7 +214,7 @@ export function deriveCateAgentGate(
   return candidates.some((id) => !broken(id)) ? 'ok' : 'needsReauth'
 }
 
-/** The gate for the Cate Agent, keyed on the shared default model (Settings →
+/** The gate for the openCate Agent, keyed on the shared default model (Settings →
  *  Providers). Per-chat model overrides don't affect readiness — this only asks
  *  whether some usable provider is connected. Reactive to the default key. */
 export function useCateAgentReady(): CateAgentGate {

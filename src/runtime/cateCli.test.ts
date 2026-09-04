@@ -31,7 +31,7 @@ describe('catePathEnv', () => {
 
   it('cateBinDir/cateCliPath resolve under a shared install root', () => {
     expect(cateCliPath().startsWith(path.dirname(path.dirname(cateBinDir())))).toBe(true)
-    expect(cateBinDir().endsWith(path.join('cate', 'bin'))).toBe(true)
-    expect(cateCliPath().endsWith(path.join('cate', 'dist', 'cli.cjs'))).toBe(true)
+    expect(cateBinDir().endsWith(path.join('opencate', 'bin'))).toBe(true)
+    expect(cateCliPath().endsWith(path.join('opencate', 'dist', 'cli.cjs'))).toBe(true)
   })
 })

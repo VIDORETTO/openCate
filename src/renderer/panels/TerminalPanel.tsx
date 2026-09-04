@@ -214,7 +214,7 @@ export default function TerminalPanel({
   const canvasApi = useOptionalCanvasStoreApi()
   const zoomLevel = useOptionalCanvasStoreContext((s) => s.zoomLevel, 1)
 
-  // A supported agent CLI running here with no Cate hooks installed → a small
+  // A supported agent CLI running here with no openCate hooks installed → a small
   // "hooks off" chip linking to Settings (auto-clears when resolved).
   const missingHookAgent = useMissingAgentHookNotice(workspaceId, panelId, rootPath)
 
@@ -986,12 +986,12 @@ export default function TerminalPanel({
             ['--cell-scale' as string]: String(cellScale.w),
           }}
         />
-        {/* Supported agent running without Cate hooks — nudge to Settings. */}
+        {/* Supported agent running without openCate hooks — nudge to Settings. */}
         {missingHookAgent && (
           <button
             type="button"
             onClick={() => useUIStore.getState().openSettings('agent hooks')}
-            title={`${missingHookAgent} is running without Cate hooks — click to set them up in Settings`}
+            title={`${missingHookAgent} is running without openCate hooks — click to set them up in Settings`}
             className="absolute bottom-2 right-2 z-30 flex items-center gap-1 px-2 py-1 rounded-md bg-surface-3/90 border border-subtle text-[11px] text-secondary hover:text-primary backdrop-blur-sm transition-colors focus:outline-none"
           >
             <Warning size={11} className="flex-shrink-0" />

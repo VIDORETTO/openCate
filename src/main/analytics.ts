@@ -64,7 +64,7 @@ export function resolveAnalyticsEndpoint(env: NodeJS.ProcessEnv): string {
 }
 
 const ENDPOINT = resolveAnalyticsEndpoint(process.env)
-const APP_ID = 'cate'
+const APP_ID = 'opencate'
 const STATE_FILENAME = 'analytics-state.json'
 const PENDING_FILENAME = 'pending-events.jsonl'
 const MAX_PENDING_BYTES = 256 * 1024 // cap the offline buffer so it can't grow unbounded
@@ -89,7 +89,7 @@ function readState(): AnalyticsState {
   return readJsonFile<AnalyticsState>(STATE_FILENAME, {})
 }
 
-/** Whether Cate has been launched before on this machine (sync). Used to scope
+/** Whether openCate has been launched before on this machine (sync). Used to scope
  *  the onboarding tour to genuine first installs — anyone who has run a prior
  *  version (so has a recorded lastSeenVersion) is treated as already onboarded. */
 export function hasRunBefore(): boolean {
@@ -159,7 +159,7 @@ function postEvents(body: string): Promise<boolean> {
     try {
       const request = net.request({ method: 'POST', url: ENDPOINT })
       request.setHeader('Content-Type', 'application/json')
-      request.setHeader('User-Agent', `Cate/${app.getVersion()}`)
+      request.setHeader('User-Agent', `openCate/${app.getVersion()}`)
       let settled = false
       const done = (ok: boolean) => { if (!settled) { settled = true; resolve(ok) } }
       request.on('response', (res) => {

@@ -59,7 +59,7 @@ describe('BrowserMenu', () => {
     expect(onZoomIn).toHaveBeenCalledOnce()
   })
 
-  it('opens Cate settings at the Browser section', () => {
+  it('opens openCate settings at the Browser section', () => {
     const onClose = vi.fn()
     act(() => {
       root.render(

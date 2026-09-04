@@ -46,7 +46,7 @@ try {
   await page.getByLabel('Invitation URI or JSON').fill(JSON.stringify(invitation))
   await page.getByLabel('Six-digit code').fill('123456')
   await page.getByRole('button', { name: 'Generate pairing proof' }).click()
-  await page.getByText('Proof to paste into Cate desktop').waitFor()
+  await page.getByText('Proof to paste into openCate desktop').waitFor()
   await page.getByText('Identity stored locally').waitFor()
   await page.waitForFunction(async () => {
     const registration = await navigator.serviceWorker?.getRegistration()

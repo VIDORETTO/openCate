@@ -1,5 +1,5 @@
 // =============================================================================
-// cate-ask-user — a first-party Cate extension that gives the agent an
+// cate-ask-user — a first-party openCate extension that gives the agent an
 // `ask_user` tool. When the model needs decisions or clarifications it can't
 // safely assume, it calls ask_user with one or more questions (each a choice or
 // free text); the tool blocks until the user answers, then returns the answers
@@ -11,9 +11,9 @@
 //
 // How the UI works: pi's RPC mode only exposes select / input / confirm as
 // interactive primitives (custom() — arbitrary TUI components — is stubbed out
-// when pi runs headless under Cate). Since one ask_user call can carry several
+// when pi runs headless under openCate). Since one ask_user call can carry several
 // questions with multi-select, we do a SINGLE ctx.ui.input round-trip whose
-// title carries a JSON envelope (marker below). Cate's renderer decodes it,
+// title carries a JSON envelope (marker below). openCate's renderer decodes it,
 // shows a multi-question form, and returns the answers as a JSON string in the
 // response value. pi passes that value through untouched (it never validates it
 // against an option list), so we get the full structured result back.
@@ -22,7 +22,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent"
 import { Type } from "typebox"
 
-// Marker that prefixes the input title so Cate's renderer can detect an ask_user
+// Marker that prefixes the input title so openCate's renderer can detect an ask_user
 // request and decode the JSON envelope that follows. NO surrounding whitespace:
 // pi trims the dialog title. Kept in sync with ASK_USER_MARKER in
 // src/cateAgent/renderer/AgentPanelChrome.tsx.
@@ -41,7 +41,7 @@ interface AskUserQuestion {
   allowOther?: boolean
 }
 
-/** Build the envelope title Cate decodes: marker + JSON, nothing else. */
+/** Build the envelope title openCate decodes: marker + JSON, nothing else. */
 function envelope(payload: { questions: AskUserQuestion[] }): string {
   return ASK_USER_MARKER + JSON.stringify(payload)
 }

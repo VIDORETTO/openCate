@@ -2,7 +2,7 @@
 
 O runtime `container` é um adaptador explícito para Docker ou Podman. Ele não
 é um modo genérico de executar imagens arbitrárias: a imagem precisa trazer o
-runtime do Cate nos caminhos fixos abaixo.
+runtime do openCate nos caminhos fixos abaixo.
 
 ```text
 /opt/cate/runtime/bin/node

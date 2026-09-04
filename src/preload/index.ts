@@ -112,7 +112,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   isE2E: process.env.CATE_E2E === '1',
   isPerf: process.env.CATE_PERF === '1',
 
-  /** Set this window's UI zoom factor (Cate chrome only — webview content keeps
+  /** Set this window's UI zoom factor (openCate chrome only — webview content keeps
    *  its own zoom). Applied per-renderer; each window calls this on mount and
    *  whenever the uiScale setting changes. */
   setUiScale(scale: number): void {
@@ -295,7 +295,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Cross-window drag-and-drop
   // ---------------------------------------------------------------------------
 
-  /** Synchronous check: is any Cate BrowserWindow currently in macOS
+  /** Synchronous check: is any openCate BrowserWindow currently in macOS
    *  native fullscreen? Uses the cached push value when available and
    *  falls back to a sync IPC for the authoritative answer. Drag handlers
    *  call this on every mousemove — that's fine at ~60 Hz. */
@@ -323,7 +323,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   /** Subscribe to native-fullscreen state changes. Fires with the new boolean
-   *  whenever any Cate window enters or leaves macOS native fullscreen. */
+   *  whenever any openCate window enters or leaves macOS native fullscreen. */
   onFullscreenChange(callback: (isFullscreen: boolean) => void): () => void {
     const listener = (_event: Electron.IpcRendererEvent, value: boolean): void => {
       callback(Boolean(value))
@@ -333,7 +333,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   /** Subscribe to workspace.json external-edit state. Fires whenever a project's
-   *  on-disk workspace file diverges from what Cate last wrote (edited
+   *  on-disk workspace file diverges from what openCate last wrote (edited
    *  externally) or comes back in sync after a reload. */
   onWorkspaceExternalEdit(callback: (payload: { rootPath: string }) => void): () => void {
     return createIpcListener(WORKSPACE_EXTERNAL_EDIT, callback)

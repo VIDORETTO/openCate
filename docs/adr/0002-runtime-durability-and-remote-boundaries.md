@@ -4,7 +4,7 @@
 
 The runtime contract supports local, SSH, WSL, and an explicit container host;
 PTYs remain ephemeral unless a terminal opts into tmux durability. The tmux
-backend uses a stable Cate-owned session name, attaches through argv (never a
+backend uses a stable openCate-owned session name, attaches through argv (never a
 shell string), destroys the session on user close, and only detaches its client
 when the daemon shuts down. It is available on POSIX runtime hosts where tmux
 is installed; Windows fails closed with a clear error.
@@ -12,7 +12,7 @@ is installed; Windows fails closed with a clear error.
 Container runtimes require a declared Docker/Podman image, an explicit single
 workspace bind mount, a runtime root inside that mount, `--pull=never`, and a
 secret/environment allowlist. The image must already contain
-`/opt/cate/runtime/bin/node` and `/opt/cate/runtime/runtime.cjs`; Cate never
+`/opt/cate/runtime/bin/node` and `/opt/cate/runtime/runtime.cjs`; openCate never
 deletes or mutates the image and defaults the container network to `none`.
 
 The companion protocol and a self-hosted opaque relay are now concrete seams:

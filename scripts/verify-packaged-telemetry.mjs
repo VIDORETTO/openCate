@@ -8,12 +8,12 @@ import { _electron as electron } from 'playwright'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const defaultExecutable = process.platform === 'win32'
-  ? path.join(repoRoot, 'release', 'win-unpacked', 'Cate.exe')
+  ? path.join(repoRoot, 'release', 'win-unpacked', 'openCate.exe')
   : undefined
 const executable = process.env.CATE_PACKAGED_APP || defaultExecutable
 
 if (!executable) {
-  throw new Error('Set CATE_PACKAGED_APP to an unpacked packaged Cate executable')
+  throw new Error('Set CATE_PACKAGED_APP to an unpacked packaged openCate executable')
 }
 await fs.access(executable)
 

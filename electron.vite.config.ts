@@ -33,7 +33,7 @@ export default defineConfig({
           index: resolve(__dirname, 'src/preload/index.ts'),
           // Minimal preload for ordinary browser guests. It reports only the
           // focused password field's position/opaque marker to the host so
-          // Cate can render autofill suggestions outside untrusted page DOM.
+          // openCate can render autofill suggestions outside untrusted page DOM.
           browserGuest: resolve(__dirname, 'src/preload/browserGuest.ts'),
           // Second preload injected into extension webview guests (the `cate`
           // reverse-API bridge). Emitted alongside index.js in dist/preload/.
@@ -45,9 +45,9 @@ export default defineConfig({
   renderer: {
     root: '.',
     define: sentryDefine,
-    // Don't let the dev server watch .cate/ — it holds Cate's own project state
+    // Don't let the dev server watch .cate/ — it holds openCate's own project state
     // and, now, git worktrees (full repo checkouts under .cate/worktrees). When
-    // developing Cate-on-Cate, creating a worktree there would otherwise drop a
+    // developing openCate-on-openCate, creating a worktree there would otherwise drop a
     // duplicate index.html/tsconfig.json into the watched tree and force a full
     // HMR reload. Anchored to `${root}/.cate` rather than a bare `**/.cate/**`:
     // the latter matches against ABSOLUTE paths, so when dev runs FROM INSIDE a

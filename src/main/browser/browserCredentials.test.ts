@@ -81,7 +81,7 @@ async function createChromeProfile(password = 'correct horse battery staple'): P
 
 beforeEach(async () => {
   root = await fsp.mkdtemp(path.join(os.tmpdir(), 'cate-browser-credentials-'))
-  state.userData = path.join(root, 'Cate')
+  state.userData = path.join(root, 'openCate')
   await fsp.mkdir(state.userData, { recursive: true })
 })
 

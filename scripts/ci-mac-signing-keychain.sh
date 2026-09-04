@@ -26,8 +26,8 @@ if [ -z "${CSC_LINK:-}" ]; then
 fi
 
 TMP="${RUNNER_TEMP:-/tmp}"
-KEYCHAIN="$TMP/cate-runtime-signing.keychain-db"
-CERT="$TMP/cate-runtime-cert.p12"
+KEYCHAIN="$TMP/opencate-runtime-signing.keychain-db"
+CERT="$TMP/opencate-runtime-cert.p12"
 KPASS="$(uuidgen)"
 
 # Fresh keychain, unlocked, with a long auto-lock timeout so it is still usable

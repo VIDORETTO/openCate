@@ -1,6 +1,6 @@
 {
   "name": "cate-orchestrator",
-  "description": "Prompt mode that teaches Cate Agent to orchestrate visible coding agents through the cate CLI.",
+  "description": "Prompt mode that teaches openCate Agent to orchestrate visible coding agents through the cate CLI.",
   "private": true,
   "pi": {
     "extensions": ["./index.ts"]

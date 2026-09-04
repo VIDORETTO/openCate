@@ -4,8 +4,8 @@
 // `publish:` block in electron-builder.yml.
 // =============================================================================
 
-export const GH_OWNER = '0-AI-UG'
-export const GH_REPO = 'cate'
+export const GH_OWNER = 'VIDORETTO'
+export const GH_REPO = 'openCate'
 
 /** Release tag that hosts the runtime + pi tarballs for an app version. */
 export function releaseTag(appVersion: string): string {

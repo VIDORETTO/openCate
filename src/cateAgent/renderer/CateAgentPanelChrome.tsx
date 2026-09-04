@@ -192,7 +192,7 @@ function AskUserCard({
           <Sparkle size={12} className="text-agent-light" />
         </div>
         <div className="flex-1 min-w-0 flex items-center gap-2">
-          <span className="text-[10.5px] uppercase tracking-wider text-agent-light/80">Cate is asking</span>
+          <span className="text-[10.5px] uppercase tracking-wider text-agent-light/80">openCate is asking</span>
           {total > 1 && (
             <span className="text-[10.5px] text-muted">{page + 1} / {total}</span>
           )}
@@ -567,7 +567,7 @@ export async function readFileAsImage(file: File): Promise<CodingImageAttachment
   return { data, mimeType: file.type, fileName: file.name }
 }
 
-/** Read an image FILE PATH (Cate Explorer drag, or an external OS path) as an
+/** Read an image FILE PATH (openCate Explorer drag, or an external OS path) as an
  *  attachment. Reads through the runtime-aware filesystem IPC so it works for
  *  remote workspaces; returns null for non-image paths or unreadable files. */
 export async function readPathAsImage(

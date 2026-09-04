@@ -2,7 +2,7 @@
 # Build with the tarball directory as context:
 #
 #   docker build \
-#     --build-arg RUNTIME_TARBALL=cate-runtime-<version>-linux-x64.tgz \
+#     --build-arg RUNTIME_TARBALL=opencate-runtime-<version>-linux-x64.tgz \
 #     -f docker/cate-runtime/Dockerfile \
 #     -t cate/runtime:<version>-linux-x64 dist-runtime
 #
@@ -11,16 +11,16 @@
 FROM debian:bookworm-slim
 
 ARG RUNTIME_TARBALL
-COPY ${RUNTIME_TARBALL} /tmp/cate-runtime.tgz
+COPY ${RUNTIME_TARBALL} /tmp/opencate-runtime.tgz
 
 RUN mkdir -p /opt/cate/runtime \
-  && tar -xzf /tmp/cate-runtime.tgz -C /opt/cate \
+  && tar -xzf /tmp/opencate-runtime.tgz -C /opt/cate \
   && test -f /opt/cate/runtime.cjs \
   && mv /opt/cate/runtime.cjs /opt/cate/runtime/runtime.cjs \
   && chmod +x /opt/cate/runtime/bin/node /opt/cate/runtime/bin/rg \
   && test -x /opt/cate/runtime/bin/node \
   && test -f /opt/cate/runtime/runtime.cjs \
-  && rm -f /tmp/cate-runtime.tgz
+  && rm -f /tmp/opencate-runtime.tgz
 
 WORKDIR /workspace
 ENTRYPOINT ["/opt/cate/runtime/bin/node", "/opt/cate/runtime/runtime.cjs"]

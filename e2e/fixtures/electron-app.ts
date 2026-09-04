@@ -49,7 +49,7 @@ async function currentCateCliBin(): Promise<string> {
 
 async function localRuntimeEnv(): Promise<Record<string, string>> {
   const version = JSON.parse(readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8')).version
-  const tarballName = `cate-runtime-${version}-${process.platform}-${process.arch}.tgz`
+  const tarballName = `opencate-runtime-${version}-${process.platform}-${process.arch}.tgz`
   const roots = [REPO_ROOT, path.resolve(REPO_ROOT, '..', '..', '..')]
   const tarball = roots
     .map((root) => path.join(root, 'dist-runtime', tarballName))
@@ -81,7 +81,7 @@ export async function launchApp(opts: {
   }
   // Playwright forces colored reporter output while some hosts also export
   // NO_COLOR. Passing both into a real terminal makes every bundled Node CLI
-  // print a warning before its own stdout, which is not a Cate behavior.
+  // print a warning before its own stdout, which is not a openCate behavior.
   delete env.NO_COLOR
   let electronApp: ElectronApplication | undefined
   try {

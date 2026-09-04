@@ -1,12 +1,12 @@
 ---
 name: cate-theme
-description: Author or edit a Cate IDE theme — one data-driven theme covering app chrome colors, the terminal ANSI palette, and Monaco editor syntax tokens. Use when the user asks to create, customize, recolor, or generate a Cate theme, mentions a color scheme (Dracula, Nord, "make Cate look like X"), or wants a new light/dark theme.
+description: Author or edit a openCate IDE theme — one data-driven theme covering app chrome colors, the terminal ANSI palette, and Monaco editor syntax tokens. Use when the user asks to create, customize, recolor, or generate a openCate theme, mentions a color scheme (Dracula, Nord, "make openCate look like X"), or wants a new light/dark theme.
 user-invocable: true
 ---
 
-# Authoring Cate Themes
+# Authoring openCate Themes
 
-A Cate theme is ONE JSON object that styles the whole IDE:
+A openCate theme is ONE JSON object that styles the whole IDE:
 
 - **app** — the window/panel chrome (CSS custom properties: surfaces, text, borders, accents)
 - **terminal** — the xterm palette (background/foreground + the 16 ANSI colors)
@@ -19,7 +19,7 @@ folder. Validate every theme against it before saving.
 
 ## Where themes live
 
-User themes are stored in Cate's settings file under the `customThemes` array,
+User themes are stored in openCate's settings file under the `customThemes` array,
 and the active theme is `activeThemeId`:
 
 ```

@@ -1,5 +1,5 @@
 // =============================================================================
-// chatsStore — renderer-side authority for per-workspace Cate Agent chats.
+// chatsStore — renderer-side authority for per-workspace openCate Agent chats.
 //
 // Holds main-agent session metadata keyed by project rootPath and mirrors every
 // mutation to `.cate/chats.json` via IPC.
@@ -37,7 +37,7 @@ interface ChatsStoreActions {
   getChats: (rootPath: string) => Chat[]
   /** Find one chat by id (undefined if absent). */
   getChat: (rootPath: string, id: string) => Chat | undefined
-  /** Create a fresh empty Cate Agent chat in the sidebar (default) or one panel. */
+  /** Create a fresh empty openCate Agent chat in the sidebar (default) or one panel. */
   createChat: (rootPath: string, title: string, hostPanelId?: string, worktreeId?: string) => Chat
   /** Move one chat to an Agent panel, or to the sidebar when panelId is null. */
   moveChat: (rootPath: string, id: string, panelId: string | null) => void

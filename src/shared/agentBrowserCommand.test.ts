@@ -28,7 +28,7 @@ describe('agent-browser command boundary', () => {
     expect(() => validateAgentBrowserCommand(['wait', '--download=/tmp/x.zip'])).toThrow()
   })
 
-  it('allows Cate refs for element screenshots and marks visible actions', () => {
+  it('allows openCate refs for element screenshots and marks visible actions', () => {
     expect(validateAgentBrowserCommand(['screenshot', '@s3e9', '--annotate']))
       .toEqual(['screenshot', '@s3e9', '--annotate'])
     expect(agentBrowserCommandShowsActivity(['fill', '@s1e1', 'x'])).toBe(true)

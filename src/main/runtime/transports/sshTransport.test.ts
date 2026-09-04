@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../logger', () => ({ default: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 vi.mock('../runtimeArtifacts', () => ({
-  ensureLocalTarball: vi.fn(async () => '/tmp/cate-runtime.tgz'),
+  ensureLocalTarball: vi.fn(async () => '/tmp/opencate-runtime.tgz'),
   isRuntimeDevMode: () => false,
   isRuntimeTarget: (target: string) => ['linux-x64', 'linux-arm64', 'darwin-x64', 'darwin-arm64'].includes(target),
   localTarballIfPresent: () => null,
@@ -199,7 +199,7 @@ describe('SshTransport system OpenSSH connection', () => {
     const upload = calls.find((call) => call.binary === 'scp')
     expect(upload?.args).toEqual(expect.arrayContaining([
       '-i', '/home/alice/.ssh/id_ecdsa',
-      '/tmp/cate-runtime.tgz',
+      '/tmp/opencate-runtime.tgz',
       'corp-bastion:/home/tester/.cate/runtime/3.0.0/linux-x64/pkg.tgz',
     ]))
   })

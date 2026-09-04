@@ -45,7 +45,7 @@ function generateId(): string {
 
 // -----------------------------------------------------------------------------
 // Per-project lock — claim ownership of a project's .cate/workspace.json when
-// it's opened here, so a second Cate (dev vs installed) won't autosave over us.
+// it's opened here, so a second openCate (dev vs installed) won't autosave over us.
 // -----------------------------------------------------------------------------
 
 /** Workspace other than `exceptId` rooted at `rootPath`, if one exists. */
@@ -68,8 +68,8 @@ function claimProjectLock(rootPath: string, name?: string): void {
   if (acquireProjectLock(rootPath)) return
   void dialog.showMessageBox({
     type: 'warning',
-    message: 'Another Cate instance has this project open',
-    detail: `Changes you make to the workspace${name ? ` "${name}"` : ''} won't be saved while another Cate instance has it open. Close the other instance to resume saving.`,
+    message: 'Another openCate instance has this project open',
+    detail: `Changes you make to the workspace${name ? ` "${name}"` : ''} won't be saved while another openCate instance has it open. Close the other instance to resume saving.`,
     buttons: ['OK'],
     noLink: true,
   })

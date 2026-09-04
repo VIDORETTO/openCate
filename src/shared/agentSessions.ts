@@ -1,6 +1,6 @@
 // =============================================================================
 // Cross-CLI agent-session history — provider-neutral references and transcript
-// projection. The source files remain owned by each CLI; Cate only stores a
+// projection. The source files remain owned by each CLI; openCate only stores a
 // small machine-local index and reads a transcript when the user asks to view
 // it. A transcript is never reconstructed from terminal scrollback.
 // =============================================================================

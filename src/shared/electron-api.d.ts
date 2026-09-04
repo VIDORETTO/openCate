@@ -52,7 +52,7 @@ export interface ElectronAPI {
   /** Pull the latest main-process resource snapshot (null until first sample). */
   perfGetSnapshot(): Promise<PerfSnapshot | null>
 
-  /** Set this window's UI zoom factor (Cate chrome only). Clamped to 0.5–2.0. */
+  /** Set this window's UI zoom factor (openCate chrome only). Clamped to 0.5–2.0. */
   setUiScale(scale: number): void
 
   // ---------------------------------------------------------------------------
@@ -66,7 +66,7 @@ export interface ElectronAPI {
     cwd?: string
     shell?: string
     workspaceId?: string
-    /** Owning Cate panel, exposed to the spawned shell as CATE_PANEL_ID. */
+    /** Owning openCate panel, exposed to the spawned shell as CATE_PANEL_ID. */
     panelId?: string
     /** Opaque canvas affinity, exposed to the shell for host-API creates. */
     placementGroupId?: string
@@ -518,10 +518,10 @@ export interface ElectronAPI {
     session: import('./types').ProjectSessionFile | null
   } | null>
 
-  /** Load the per-workspace Cate Agent chats from .cate/chats.json (empty if absent). */
+  /** Load the per-workspace openCate Agent chats from .cate/chats.json (empty if absent). */
   projectChatsLoad(rootPath: string): Promise<import('./types').Chat[]>
 
-  /** Persist the whole per-workspace Cate Agent chat list to .cate/chats.json. */
+  /** Persist the whole per-workspace openCate Agent chat list to .cate/chats.json. */
   projectChatsSave(rootPath: string, chats: import('./types').Chat[]): Promise<void>
 
   /** Load user-curated project/worktree memory notes from .cate/memory.json. */
@@ -547,7 +547,7 @@ export interface ElectronAPI {
   // ---------------------------------------------------------------------------
 
   /** Subscribe to folder/file paths forwarded from the OS — e.g. the user
-   *  dropped a folder on the dock icon or opened one via "Open With Cate".
+   *  dropped a folder on the dock icon or opened one via "Open With openCate".
    *  Returns an unsubscribe function. */
   onOpenPath(callback: (filePath: string) => void): () => void
 
@@ -746,9 +746,9 @@ export interface ElectronAPI {
   browserCredentialProfiles(): Promise<import('./types').BrowserCredentialProfilesResult>
   /** All saved credential metadata for the in-browser password manager. */
   browserCredentialList(): Promise<import('./types').BrowserCredentialSuggestion[]>
-  /** Explicitly import one discovered Chrome profile into Cate's encrypted store. */
+  /** Explicitly import one discovered Chrome profile into openCate's encrypted store. */
   browserCredentialImport(profileId: string): Promise<{ imported: number; skipped: number; total: number }>
-  /** Import Chrome's portable CSV export selected through Cate's native file picker. */
+  /** Import Chrome's portable CSV export selected through openCate's native file picker. */
   browserCredentialImportFile(): Promise<{
     canceled: boolean
     imported: number
@@ -858,11 +858,11 @@ export interface ElectronAPI {
   onDragEnd(callback: (dragId: string) => void): () => void
 
   /** Subscribe to native-fullscreen state changes. Fires with the new boolean
-   *  whenever any Cate window enters or leaves macOS native fullscreen. */
+   *  whenever any openCate window enters or leaves macOS native fullscreen. */
   onFullscreenChange(callback: (isFullscreen: boolean) => void): () => void
 
   /** Subscribe to external edits of a project's workspace.json. Fires when the
-   *  on-disk file is found to differ from what Cate last wrote (i.e. a reload
+   *  on-disk file is found to differ from what openCate last wrote (i.e. a reload
    *  should be offered). */
   onWorkspaceExternalEdit(callback: (payload: { rootPath: string }) => void): () => void
 
@@ -1110,13 +1110,13 @@ export interface ElectronAPI {
   /** Get token + cost + context-usage stats for the current session. */
   agentGetSessionStats(panelId: string): Promise<CodingSessionStats>
 
-  /** Read Cate-managed custom OpenAI-compatible provider configs. */
+  /** Read openCate-managed custom OpenAI-compatible provider configs. */
   agentCustomModelsGet(): Promise<CustomOpenAIProvider[]>
 
-  /** Add or update a Cate-managed custom OpenAI-compatible provider. */
+  /** Add or update a openCate-managed custom OpenAI-compatible provider. */
   agentCustomModelsSave(cfg: CustomOpenAIProvider): Promise<void>
 
-  /** Delete one Cate-managed custom OpenAI-compatible provider. */
+  /** Delete one openCate-managed custom OpenAI-compatible provider. */
   agentCustomModelsDelete(providerId: string): Promise<void>
 
   /** Get pi's RPC session state snapshot. */
@@ -1144,7 +1144,7 @@ export interface ElectronAPI {
   /** Delete a pi session file from disk. Refuses paths outside ~/.pi/agent/sessions. */
   agentDeleteSession(sessionFile: string): Promise<void>
 
-  /** List provider-neutral session references observed by Cate's hooks. */
+  /** List provider-neutral session references observed by openCate's hooks. */
   agentSessionHistoryList(workspaceRoot: string, query?: string): Promise<AgentSessionSummary[]>
 
   /** Replay a known native transcript without starting its CLI. */
@@ -1185,7 +1185,7 @@ export interface ElectronAPI {
   skillsReinstallCateCli(cwd: string, workspaceId?: string): Promise<{ ok: boolean; error?: string; warnings?: string[]; installedTargets?: number }>
   /** Installs recorded in this workspace's .cate/skills.json. */
   skillsListInstalled(cwd: string): Promise<InstalledSkill[]>
-  /** Skills saved to the user's Cate library (cached in userData). */
+  /** Skills saved to the user's openCate library (cached in userData). */
   skillsListSaved(): Promise<SavedSkill[]>
   /** Save a skill to the library: fetch its files + cache them in userData. */
   skillsSave(entry: SkillEntry): Promise<{ ok: boolean; error?: string }>

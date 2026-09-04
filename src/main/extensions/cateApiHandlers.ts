@@ -107,7 +107,7 @@ const CATE_API_VERSION = 8
 
 const FORWARD_TIMEOUT_MS = 10_000
 // Browser commands are backed by a native agent-browser process. Its default
-// action timeout is 25s and the Cate adapter allows a little startup/IPC
+// action timeout is 25s and the openCate adapter allows a little startup/IPC
 // headroom, so a valid wait/navigation must not expire at the generic host
 // action deadline first.
 const BROWSER_FORWARD_TIMEOUT_MS = 35_000
@@ -678,13 +678,13 @@ export function authorizeCateInvoke(
   const trustedCaller = scope.caller === 'first-party' || scope.caller === 'cate-agent' || scope.caller === 'companion'
 
   // Security: only enabled, known extensions may call the host. First-party
-  // terminals and the embedded Cate Agent are trusted and skip this gate.
+  // terminals and the embedded openCate Agent are trusted and skip this gate.
   if (!trustedCaller && (!extensionManager.isKnown(extensionId) || !extensionManager.isEnabled(extensionId))) {
     return { error: 'not-enabled', method }
   }
 
   // Coding-agent orchestration is available to first-party terminal callers
-  // and the embedded Cate Agent. Third-party extensions cannot opt into it by
+  // and the embedded openCate Agent. Third-party extensions cannot opt into it by
   // self-declaring the scope.
   if (method.startsWith('cate.codingAgent.') && !trustedCaller) {
     return { error: 'first-party-only', method }
@@ -692,7 +692,7 @@ export function authorizeCateInvoke(
 
   // Project records can contain source paths, task prompts and user-curated
   // context. They are intentionally not an extension capability; only the
-  // authenticated first-party CLI and embedded Cate Agent may use them.
+  // authenticated first-party CLI and embedded openCate Agent may use them.
   if (isCateProjectMethod(method) && !trustedCaller) {
     return { error: 'first-party-only', method }
   }
@@ -732,7 +732,7 @@ export function authorizeCateInvoke(
   if (usesCliPermissions) {
     if (getSetting('cliEnabled') !== true) {
       return {
-        error: 'cli-disabled: enable Command-line control (cate CLI) in Cate Settings → CLI',
+        error: 'cli-disabled: enable Command-line control (cate CLI) in openCate Settings → CLI',
         method,
       }
     }
@@ -994,7 +994,7 @@ export async function dispatchCateInvoke(
     }
 
     // --- Agent: drive a pi session through the bundled pi --------------------
-    // pi owns all conversation state on its session jsonl; Cate only holds the
+    // pi owns all conversation state on its session jsonl; openCate only holds the
     // live client. `open` returns a handle (the jsonl path) the extension reuses
     // for `send` and can persist to `resume` later. There is no one-shot `run`
     // sugar — compose open -> send -> dispose.

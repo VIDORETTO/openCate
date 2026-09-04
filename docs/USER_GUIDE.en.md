@@ -1,6 +1,6 @@
-# Cate user guide
+# openCate user guide
 
-Cate turns a folder into a visual workspace for running CLI agents, terminals,
+openCate turns a folder into a visual workspace for running CLI agents, terminals,
 editors, and tools side by side. The canvas stores geometry and panels; the dock
 organizes panels into tabs and splits.
 
@@ -20,12 +20,12 @@ approval.
 
 ## Terminals and agents
 
-Each terminal owns a PTY. Cate tracks states such as working, waiting for input,
+Each terminal owns a PTY. openCate tracks states such as working, waiting for input,
 finished, error, and stalled when the agent provides structured signals or a
 supported screen fallback can infer them.
 
 Terminals can have a custom name, star, tags, and color. These metadata, bounded
-scrollback, and resume hints belong to the local session. Cate does not copy the
+scrollback, and resume hints belong to the local session. openCate does not copy the
 whole scrollback into the context bus or authorship audit.
 
 ## Worktrees and parallel missions
@@ -35,7 +35,7 @@ initial task with one confirmation. Each worktree gets its own visual territory.
 Review the diff, approve hunks when needed, and use the merge queue before
 integrating.
 
-Commits and pull requests are assisted actions: Cate checks the current state,
+Commits and pull requests are assisted actions: openCate checks the current state,
 shows what will happen, and does not publish work without the confirmation
 requested by the UI.
 

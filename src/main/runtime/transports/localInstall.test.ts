@@ -1,7 +1,7 @@
 // =============================================================================
 // Local runtime provisioning: content-keyed install dirs + atomic swap.
 //
-// Regression cover for the bug where a packaged Cate and a dev build, both at
+// Regression cover for the bug where a packaged openCate and a dev build, both at
 // the same RUNTIME_VERSION but with different daemon tarballs, shared ONE
 // install dir (~/.cate/runtime/<version>/<target>). Each app read the other's
 // `.ok` marker as stale, `rm -rf`d the live directory and re-extracted 110MB

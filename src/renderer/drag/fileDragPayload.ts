@@ -3,7 +3,7 @@ export const CATE_FILES_MIME = 'application/cate-files'
 export const CATE_FILE_LINE_MIME = 'application/cate-file-line'
 export const CHAT_DRAG_MIME = 'application/cate-chat'
 
-/** A durable Cate Agent chat dragged from a chat list. */
+/** A durable openCate Agent chat dragged from a chat list. */
 export interface ChatDragPayload {
   chatId: string
   rootPath: string
@@ -42,7 +42,7 @@ export function hasCateFileDrag(dataTransfer: Pick<DataTransfer, 'types'> | null
     (dataTransfer.types.includes(CATE_FILE_MIME) || dataTransfer.types.includes(CATE_FILES_MIME))
 }
 
-/** True when the drag carries a Cate chat payload. A type-only check (getData is
+/** True when the drag carries a openCate chat payload. A type-only check (getData is
  *  unavailable during dragover) for the panel drop guards that must let a chat
  *  bubble to the canvas / dock zone instead of swallowing it as a file drop. */
 export function hasChatDrag(dataTransfer: Pick<DataTransfer, 'types'> | null): boolean {

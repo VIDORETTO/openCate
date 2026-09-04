@@ -1,6 +1,6 @@
 // =============================================================================
 // build-skills-index.mjs - crawl registry/sources.json and emit the curated
-// skills-index.json that the Cate app fetches. Run by the skills-index GitHub
+// skills-index.json that the openCate app fetches. Run by the skills-index GitHub
 // Action (with GITHUB_TOKEN for a 5000/hr rate limit). Mirrors the discovery
 // logic in src/skills/main/githubCrawl.ts (kept standalone so it runs as plain
 // node with no build step).
@@ -18,7 +18,7 @@ const INDEX_PATH = path.join(REPO_ROOT, 'registry', 'skills-index.json')
 const TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || ''
 
 function authHeaders() {
-  const h = { Accept: 'application/vnd.github+json', 'User-Agent': 'Cate-skills-index' }
+  const h = { Accept: 'application/vnd.github+json', 'User-Agent': 'openCate-skills-index' }
   if (TOKEN) h.Authorization = `Bearer ${TOKEN}`
   return h
 }
@@ -89,7 +89,7 @@ async function ghJson(url) {
 async function rawText(owner, name, ref, p) {
   const segs = p.split('/').map(encodeURIComponent).join('/')
   const res = await fetch(`https://raw.githubusercontent.com/${owner}/${name}/${encodeURIComponent(ref)}/${segs}`, {
-    headers: TOKEN ? { Authorization: `Bearer ${TOKEN}`, 'User-Agent': 'Cate-skills-index' } : { 'User-Agent': 'Cate-skills-index' },
+    headers: TOKEN ? { Authorization: `Bearer ${TOKEN}`, 'User-Agent': 'openCate-skills-index' } : { 'User-Agent': 'openCate-skills-index' },
   })
   if (!res.ok) throw new Error(`raw ${res.status} for ${p}`)
   return res.text()
@@ -144,8 +144,8 @@ async function crawlSource(src) {
 }
 
 // First-party skills live in THIS repo. GitHub's recursive tree API truncates
-// large repos (Cate is one), so a remote crawl can silently miss them - read
-// them straight off disk instead, so Cate's own skills are always indexed.
+// large repos (openCate is one), so a remote crawl can silently miss them - read
+// them straight off disk instead, so openCate's own skills are always indexed.
 async function walkSkillMds(dir) {
   const out = []
   let dirents
@@ -216,7 +216,7 @@ export function curateSkills(skills, firstPartyIds) {
   // Quality floor: drop entries with no frontmatter description (no search
   // signal, render as broken rows) and from repos under MIN_STARS. Keeps the
   // catalog selective - only well-adopted, documented skills ship. First-party
-  // sources (Cate's own) skip the star floor, but NOT the description floor: a
+  // sources (openCate's own) skip the star floor, but NOT the description floor: a
   // descriptionless skill renders as a broken row no matter who authored it.
   const described = deduped.filter((s) => s.description && s.description.trim())
   if (described.length !== deduped.length) {

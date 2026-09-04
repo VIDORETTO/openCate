@@ -1,5 +1,5 @@
 // =============================================================================
-// customModels — Cate-managed OpenAI-compatible providers, persisted to pi's
+// customModels — openCate-managed OpenAI-compatible providers, persisted to pi's
 // models.json.
 //
 // Like auth.json, the source of truth is one shared file in cate's userData
@@ -48,7 +48,7 @@ export function sharedModelsPath(): string {
   return path.join(app.getPath('userData'), CODING_AGENT_DIR, 'models.json')
 }
 
-/** Read all Cate-managed providers. The original `custom-openai` entry remains
+/** Read all openCate-managed providers. The original `custom-openai` entry remains
  * addressable under the same id so persisted model references keep working. */
 export async function readCustomOpenAIProviders(): Promise<CustomOpenAIProvider[]> {
   const data = await readCodingConfigFile(sharedModelsPath())
@@ -121,8 +121,8 @@ export async function saveCustomOpenAIProvider(cfg: CustomOpenAIProvider): Promi
   })
 }
 
-/** Delete one Cate-managed provider without touching siblings or hand-authored
- * providers outside Cate's reserved id namespace. */
+/** Delete one openCate-managed provider without touching siblings or hand-authored
+ * providers outside openCate's reserved id namespace. */
 export async function deleteCustomOpenAIProvider(providerId: string): Promise<void> {
   requireManagedProviderId(providerId)
   await updateCodingConfigFile(sharedModelsPath(), (data) => {

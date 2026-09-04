@@ -173,7 +173,7 @@ describe('CodingManager worktree skill preparation', () => {
       panelId: 'panel-crash',
       event: {
         type: 'error',
-        message: 'Cate couldn’t load its agent tools. Restart Cate and start a new chat.',
+        message: 'openCate couldn’t load its agent tools. Restart openCate and start a new chat.',
       },
     })
     expect(JSON.stringify(send.mock.calls)).not.toContain('/Users/')

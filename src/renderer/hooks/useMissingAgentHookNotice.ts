@@ -5,10 +5,10 @@ import { terminalRegistry } from '../lib/terminal/terminalRegistry'
 import { matchAgentDef } from '../../shared/agents'
 import { inspectAgentCliHooks } from '../lib/agent/agentCliHooks'
 
-// Detector for "a supported agent CLI is running in this terminal, but Cate's
+// Detector for "a supported agent CLI is running in this terminal, but openCate's
 // hooks aren't installed for it here." Agent state/name now come exclusively
 // from hooks; when a repo has no injected hook file the agent runs invisibly to
-// Cate. This nudges the user to Settings → Agent Hooks. It reuses three facts
+// openCate. This nudges the user to Settings → Agent Hooks. It reuses three facts
 // the rest of the app already owns — the process-scan child name (matched
 // against the agent registry), the hook-anchored presence flag, and the
 // per-workspace injection readout (agentHooksInspect) — so it auto-clears the

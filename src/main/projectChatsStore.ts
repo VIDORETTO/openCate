@@ -1,8 +1,8 @@
 // =============================================================================
 // projectChatsStore — per-workspace chat threads at `<project>/.cate/chats.json`.
 //
-// The Cate Agent's front door: each record points at one Pi main-agent session.
-// Pi owns the transcript; Cate stores only chat metadata and placement.
+// The openCate Agent's front door: each record points at one Pi main-agent session.
+// Pi owns the transcript; openCate stores only chat metadata and placement.
 //
 // A hand-edited / partial file must degrade gracefully rather than crash, so
 // every record is coerced on load.

@@ -48,9 +48,9 @@ export function hostRuntimeTarget(): RuntimeTarget | null {
   return isRuntimeTarget(t) ? t : null
 }
 
-/** `cate-runtime-1.1.0-linux-x64.tgz` */
+/** `opencate-runtime-1.1.0-linux-x64.tgz` */
 export function tarballName(version: string, target: RuntimeTarget): string {
-  return `cate-runtime-${version}-${target}.tgz`
+  return `opencate-runtime-${version}-${target}.tgz`
 }
 
 /** Public download URL for a target's tarball on the GitHub release. */

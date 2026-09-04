@@ -236,7 +236,7 @@ export interface PanelState {
   /** Document panels only: sub-type discriminator for the viewer. */
   documentType?: 'pdf' | 'docx' | 'image'
   /** Terminal panels only: id of the WorktreeMeta in the parent workspace that
-   *  this terminal is associated with. Cate Agent worktrees live on Chat. */
+   *  this terminal is associated with. openCate Agent worktrees live on Chat. */
   worktreeId?: string
   /** Terminal panels only. Set to true the first time the user renames the
    *  tab so that subsequent OSC-0/1/2 title escapes from the running agent
@@ -268,7 +268,7 @@ export interface PanelState {
    *  fresh shell and retains this until newer agent evidence replaces or
    *  clears it. */
   agentSession?: TerminalAgentSession
-  /** Terminal panels created by Cate Agent carry durable ownership metadata.
+  /** Terminal panels created by openCate Agent carry durable ownership metadata.
    *  This is the native mission/run record; live status is derived from the
    *  terminal registry and agent hooks rather than persisted stale state. */
   codingAgentRun?: CodingAgentRun
@@ -288,7 +288,7 @@ export interface PanelState {
 
 // -----------------------------------------------------------------------------
 // Worktree metadata — per-workspace registry of UI-owned facts about the git
-// worktrees Cate manages, keyed by worktree path. This persists ONLY the UI
+// worktrees openCate manages, keyed by worktree path. This persists ONLY the UI
 // metadata (id/color/label/PR identity). The live facts (branch / isPrimary / isCurrent)
 // are authoritative from `git worktree list` (owned by gitStatusStore) and are
 // joined onto this metadata at read time by useWorktrees — they are never
@@ -528,7 +528,7 @@ export interface WindowPanelReport {
    *  detached row shows the same port dot as a local one. */
   hasPorts?: boolean
   /** Mission identity used only for exact owner-window routing of a live
-   * Cate-owned worker after cross-window terminal transfer. */
+   * openCate-owned worker after cross-window terminal transfer. */
   codingAgentRunId?: string
   codingAgentOwnerPanelId?: string
   codingAgentTaskId?: string
@@ -795,7 +795,7 @@ export function storedShortcut(
   }
 }
 
-/** Convert DOM KeyboardEvent key names to Cate's persisted shortcut keys. */
+/** Convert DOM KeyboardEvent key names to openCate's persisted shortcut keys. */
 export function normaliseShortcutKey(key: string): string {
   switch (key) {
     case 'Tab': return '\t'
@@ -844,7 +844,7 @@ export const SHORTCUT_DEFINITIONS = {
   newTerminal: { label: 'New Terminal', shortcut: storedShortcut('t', { command: true }) },
   newBrowser: { label: 'New Browser', shortcut: storedShortcut('b', { command: true, shift: true }) },
   newEditor: { label: 'New Editor', shortcut: storedShortcut('e', { command: true, shift: true }) },
-  newAgent: { label: 'New Cate Agent', shortcut: storedShortcut('a', { command: true, shift: true }) },
+  newAgent: { label: 'New openCate Agent', shortcut: storedShortcut('a', { command: true, shift: true }) },
   newCanvas: { label: 'New Canvas', shortcut: storedShortcut('c', { command: true, shift: true }) },
   newFile: { label: 'New File', shortcut: storedShortcut('n', { command: true }) },
   closePanel: { label: 'Close Panel', shortcut: storedShortcut('w', { command: true }) },
@@ -896,7 +896,7 @@ export type MenuActionId = ShortcutAction | 'openFolder' | 'reloadWorkspace' | '
 export type BrowserShortcutAction = 'reload' | 'reloadHard' | 'back' | 'forward' | 'focusUrl'
 
 /** A single global browsing-history entry, deduplicated by URL. Shared across
- *  all workspaces and browser panels so Cate behaves like one browser. */
+ *  all workspaces and browser panels so openCate behaves like one browser. */
 export interface BrowserHistoryEntry {
   url: string
   title: string
@@ -1291,7 +1291,7 @@ export interface ProjectSessionPanel {
   /** Agent-CLI session running in this terminal at save time. Machine-local
    *  (session ids reference stores on this machine's runtime host). */
   agentSession?: TerminalAgentSession
-  /** Cate-owned coding-agent mission metadata. The initial one-shot launch is
+  /** openCate-owned coding-agent mission metadata. The initial one-shot launch is
    *  deliberately excluded; restoring may resume a stamped CLI session but
    *  never repeats the original task. */
   codingAgentRun?: CodingAgentRun
@@ -1306,9 +1306,9 @@ export interface ProjectSessionPanel {
 }
 
 // -----------------------------------------------------------------------------
-// Cate Agent — durable main-agent chats (.cate/chats.json)
+// openCate Agent — durable main-agent chats (.cate/chats.json)
 //
-// Pi owns each chat's transcript in its session JSONL. Cate persists only the
+// Pi owns each chat's transcript in its session JSONL. openCate persists only the
 // metadata needed to reopen that one session and place it in the UI.
 // -----------------------------------------------------------------------------
 
@@ -1317,12 +1317,12 @@ export interface Chat {
   title: string
   createdAt: number
   updatedAt: number
-  /** The Agent panel that owns this chat. Absence means the workspace Cate
+  /** The Agent panel that owns this chat. Absence means the workspace openCate
    *  sidebar owns it. A chat is rendered by exactly one of those hosts. */
   hostPanelId?: string
   /** Worktree this chat's agent runs in. Follows the chat between hosts. */
   worktreeId?: string
-  /** Per-chat model override. The Cate Agent otherwise uses the global default. */
+  /** Per-chat model override. The openCate Agent otherwise uses the global default. */
   model?: CateAgentModelRef
   /** On-disk Pi transcript for this chat's sole main-agent session. */
   sessionFile?: string | null
@@ -1410,7 +1410,7 @@ export interface AppSettings {
   /** CSS font-family for Monaco editor panels. Empty string = built-in default
    *  stack (Menlo, Monaco, "Courier New", monospace). */
   editorFontFamily: string
-  /** Global UI zoom for Cate's own chrome (panels, sidebars, editor, terminal),
+  /** Global UI zoom for openCate's own chrome (panels, sidebars, editor, terminal),
    *  applied via webFrame.setZoomFactor in every window. 1.0 = 100%. Does not
    *  affect web pages shown in browser panels (those keep their own zoom).
    *  Range 0.5–2.0. */
@@ -1489,7 +1489,7 @@ export interface AppSettings {
   terminalPersistenceMode: TerminalPersistenceMode
   /** Enable the `cate` command-line control endpoint. When on, terminals and the
    *  pi agent get a per-workspace CATE_API loopback endpoint + bearer token in
-   *  their env so the `cate` CLI can drive Cate (browser, panels, editor, canvas).
+   *  their env so the `cate` CLI can drive openCate (browser, panels, editor, canvas).
    *  When OFF (fail closed): no endpoint is opened and no env is injected, so the
    *  CLI is unreachable — `cate` stays on PATH but only explains how to enable it.
    *  On by default. The trade-off: the token lands in the env of every process
@@ -1500,7 +1500,7 @@ export interface AppSettings {
   cliEnabled: boolean
   /** Auto-install the bundled cate-cli skill so agents learn the `cate` command:
    *  seeded into each opened workspace through the skills installer, the same
-   *  way for local and remote hosts — Cate's own agent always, other supported
+   *  way for local and remote hosts — openCate's own agent always, other supported
    *  agents (Claude Code, Pi, OpenCode, Codex) when their tool dir
    *  exists there (see seedCateCliSkill).
    *  Seeds at most once per workspace/target, never overwrites edits, and an
@@ -1748,7 +1748,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
   // Extensions
   enabledExtensions: [],
-  // The official Cate extensions catalog (0-AI-UG/cate-extensions). That repo's
+  // The official openCate extensions catalog (0-AI-UG/cate-extensions). That repo's
   // CI hosts index.json + artifact tarballs as assets on a rolling `catalog`
   // GitHub Release. Users can add more sources or remove this.
   extensionCatalogSources: [

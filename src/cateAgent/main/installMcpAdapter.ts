@@ -10,7 +10,7 @@
 //
 // WHY the agent-dir settings.json (not project `.pi/settings.json`):
 //   pi resolves its "global"/agent-dir settings from PI_CODING_AGENT_DIR, which
-//   Cate points at `<cwd>/.cate/cate-agent`. At session start pi's resource loader
+//   openCate points at `<cwd>/.cate/cate-agent`. At session start pi's resource loader
 //   resolves EVERY package in settings and auto-installs the missing ones —
 //   confirmed in the pinned pi source (node_modules/@earendil-works/
 //   pi-coding-agent/dist): resource-loader.js `reload()` calls
@@ -20,7 +20,7 @@
 //   when `onMissing` is undefined. User-scope npm packages install under
 //   `<agentDir>/npm/node_modules`. So writing the package into
 //   `<agentDir>/settings.json` triggers auto-install-and-load exactly like the
-//   documented project settings do, and keeps Cate's footprint inside
+//   documented project settings do, and keeps openCate's footprint inside
 //   `.cate/cate-agent` instead of polluting the user's project `.pi/`.
 //
 // Failure is non-fatal here (the write is wrapped). pi's own install happens at
@@ -38,7 +38,7 @@ import type { Runtime } from '../../main/runtime/types'
  *  deciding whether settings.json already references the adapter. */
 export const MCP_ADAPTER_PACKAGE = 'npm:pi-mcp-adapter'
 
-/** The exact version Cate installs. PINNED deliberately: this package parses
+/** The exact version openCate installs. PINNED deliberately: this package parses
  *  repo-controlled MCP config and spawns the commands it finds, so an
  *  unversioned spec would pull whatever npm serves at first run into a
  *  security-sensitive position with no review (GHSA-8769-jp52-985f,

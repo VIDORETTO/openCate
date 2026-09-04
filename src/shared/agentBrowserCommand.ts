@@ -1,5 +1,5 @@
-// Commands accepted by Cate's raw agent-browser bridge. The bridge is native
-// syntax, but not an unrestricted subprocess: Cate owns the browser identity,
+// Commands accepted by openCate's raw agent-browser bridge. The bridge is native
+// syntax, but not an unrestricted subprocess: openCate owns the browser identity,
 // selected webview, tabs, viewport, and filesystem boundary.
 
 const ALLOWED_COMMANDS = new Set([
@@ -42,7 +42,7 @@ const ALLOWED_COMMANDS = new Set([
 ])
 
 // These options can redirect the daemon, load host files, alter browser
-// startup, or escape Cate's pinned session. Reject them even when the native
+// startup, or escape openCate's pinned session. Reject them even when the native
 // parser would accept them after a command.
 const FORBIDDEN_OPTIONS = new Set([
   '--allow-file-access',
@@ -153,7 +153,7 @@ export function validateAgentBrowserCommand(command: unknown): string[] {
       }
     }
   }
-  // Cate always chooses the screenshot destination and returns that path.
+  // openCate always chooses the screenshot destination and returns that path.
   if (root === 'screenshot') {
     const allowed = new Set(['--full', '-f', '--annotate'])
     const options = parts.slice(1).filter((part) => part.startsWith('-') && !/^@s\d+e\d+$/.test(part))

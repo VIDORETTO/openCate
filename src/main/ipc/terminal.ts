@@ -419,7 +419,7 @@ async function spawnTerminal(
       log.warn('[terminal] worktree detection failed: %O', err)
     }
   }
-  // Existing or externally-created worktrees may predate Cate's eager mirror
+  // Existing or externally-created worktrees may predate openCate's eager mirror
   // triggers. Hydrate managed skills before the shell can launch an agent.
   if (worktree) {
     try {

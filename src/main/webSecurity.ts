@@ -287,7 +287,7 @@ export function installWebContentsSecurity(): void {
       ;(webPreferences as { allowRunningInsecureContent?: boolean }).allowRunningInsecureContent = false
 
       // Allow `window.open()` from webview content so we can track OAuth /
-      // Sign-In popups via Cate's popup registry. The setWindowOpenHandler
+      // Sign-In popups via openCate's popup registry. The setWindowOpenHandler
       // installed when the guest's webContents is created strictly filters
       // which URLs are actually allowed; this just removes the blanket veto.
       if (!extensionGuest) params.allowpopups = 'true'

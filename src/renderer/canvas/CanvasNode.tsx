@@ -415,7 +415,7 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
   // chip) so single-branch flows show no tint/sludge.
   const worktrees = currentWorkspace?.worktrees ?? []
   const wtEnabled = worktrees.length >= 2
-  // Resolve the active tab's worktree. Terminals read their panel tag; Cate
+  // Resolve the active tab's worktree. Terminals read their panel tag; openCate
   // Agent panels read the active chat's tag. A worktree panel with no explicit
   // tag belongs to the PRIMARY worktree (the record keyed by the workspace root),
   // so the main checkout gets the same tint / terrace / focus-lens as the others

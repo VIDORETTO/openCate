@@ -1,9 +1,9 @@
 // =============================================================================
 // LIVE agent-CLI hook contracts — pins, against the real installed CLIs, the
-// hook / extension / plugin surface Cate's terminal integration builds on:
+// hook / extension / plugin surface openCate's terminal integration builds on:
 // push-based session identity (which session id a terminal's agent has open),
 // turn status (prompt submitted / turn ended), and per-terminal correlation
-// (an env var Cate sets on the PTY is echoed back by every hook event).
+// (an env var openCate sets on the PTY is echoed back by every hook event).
 //
 // This replaces the old store-probing contract suite: hooks are documented,
 // versioned CLI surfaces, so the contract is stronger — but a CLI update can
@@ -23,7 +23,7 @@
 //             Permission-wait: Notification hook, notification_type
 //             "permission_prompt" (and "idle_prompt" once idle nags kick in).
 //             PostToolUse fires once the approved tool FINISHES (denial
-//             produces none). Cate therefore resumes earlier from the user's
+//             produces none). openCate therefore resumes earlier from the user's
 //             terminal submission.
 //   codex   · JSON-on-stdin hooks configured in <project root>/.codex/
 //             hooks.json (repo scope, discovered by codex itself —
@@ -48,7 +48,7 @@
 //             tool_name, tool_input) — fires in exec mode too, where the
 //             unanswerable approval is then auto-rejected and the turn Stops.
 //             PostToolUse (label post_tool_use) fires only after an executed
-//             command finishes; Cate resumes earlier from terminal input.
+//             command finishes; openCate resumes earlier from terminal input.
 //   cursor  · JSON-on-stdin hooks configured in <workspace>/.cursor/hooks.json
 //             (project scope, discovered by the CLI itself; hooks landed in
 //             the CLI ~2026.07 — pinned live 2026-07-19 against
@@ -127,7 +127,7 @@ import { setTerminalWorkspaceResolver, useStatusStore } from '../../renderer/sto
 
 // --- the interrupt contract, shared by every CLI ----------------------------
 // A USER INTERRUPT (Esc / Ctrl+C on a running turn) leaves the CLI back at its
-// prompt, waiting for input. Cate's agent-state FSM learns that ONLY from a
+// prompt, waiting for input. openCate's agent-state FSM learns that ONLY from a
 // normalized 'turn-end'; without one the indicator stays stuck on "running"
 // until the next prompt. Whether a CLI pushes one is per-CLI truth, so each
 // suite below pins its own answer with this helper.
@@ -140,7 +140,7 @@ function stripAnsi(s: string): string {
   return s.replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '').replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')
 }
 
-/** The normalized kinds Cate derives from the raw events a CLI pushed —
+/** The normalized kinds openCate derives from the raw events a CLI pushed —
  *  the FSM's actual input, not the wire payloads. */
 function normalizedKinds(agentId: AgentId, events: BridgeEvent[]): AgentHookEventKind[] {
   return events
@@ -152,7 +152,7 @@ function normalizedKinds(agentId: AgentId, events: BridgeEvent[]): AgentHookEven
  *  opencode run) block reading a never-ending stdin pipe otherwise. PWD is
  *  pinned to the cwd because execFile does not update it and opencode derives
  *  the session's directory from $PWD, not getcwd (a real shell always keeps
- *  the two in sync, so Cate terminals are unaffected). */
+ *  the two in sync, so openCate terminals are unaffected). */
 function run(
   bin: string,
   args: string[],
@@ -188,7 +188,7 @@ function hasBin(name: string): boolean {
 
 // A nested CLAUDECODE/ANTHROPIC/CODEX/GROK env changes the CLIs' behavior
 // (observed: claude silently stops persisting transcripts) — always drive them
-// with the agent vars stripped, like a real Cate terminal. GROK_* matters
+// with the agent vars stripped, like a real openCate terminal. GROK_* matters
 // doubly here: the grok suite asserts on the reserved hook-runner vars, which
 // an inherited value would forge.
 function cleanEnv(extra: Record<string, string> = {}): Record<string, string> {
@@ -219,7 +219,7 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 // --- the bridge: one hook process shape for all stdin-JSON CLIs --------------
 // (claude and codex deliver one JSON payload on stdin. The
 // events-file path and the terminal correlation id both arrive via env — that
-// env inheritance IS part of the contract under test: Cate correlates a hook
+// env inheritance IS part of the contract under test: openCate correlates a hook
 // event to a terminal by the CATE_TERMINAL_ID it planted on the PTY. No
 // stdout on purpose: every CLI accepts silent exit-0.)
 function writeBridge(dir: string): string {
@@ -279,7 +279,7 @@ function readJsonl<T>(file: string): T[] {
 }
 
 /** Every captured event must carry the terminal correlation id — a single
- *  mis-echo means Cate would attribute a session to the wrong terminal. */
+ *  mis-echo means openCate would attribute a session to the wrong terminal. */
 function expectEcho(events: { terminalId?: unknown; cateTerminalId?: unknown }[], tid: string): void {
   expect(events.length).toBeGreaterThan(0)
   for (const e of events) expect(e.terminalId ?? e.cateTerminalId, 'CATE_TERMINAL_ID echo').toBe(tid)
@@ -426,7 +426,7 @@ describe.skipIf(!LIVE || !hasBin('claude'))('claude hook contract', () => {
   /** Every hook event name claude 2.1.216 knows — read out of the binary's own
    *  registry. The SHIPPED injection uses only the six in claudeSpec; the
    *  interrupt test registers ALL of them so "nothing fires" is a statement
-   *  about claude, not about Cate's subset. */
+   *  about claude, not about openCate's subset. */
   const CLAUDE_ALL_EVENTS = [
     'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'PostToolBatch', 'PermissionDenied',
     'Notification', 'UserPromptSubmit', 'UserPromptExpansion', 'SessionStart', 'SessionEnd',
@@ -570,7 +570,7 @@ describe.skipIf(!LIVE || !hasBin('claude'))('claude hook contract', () => {
     // Resume relaunch (the shipped restore argv, --resume <id>): hooks keep
     // flowing. claude may FORK on resume (shadow session continuing the
     // original transcript) — the id is not asserted; the contract is that the
-    // relaunched process pushes events at all, so Cate's tracker re-stamps
+    // relaunched process pushes events at all, so openCate's tracker re-stamps
     // whatever the fork produced.
     const eventsFile2 = join(cwd, 'events-resume.jsonl')
     await run(
@@ -658,7 +658,7 @@ describe.skipIf(!LIVE || !hasBin('claude'))('claude hook contract', () => {
   //
   // So this test pins a NEGATIVE contract, and it is the good kind: the day
   // claude starts pushing something here, this test fails, and that something
-  // becomes the signal Cate should map to turn-end.
+  // becomes the signal openCate should map to turn-end.
   // ---------------------------------------------------------------------------
   test('TUI: a user interrupt pushes NO hook event (the turn-end gap)', { retry: 1, timeout: 420_000 }, async () => {
     const cwd = makeCwd('claude-interrupt')
@@ -706,9 +706,9 @@ describe.skipIf(!LIVE || !hasBin('claude'))('claude hook contract', () => {
     const after = events().slice(before)
     expect(
       after.map((e) => e.payload.hook_event_name),
-      'NO hook event follows a user interrupt — Cate cannot learn the turn ended from hooks',
+      'NO hook event follows a user interrupt — openCate cannot learn the turn ended from hooks',
     ).toEqual([])
-    // Stated in the FSM's own terms: no turn-end reaches Cate. This is the
+    // Stated in the FSM's own terms: no turn-end reaches openCate. This is the
     // measured fact behind the declared flag — keep them in lockstep.
     expect(normalizedKinds('claude-code', after)).not.toContain('turn-end')
     expect(AGENT_HOOK_SPECS['claude-code'].reportsTurnEndOnInterrupt, 'declared gap matches reality').toBe(false)
@@ -734,7 +734,7 @@ describe.skipIf(!LIVE || !hasBin('claude'))('claude hook contract', () => {
   })
 
   // Resuming a dead id must FAIL (not silently start fresh) — this is what
-  // lets Cate fall back to a plain shell when a stored id has been deleted.
+  // lets openCate fall back to a plain shell when a stored id has been deleted.
   test('print mode: resuming an unknown session id fails', { timeout: 240_000 }, async () => {
     const cwd = makeCwd('claude-badresume')
     const ghost = '99999999-9999-4999-8999-999999999999'
@@ -777,7 +777,7 @@ describe.skipIf(!LIVE || !hasBin('codex'))('codex hook contract', () => {
     return 'sha256:' + createHash('sha256').update(identity).digest('hex')
   }
 
-  /** The SHIPPED channel: the hooks.json Cate's prepareWorkspace merges into
+  /** The SHIPPED channel: the hooks.json openCate's prepareWorkspace merges into
    *  the project root (same shape, same 60s timeout). */
   const writeHooksFile = (root: string, bridge: string, events = CODEX_EVENTS): void => {
     mkdirSync(join(root, '.codex'), { recursive: true })
@@ -795,7 +795,7 @@ describe.skipIf(!LIVE || !hasBin('codex'))('codex hook contract', () => {
    *  the binary and confirmed against the in-app /hooks screen). Note there is
    *  no SessionEnd and no Notification AT ALL in codex: not "never fires",
    *  simply not in the enum. Used by the interrupt test so "nothing fires" is
-   *  a statement about codex, not about Cate's five-event subset. */
+   *  a statement about codex, not about openCate's five-event subset. */
   const CODEX_ALL_EVENTS: [string, string][] = [
     ['PreToolUse', 'pre_tool_use'],
     ['PermissionRequest', 'permission_request'],
@@ -879,7 +879,7 @@ describe.skipIf(!LIVE || !hasBin('codex'))('codex hook contract', () => {
     expect(resumeEvents.some((e) => e.payload.hook_event_name === 'Stop')).toBe(true)
     expectEcho(resumeEvents, tid)
 
-    // Exact interactive command Cate types into a restored terminal. Replaying
+    // Exact interactive command openCate types into a restored terminal. Replaying
     // the prior prompt proves `codex resume <id>` loaded this rollout rather
     // than opening a fresh TUI. No harness-only argv are added here.
     const tui = await driveTui(codexBin(), ['resume', id], cwd, cleanEnv(), { dismissUpdateBanner: false })
@@ -1055,7 +1055,7 @@ describe.skipIf(!LIVE || !hasBin('codex'))('codex hook contract', () => {
     const after = events().slice(before)
     expect(
       after.map((e) => e.payload.hook_event_name),
-      'NO hook event follows a user interrupt — Cate cannot learn the turn ended from hooks',
+      'NO hook event follows a user interrupt — openCate cannot learn the turn ended from hooks',
     ).toEqual([])
     expect(normalizedKinds('codex', after)).not.toContain('turn-end')
     expect(AGENT_HOOK_SPECS.codex.reportsTurnEndOnInterrupt, 'declared gap matches reality').toBe(false)
@@ -1103,7 +1103,7 @@ describe.skipIf(!LIVE || !hasBin('codex'))('codex hook contract', () => {
 
   // Negative controls: every broken link in the trust chain must yield ZERO
   // events — a silent skip, no error, no partial delivery. This is the safety
-  // property the interactive-trust UX (and Cate's "hooks may never arrive"
+  // property the interactive-trust UX (and openCate's "hooks may never arrive"
   // tolerance) is built on. Rollouts of these runs are not cleaned up (no
   // events → no transcript_path to find them by).
   test('exec: untrusted folder / wrong hash / wrong key path all silently skip hooks', { timeout: 600_000 }, async () => {
@@ -1145,7 +1145,7 @@ describe.skipIf(!LIVE || !hasBin('codex'))('codex hook contract', () => {
 // =============================================================================
 
 describe.skipIf(!LIVE || !hasBin('cursor-agent'))('cursor hook contract', () => {
-  /** The SHIPPED channel: the five events Cate's cursorSpec registers, plus
+  /** The SHIPPED channel: the five events openCate's cursorSpec registers, plus
    *  beforeShellExecution where a test pins why it is NOT mapped. */
   const writeCursorHooks = (cwd: string, bridge: string, extraEvents: string[] = []): void => {
     mkdirSync(join(cwd, '.cursor'), { recursive: true })
@@ -1254,7 +1254,7 @@ describe.skipIf(!LIVE || !hasBin('cursor-agent'))('cursor hook contract', () => 
   // The interrupt contract (see the claude suite for the failure it guards).
   // cursor covers itself: aborting a turn pushes `stop` — TWICE, status
   // "error" then "aborted", ~100ms after the key — and normalize() maps stop
-  // to turn-end regardless of status, so Cate's FSM idles correctly with no
+  // to turn-end regardless of status, so openCate's FSM idles correctly with no
   // compensating signal. The duplicate is harmless (turn-end is idempotent).
   test('TUI: a user interrupt pushes stop(aborted) → turn-end', { retry: 1, timeout: 420_000 }, async () => {
     const cwd = makeCwd('cursor-interrupt')
@@ -1291,7 +1291,7 @@ describe.skipIf(!LIVE || !hasBin('cursor-agent'))('cursor hook contract', () => 
     expect(AGENT_HOOK_SPECS.cursor.reportsTurnEndOnInterrupt, 'declared self-heal matches reality').toBe(true)
     // The transcript_path on the ABORTED stop is null (only the sibling
     // "error" stop carries one) — a consumer must not overwrite a known
-    // transcript with it. Cate's stamp never reads transcriptPath, so this is
+    // transcript with it. openCate's stamp never reads transcriptPath, so this is
     // a pin, not a dependency.
     const aborted = stops.find((e) => e.payload.status === 'aborted')!
     expect(aborted.payload.transcript_path).toBeNull()
@@ -1399,7 +1399,7 @@ describe.skipIf(!LIVE || !hasBin('pi'))('pi hook contract', () => {
 
   // The bridge subscribes to the session + turn lifecycle and stamps every
   // line with the session identity from ctx.sessionManager — the exact API
-  // Cate's bridge extension would use.
+  // openCate's bridge extension would use.
   const BRIDGE_TS = `
 import * as fs from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -1759,7 +1759,7 @@ export const CateEventLogger = async ({ directory }) => {
     ).toBe(false)
     expect(resumeEvents.some((e) => e.type === 'session.idle' && e.sessionID === id)).toBe(true)
 
-    // Exact interactive command Cate types into a restored terminal. Unlike
+    // Exact interactive command openCate types into a restored terminal. Unlike
     // `opencode run --session`, this covers the default TUI argument path.
     const tuiEventsFile = join(cwd, 'events-resume-tui.jsonl')
     const tui = await driveTui('opencode', ['--session', id], cwd, env(tuiEventsFile))
@@ -1861,7 +1861,7 @@ export const CatePermLogger = async () => ({
         provider: {
           catefake: {
             npm: '@ai-sdk/openai-compatible',
-            name: 'Cate Fake',
+            name: 'openCate Fake',
             options: { baseURL: `http://127.0.0.1:${port}/v1`, apiKey: 'unused' },
             models: { 'fake-1': { name: 'Fake One', tool_call: true, limit: { context: 128000, output: 4096 } } },
           },
@@ -1940,7 +1940,7 @@ export const CatePermLogger = async () => ({
 //      alphabets; both are pinned below.
 //   2. grok also SCANS OTHER VENDORS' hook files — <project>/.claude/
 //      settings.json and settings.local.json, plus .cursor/hooks.json — by
-//      default ([compat.claude] hooks). Cate already injects its bridge into
+//      default ([compat.claude] hooks). openCate already injects its bridge into
 //      .claude/settings.local.json, so in any workspace with claude injection
 //      a grok session fires the CLAUDE-labelled bridge wrapper, which would
 //      otherwise report agentId=claude-code for a grok process (wrong panel
@@ -1984,7 +1984,7 @@ describe.skipIf(!LIVE || !hasBin('grok'))('grok hook contract', () => {
     )
   }
 
-  /** The file Cate injects for CLAUDE — which grok reads too (compat scan). */
+  /** The file openCate injects for CLAUDE — which grok reads too (compat scan). */
   const writeClaudeCompatHooks = (root: string, bridge: string): void => {
     mkdirSync(join(root, '.claude'), { recursive: true })
     writeFileSync(
@@ -2028,9 +2028,9 @@ describe.skipIf(!LIVE || !hasBin('grok'))('grok hook contract', () => {
   // Discovery + trust (auth-free)
   // ---------------------------------------------------------------------------
 
-  // The safety property Cate's injection rides on, and the reason a freshly
+  // The safety property openCate's injection rides on, and the reason a freshly
   // injected workspace can be silent: an UNTRUSTED project's hooks are not
-  // "errored", they are invisible. Cate must treat missing grok events as
+  // "errored", they are invisible. openCate must treat missing grok events as
   // normal, never as a broken install.
   test('inspect: project hooks are silently skipped until the folder is trusted', () => {
     const cwd = makeRepo('grok-untrusted')
@@ -2068,11 +2068,11 @@ describe.skipIf(!LIVE || !hasBin('grok'))('grok hook contract', () => {
     }
   })
 
-  // THE cross-vendor contract: grok reads Cate's CLAUDE injection too. If this
+  // THE cross-vendor contract: grok reads openCate's CLAUDE injection too. If this
   // ever stops being true the disambiguation in the bridge becomes dead code;
   // while it IS true, a grok session in a claude-injected workspace posts
   // through the claude-labelled wrapper and must be re-attributed.
-  test('inspect: grok also loads the .claude/settings.local.json Cate injects, tagged vendor=claude', () => {
+  test('inspect: grok also loads the .claude/settings.local.json openCate injects, tagged vendor=claude', () => {
     const cwd = makeRepo('grok-compat')
     const bridge = writeBridge(cwd)
     writeClaudeCompatHooks(cwd, bridge)
@@ -2085,7 +2085,7 @@ describe.skipIf(!LIVE || !hasBin('grok'))('grok hook contract', () => {
 
     // Dedup: an IDENTICAL command registered for the same event by both
     // sources collapses to one handler, and the claude-vendored entry is the
-    // survivor. Cate does NOT rely on this — its two wrappers have different
+    // survivor. openCate does NOT rely on this — its two wrappers have different
     // paths (the agent id is baked into the wrapper argv) — but if it ever
     // stopped holding for identical commands, a user who hand-copied one
     // command into both files would get doubled events.
@@ -2108,11 +2108,11 @@ describe.skipIf(!LIVE || !hasBin('grok'))('grok hook contract', () => {
   })
 
   // ---------------------------------------------------------------------------
-  // Skills (auth-free) — the OTHER half of Cate's per-agent integration, whose
+  // Skills (auth-free) — the OTHER half of openCate's per-agent integration, whose
   // install dir is declared alongside the hook spec in src/shared/agents.ts.
   // ---------------------------------------------------------------------------
 
-  // Cate installs grok skills to <project>/.grok/skills (AgentDef.skills). grok
+  // openCate installs grok skills to <project>/.grok/skills (AgentDef.skills). grok
   // ALSO reads .agents, .claude and .cursor skills, but those dirs belong to
   // the agents that own them — installing there would double-write a skill the
   // user asked for once.
@@ -2125,14 +2125,14 @@ describe.skipIf(!LIVE || !hasBin('grok'))('grok hook contract', () => {
       `---\nname: ${name}\ndescription: probe\n---\n\nbody\n`,
     )
     const found = inspect(cwd, cleanEnv()).skills?.find((s) => s.name === name)
-    expect(found, 'grok discovers the skill Cate installed').toBeTruthy()
+    expect(found, 'grok discovers the skill openCate installed').toBeTruthy()
     expect(found?.source.path).toContain(join('.grok', 'skills', name))
   })
 
   // Skills and hooks degrade INDEPENDENTLY: folder trust gates code execution
   // (hooks/MCP/LSP), not skill discovery. So in a repo the user has not trusted
-  // yet, a Cate-installed skill works immediately while its hooks stay inert —
-  // Cate must not treat "no hook events" as "the grok integration is broken".
+  // yet, a openCate-installed skill works immediately while its hooks stay inert —
+  // openCate must not treat "no hook events" as "the grok integration is broken".
   test('inspect: skills load in an UNTRUSTED project where hooks do not', () => {
     const cwd = makeRepo('grok-skills-untrusted')
     const name = 'cate-probe-untrusted'
@@ -2269,7 +2269,7 @@ describe.skipIf(!LIVE || !hasBin('grok'))('grok hook contract', () => {
     expect(byName(resumeEvents, 'stop').length, 'the resumed turn completes').toBeGreaterThan(0)
     expectEcho(resumeEvents, tid)
 
-    // A dead id must reject — this is what lets Cate fall back to a plain shell.
+    // A dead id must reject — this is what lets openCate fall back to a plain shell.
     await expect(
       run('grok', [...NO_UPDATE, '--resume', '99999999-9999-4999-8999-999999999999', '-p', 'hi'],
         { cwd, env: trustedEnv(), timeout: 120_000 }),
@@ -2282,7 +2282,7 @@ describe.skipIf(!LIVE || !hasBin('grok'))('grok hook contract', () => {
   // that empty id fails, so claude is stamped only from its first turn event.
   // grok is safe: SessionStart is deferred to the submit, so the session is
   // already on disk, and a run killed mid-turn still resumes. A regression
-  // here would make Cate hand a restored terminal a resume command that
+  // here would make openCate hand a restored terminal a resume command that
   // errors — degrading silently to a plain shell.
   test('a session killed mid-turn is still resumable from its SessionStart id', { retry: 1, timeout: 420_000 }, async () => {
     const cwd = makeRepo('grok-midturn')
@@ -2311,7 +2311,7 @@ describe.skipIf(!LIVE || !hasBin('grok'))('grok hook contract', () => {
     await run('grok', [...NO_UPDATE, '--resume', id, '-p', PROMPT], { cwd, env: trustedEnv(), timeout: 300_000 })
   })
 
-  // The misattribution guard, pinned end to end: with ONLY Cate's claude
+  // The misattribution guard, pinned end to end: with ONLY openCate's claude
   // injection present (no .grok/hooks), a grok run still fires that bridge —
   // and the process it fires carries GROK_HOOK_EVENT, which is how the shipped
   // bridge knows the payload is grok's and not claude's.
@@ -2344,7 +2344,7 @@ describe.skipIf(!LIVE || !hasBin('grok'))('grok hook contract', () => {
   // / Quit) — no session exists yet, so NO hook fires at launch. Identity
   // arrives with the first prompt submit, where SessionStart and
   // UserPromptSubmit land together. Same deferral as codex, opposite of claude
-  // and cursor: Cate cannot stamp a restored grok terminal until the user
+  // and cursor: openCate cannot stamp a restored grok terminal until the user
   // prompts, and until then the terminal has no session id to restore against.
   test('TUI: hooks are silent at launch; SessionStart arrives with the first submit', { retry: 1, timeout: 420_000 }, async () => {
     const cwd = makeRepo('grok-tui')

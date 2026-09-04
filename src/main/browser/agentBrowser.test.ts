@@ -244,7 +244,7 @@ describe('AgentBrowserService', () => {
     expect(connectCalls).toBe(2)
   })
 
-  it('wraps engine refs in a Cate observation revision and rejects stale refs', async () => {
+  it('wraps engine refs in a openCate observation revision and rejects stale refs', async () => {
     const guest = fakeContents()
     let selected = ''
     let engineRefsLive = false

@@ -2,7 +2,7 @@
 // SshTransport — runs the runtime daemon through the user's system OpenSSH
 // client. OpenSSH remains the authority for ~/.ssh/config, Include/Match blocks,
 // ProxyCommand/ProxyJump, certificates, IdentityAgent, hardware-backed keys, and
-// the known-hosts database. Cate supplies explicit form overrides plus its
+// the known-hosts database. openCate supplies explicit form overrides plus its
 // existing accept-new TOFU default, and otherwise leaves SSH config intact.
 // =============================================================================
 
@@ -100,7 +100,7 @@ export class SshTransport implements RuntimeTransport {
       // Askpass unlocks only local public-key identities. Restricting the SSH
       // methods prevents the key passphrase from being reused as a host password.
       args.push('-o', 'BatchMode=no', '-o', 'PreferredAuthentications=publickey')
-      // Even a broad user `SendEnv *` must never forward Cate's askpass secret.
+      // Even a broad user `SendEnv *` must never forward openCate's askpass secret.
       args.push(
         '-o', 'SendEnv=-CATE_SSH_*',
         '-o', 'SendEnv=-NODE_OPTIONS',

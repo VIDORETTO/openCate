@@ -57,7 +57,7 @@ Nenhuma vulnerabilidade crítica confirmada nesta passagem.
   para o executavel nativo de automacao, removendo apenas chaves com prefixo
   `AGENT_BROWSER_`.
 - **Impacto:** credenciais, tokens, `NODE_OPTIONS` e handles de SSH presentes
-  no ambiente do Cate ficavam acessiveis a um processo de terceiro.
+  no ambiente do openCate ficavam acessiveis a um processo de terceiro.
 - **Correcao:** o child agora usa `sanitizeServerEnv`, a mesma allowlist de
   plumbing do sistema aplicada a servidores de extensao; socket e timeout sao
   injetados explicitamente.
@@ -74,7 +74,7 @@ Nenhuma vulnerabilidade crítica confirmada nesta passagem.
   `undefined`, não chaves sensíveis.
 - **Impacto:** extensões server-backed, que executam código deliberadamente,
   poderiam receber acidentalmente chaves, tokens, opções de runtime ou handles
-  de agente presentes no ambiente do processo Cate.
+  de agente presentes no ambiente do processo openCate.
 - **Correção:** `sanitizeServerEnv` aplica uma allowlist de variáveis de sistema;
   `CATE_TOKEN`, `WORKSPACE_ROOT`, `CATE_API`, `HOST` e a porta continuam sendo
   injetados explicitamente pelo servidor da extensão.

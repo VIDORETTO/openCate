@@ -1,4 +1,4 @@
-// Floating Cate Agent panel. It hosts only the durable chats pinned to this
+// Floating openCate Agent panel. It hosts only the durable chats pinned to this
 // panel, using the same chat view/capabilities as the workspace sidebar.
 
 import { useCallback, useEffect, useState } from 'react'
@@ -46,7 +46,7 @@ export default function CateAgentPanel({ panelId, workspaceId }: PanelProps) {
       workspaceId,
       panelId,
       active ? 'running' : 'waitingForInput',
-      'Cate Agent',
+      'openCate Agent',
     )
     return () => useStatusStore.getState().setAgentState(workspaceId, panelId, 'notRunning', null)
   }, [active, panelId, workspaceId])
@@ -130,7 +130,7 @@ export default function CateAgentPanel({ panelId, workspaceId }: PanelProps) {
 
       {!ready ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-          <span className="text-xs text-muted">Connect a provider to use the Cate Agent.</span>
+          <span className="text-xs text-muted">Connect a provider to use the openCate Agent.</span>
           <button
             className="rounded bg-surface-5 px-3 py-1.5 text-xs text-secondary hover:bg-hover hover:text-primary"
             onClick={() => useUIStore.getState().openSettings('cate agent')}

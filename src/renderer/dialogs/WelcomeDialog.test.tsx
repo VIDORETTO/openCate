@@ -56,7 +56,7 @@ describe('WelcomeDialog', () => {
 
   it('shows for users below the current notice version (fresh install or update)', () => {
     act(() => root.render(<WelcomeDialog />))
-    expect(host.textContent).toContain('Welcome to Cate')
+    expect(host.textContent).toContain('Welcome to openCate')
     expect(host.textContent).toContain('Privacy Policy')
     expect(host.querySelector('[role="switch"]')).not.toBeNull()
     expect(useSettingsStore.getState().telemetryEnabled).toBe(false)

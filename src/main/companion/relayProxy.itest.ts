@@ -173,7 +173,7 @@ function caddyfile(options: CaddyfileOptions): string {
     '',
     `https://localhost:${options.proxyPort} {`,
     '    tls internal',
-    `    @authorized header X-Cate-Proxy-Token ${options.proxyToken}`,
+    `    @authorized header X-openCate-Proxy-Token ${options.proxyToken}`,
     '    handle @authorized {',
     `        reverse_proxy 127.0.0.1:${options.relayPort}`,
     '    }',
@@ -230,7 +230,7 @@ function createProxyFetch(ca: Buffer, getProxyToken: () => string): typeof fetch
         ? input
         : new URL(input.url)
     const headers = new Headers(init.headers)
-    headers.set('X-Cate-Proxy-Token', getProxyToken())
+    headers.set('X-openCate-Proxy-Token', getProxyToken())
     const body = typeof init.body === 'string' || init.body instanceof Uint8Array ? init.body : undefined
 
     return new Promise<Response>((resolve, reject) => {

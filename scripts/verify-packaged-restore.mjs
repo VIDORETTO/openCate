@@ -9,12 +9,12 @@ import { _electron as electron } from 'playwright'
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const executable = process.env.CATE_PACKAGED_APP || (
   process.platform === 'win32'
-    ? path.join(repoRoot, 'release', 'win-unpacked', 'Cate.exe')
+    ? path.join(repoRoot, 'release', 'win-unpacked', 'openCate.exe')
     : undefined
 )
 
 if (!executable) {
-  throw new Error('Set CATE_PACKAGED_APP to an unpacked packaged Cate executable')
+  throw new Error('Set CATE_PACKAGED_APP to an unpacked packaged openCate executable')
 }
 await fs.access(executable)
 
@@ -176,7 +176,7 @@ try {
     const powershellQuote = (value) => `'${value.replaceAll("'", "''")}'`
     const query = [
       `$self = ${process.pid}; $appRoot = ${powershellQuote(executableRoot)}; Get-CimInstance Win32_Process`,
-      'Where-Object { $_.ProcessId -ne $self -and $_.Name -in @("Cate.exe", "node.exe") -and $_.CommandLine -and (($_.CommandLine -match [regex]::Escape($appRoot)) -or ($_.CommandLine -match "cate-runtime")) }',
+      'Where-Object { $_.ProcessId -ne $self -and $_.Name -in @("openCate.exe", "node.exe") -and $_.CommandLine -and (($_.CommandLine -match [regex]::Escape($appRoot)) -or ($_.CommandLine -match "cate-runtime")) }',
       'Select-Object -ExpandProperty CommandLine',
     ].join(' | ')
     const leftovers = execFileSync('powershell.exe', ['-NoProfile', '-Command', query], { encoding: 'utf8' }).trim()

@@ -247,7 +247,7 @@ export async function buildTransport(runtimeId: string, spec: RemoteConnectSpec)
     passphrase,
     useAgent: spec.auth?.useAgent ?? secret?.useAgent,
     // GUI-launched Electron processes do not reliably inherit SSH_AUTH_SOCK or
-    // the user's PATH. Cate resolves the login-shell environment at startup;
+    // the user's PATH. openCate resolves the login-shell environment at startup;
     // OpenSSH must receive that same authoritative environment.
     env: getShellEnv(),
     // Same launch config the local daemon gets (main/index.ts) so an SSH host

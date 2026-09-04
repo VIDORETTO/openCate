@@ -51,7 +51,7 @@ describe('thin browser CLI', () => {
     })
   })
 
-  it('passes native acting commands through without Cate locator parsing', () => {
+  it('passes native acting commands through without openCate locator parsing', () => {
     expect(buildRequest(
       ['browser', 'find', 'role', 'button', 'click', '--name', 'Save'],
       flags,
@@ -65,7 +65,7 @@ describe('thin browser CLI', () => {
     })
   })
 
-  it('keeps Cate-owned tab and presentation operations small and explicit', () => {
+  it('keeps openCate-owned tab and presentation operations small and explicit', () => {
     expect(buildRequest(['browser', 'tabs'], flags).method).toBe('cate.browser.tabs')
     expect(buildRequest(['browser', 'new-tab'], flags)).toEqual({
       method: 'cate.browser.tabNew',
@@ -100,7 +100,7 @@ describe('thin browser CLI', () => {
     })
   })
 
-  it('rejects native surfaces that can escape Cate ownership', () => {
+  it('rejects native surfaces that can escape openCate ownership', () => {
     for (const command of [
       ['browser', 'tab', 'list'],
       ['browser', 'connect', '9222'],
@@ -122,7 +122,7 @@ describe('thin browser CLI', () => {
 })
 
 describe('global parsing', () => {
-  it('extracts only Cate global flags and preserves native argv', () => {
+  it('extracts only openCate global flags and preserves native argv', () => {
     expect(parseCli([
       'browser', 'wait', '#done', '--timeout', '5000',
       '--panel', 'abc', '--json',
@@ -333,7 +333,7 @@ describe('transport and panel resolution', () => {
     })
   })
 
-  it('fails clearly outside a Cate shell', async () => {
+  it('fails clearly outside a openCate shell', async () => {
     await expect(send('cate.version', {}, {
       fetch: vi.fn() as unknown as typeof globalThis.fetch,
       env: {},
@@ -407,7 +407,7 @@ describe('output and run loop', () => {
   it('prints version/help without transport', async () => {
     const deps = runDeps()
     expect(await run(['--version'], deps)).toBe(0)
-    expect(deps.out).toEqual([`cate cli ${CLI_VERSION}`])
+    expect(deps.out).toEqual([`opencate cli ${CLI_VERSION}`])
     expect(deps.fetch).not.toHaveBeenCalled()
   })
 

@@ -166,13 +166,13 @@ function MainApp() {
   useEffect(() => {
     const name = currentWorkspace?.name?.trim()
     // Treat the default "Workspace" placeholder as no real name, so the title
-    // is just "Cate" until the user actually renames the workspace.
-    const title = name && name !== 'Workspace' ? `${name} · Cate` : 'Cate'
+    // is just "openCate" until the user actually renames the workspace.
+    const title = name && name !== 'Workspace' ? `${name} · openCate` : 'openCate'
     window.electronAPI?.windowSetTitle(title).catch(() => { /* noop */ })
   }, [currentWorkspace?.name])
 
   // When the active workspace's workspace.json is detected to have changed on
-  // disk (edited externally while Cate was running), prompt to reload the
+  // disk (edited externally while openCate was running), prompt to reload the
   // canvas. The detector (main's autosave guard) fires once per change via
   // WORKSPACE_EXTERNAL_EDIT.
   useEffect(() => {
@@ -296,7 +296,7 @@ function MainApp() {
   }, [centerLayout, selectedWorkspaceId])
 
   // ---------------------------------------------------------------------------
-  // OS-forwarded folder opens — dock drop / "Open With Cate"
+  // OS-forwarded folder opens — dock drop / "Open With openCate"
   // ---------------------------------------------------------------------------
   useEffect(() => {
     return window.electronAPI.onOpenPath(async (filePath) => {

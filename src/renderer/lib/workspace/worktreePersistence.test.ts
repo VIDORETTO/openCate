@@ -89,7 +89,7 @@ function snapshotWithWorktrees(): SessionSnapshot {
 describe('worktree session persistence', () => {
   beforeEach(reset)
 
-  it('allows terminal tags but strips Cate Agent panel residue', () => {
+  it('allows terminal tags but strips openCate Agent panel residue', () => {
     const ws = useAppStore.getState().addWorkspace('WT', ROOT, 'ws')
     useAppStore.getState().addPanel(ws, {
       id: 'terminal-1', type: 'terminal', title: 'Terminal', isDirty: false,

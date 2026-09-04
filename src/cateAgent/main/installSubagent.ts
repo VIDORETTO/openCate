@@ -1,6 +1,6 @@
 // =============================================================================
-// installSubagent — seed Pi's supported subagent extension and Cate's read-only
-// agent definitions into every workspace-scoped Cate Agent home.
+// installSubagent — seed Pi's supported subagent extension and openCate's read-only
+// agent definitions into every workspace-scoped openCate Agent home.
 //
 // The upstream example source is copied from node_modules in development and
 // from electron-builder extraResources in production. Files are then written
@@ -46,9 +46,9 @@ export async function installSubagentExtension(runtime: Runtime, cwd: string): P
       throw new Error('bundled subagent source directory not found')
     }
 
-    // Older Cate versions installed the same managed tool under
+    // Older openCate versions installed the same managed tool under
     // extensions/subagent. Pi loads both directories and rejects the duplicate
-    // `subagent` registration, so remove the obsolete Cate-managed copy before
+    // `subagent` registration, so remove the obsolete openCate-managed copy before
     // installing its renamed replacement.
     const legacyExtensionDir = hostJoin(runtime.id, home, 'extensions', 'subagent')
     if (await hostFileExists(runtime, legacyExtensionDir)) {

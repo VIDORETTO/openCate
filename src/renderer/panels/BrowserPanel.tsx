@@ -119,7 +119,7 @@ export function browserViewportScale(
 
 // Browser guests are isolated documents, so the renderer's global scrollbar
 // styles do not reach them. Inject a visible horizontal thumb using the current
-// Cate theme; this leaves each page's overflow behavior intact.
+// openCate theme; this leaves each page's overflow behavior intact.
 export function browserGuestScrollbarCss(): string {
   const vars = getComputedStyle(document.documentElement)
   const thumb = vars.getPropertyValue('--scrollbar-thumb').trim() || 'rgba(255,255,255,0.15)'

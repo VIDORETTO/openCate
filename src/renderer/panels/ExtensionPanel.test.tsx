@@ -189,7 +189,7 @@ describe('readDroppedFiles', () => {
     expect(fsReadFile).not.toHaveBeenCalled()
   })
 
-  it('reads Cate file-explorer paths over IPC (application/cate-files)', async () => {
+  it('reads openCate file-explorer paths over IPC (application/cate-files)', async () => {
     const fsReadFile = vi.fn(async (p: string) => `content-of:${p}`)
     ;(window as unknown as { electronAPI: unknown }).electronAPI = { fsReadFile, getPathForFile: vi.fn() }
 

@@ -1,6 +1,6 @@
 # Companion e relay
 
-O Cate agora tem um contrato compartilhado para um companion mobile/web e um
+O openCate agora tem um contrato compartilhado para um companion mobile/web e um
 relay self-hosted opcional. O contrato, o cliente transport-neutral, a
 criptografia do canal, o responder do desktop e o fluxo de pairing estão
 implementados. O desktop expõe a seção Companion em Settings e o repositório
@@ -51,7 +51,7 @@ extraível antes de ser salvo em IndexedDB. Wrappers nativos podem implementar
 `CompanionIdentityStore` sobre Keychain/Keystore. O companion web buildável em
 `companion-web/` usa essa store, permite colar o convite/QR e devolve a prova
 JSON para o desktop. O build também é instalável como PWA: inclui manifest,
-ícone Cate e service worker com fallback offline apenas para o app shell e
+ícone openCate e service worker com fallback offline apenas para o app shell e
 ativos estáticos; chamadas dinâmicas do relay nunca entram no cache.
 `npm run package:companion` transforma o build em um tarball estático versionado
 em `release/`; antes de escrever o arquivo, valida o manifesto, o service worker,
@@ -103,7 +103,7 @@ bun run companion:relay
 - aceita no máximo 64 frames por canal e remove frames expirados;
 - limita cada frame a 768 KiB e a uma janela curta de validade;
 - encaminha apenas `ciphertext` e metadados; não interpreta requests nem
-  conhece workspace, conta ou credencial do Cate;
+  conhece workspace, conta ou credencial do openCate;
 - mantém `Cache-Control: no-store` e autentica cada leitura/escrita do canal.
 
 O relay não conhece a criptografia end-to-end: desktop e companion

@@ -34,7 +34,7 @@ describe('container runtime contract', () => {
       '--pull',
       'never',
       '--name',
-      'cate-runtime-ctr_test_1',
+      'opencate-runtime-ctr_test_1',
       '--mount',
       'type=bind,source=/home/user/project,target=/workspace,readonly',
       '--workdir',

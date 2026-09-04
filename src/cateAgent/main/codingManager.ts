@@ -83,7 +83,7 @@ export interface CodingTurnResult {
 
 interface ExtSession {
   /** The handle returned to the extension — pi's own session file path, so the
-   *  conversation can be resumed later with no Cate-side persistence. */
+   *  conversation can be resumed later with no openCate-side persistence. */
   handle: string
   /** The live pi session's panelId in `sessions`. */
   panelId: string
@@ -99,7 +99,7 @@ export class CodingManager {
   // (see openForExtension) and for the auth-change mirror hook below.
   private authManager: AuthManager
   // Live extension agent sessions, keyed by handle (pi's session file). pi owns
-  // all conversation state on disk; Cate keeps only this in-memory handle->client
+  // all conversation state on disk; openCate keeps only this in-memory handle->client
   // routing, exactly like a panel. One live session per extension is the cap
   // against runaway loops (see openForExtension).
   private readonly extSessions = new Map<string, ExtSession>()
@@ -151,7 +151,7 @@ export class CodingManager {
     return this.locks.run(opts.panelId, async () => {
       const existing = this.sessions.get(opts.panelId)
       if (existing?.client.isStarted()) {
-        // Idempotent per session key: a second create for a live headless Cate
+        // Idempotent per session key: a second create for a live headless openCate
         // Agent session (or a create racing an in-flight one) is a no-op adoption.
         // Respawning here would strand the first freshly-started pi process and
         // interrupt any in-flight turn. serialized by locks.run, so this check is
@@ -180,7 +180,7 @@ export class CodingManager {
         log.warn('[codingManager] worktree skill sync failed for %s: %O', opts.panelId, err)
       }
 
-      // Cate uses the same direct agent home and extension set for every chat.
+      // openCate uses the same direct agent home and extension set for every chat.
       await prepareCodingDir(runtime, cwd)
       await mirrorModelsToWorkspace(runtime, cwd)
       await installPlanModeExtension(runtime, cwd)
@@ -243,7 +243,7 @@ export class CodingManager {
         this.sendErrorEvent(
           sender,
           opts.panelId,
-          agentErrorMessage(message, 'Cate couldn’t start the agent. Start a new chat and try again.'),
+          agentErrorMessage(message, 'openCate couldn’t start the agent. Start a new chat and try again.'),
         )
         throw err
       }
@@ -375,10 +375,10 @@ export class CodingManager {
   // Extension agent sessions (cate.agent.open / send / dispose, and run sugar)
   //
   // An enabled extension drives a real pi session the same way a panel does:
-  // Cate holds the live client in `sessions` and forwards its events to the
+  // openCate holds the live client in `sessions` and forwards its events to the
   // active window; pi owns ALL conversation state on its session jsonl. The
   // handle returned to the extension IS that jsonl path, so a conversation can
-  // be resumed later with nothing persisted on Cate's side. Turn-based: each
+  // be resumed later with nothing persisted on openCate's side. Turn-based: each
   // `send` runs one turn and returns the final assistant message. One live
   // session per extension, one in-flight turn per session — the anti-runaway cap.
   // ---------------------------------------------------------------------------

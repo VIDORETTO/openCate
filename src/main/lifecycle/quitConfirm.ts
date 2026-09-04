@@ -69,7 +69,7 @@ export function decideQuitPrompt(opts: {
     }
   }
   if (opts.warnBeforeQuit) {
-    return { message: 'Quit Cate?' }
+    return { message: 'Quit openCate?' }
   }
   return null
 }

@@ -55,7 +55,7 @@ export function guestScrollbarCss(): string {
 }
 
 // -----------------------------------------------------------------------------
-// File-drop forwarding. A Cate file-explorer drag is an in-renderer DnD the
+// File-drop forwarding. A openCate file-explorer drag is an in-renderer DnD the
 // isolated guest <webview> can never see, AND an HTML overlay can't reliably sit
 // above a webview to catch it. So when the extension declares `files.drop` we
 // catch the drop at the WINDOW capture phase, hit-test it against this panel's
@@ -89,7 +89,7 @@ export function clampText(text: string): { text: string; truncated: boolean } {
 }
 
 /** Resolve a drop event into the files to hand the guest. OS drops carry File
- *  objects we read in-renderer (any path, no workspace restriction); Cate
+ *  objects we read in-renderer (any path, no workspace restriction); openCate
  *  file-explorer drops carry in-workspace paths read over IPC.
  *  Exported for unit testing. */
 export async function readDroppedFiles(
@@ -111,7 +111,7 @@ export async function readDroppedFiles(
   }
   if (out.length > 0) return out
 
-  // 2. Cate file-explorer drag: a path (or JSON array of paths) we read via IPC.
+  // 2. openCate file-explorer drag: a path (or JSON array of paths) we read via IPC.
   const paths = readCateFilePaths(dt)
   for (const p of paths) {
     try {
@@ -207,10 +207,10 @@ export default function ExtensionPanel({
       .finally(() => setRetryNonce((n) => n + 1))
   }
 
-  // In-app (Cate file-explorer) drags are an HTML5 DnD the isolated guest
+  // In-app (openCate file-explorer) drags are an HTML5 DnD the isolated guest
   // <webview> can't see — and while the cursor is over the webview it captures
   // the drag, so neither the host's drop handler nor the shared drop indicator
-  // ever fire over the panel. Fix: while a Cate drag is in flight, make the
+  // ever fire over the panel. Fix: while a openCate drag is in flight, make the
   // webview transparent to hit-testing (pointer-events:none) so dragover/drop
   // fall through to the host DOM. The shared tracker can then find this panel's
   // [data-filedrop] wrapper (indicator shows), and we hit-test the drop against
@@ -317,7 +317,7 @@ export default function ExtensionPanel({
   // match BrowserPanel: no nodeintegration; per-extension persistent partition.
   // data-filedrop on the wrapper (not an overlay) lets the shared drag tracker
   // find this target; the drop effect above toggles the webview to
-  // pointer-events:none during a Cate drag so hit-testing reaches the wrapper.
+  // pointer-events:none during a openCate drag so hit-testing reaches the wrapper.
   return (
     <div
       ref={rootRef}

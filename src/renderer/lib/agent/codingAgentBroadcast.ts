@@ -1,8 +1,8 @@
 import type { CodingAgentRunSnapshot } from '../../../shared/codingAgentRuns'
 
-/** Only live Cate-owned missions with a declared follow-up contract may enter
+/** Only live openCate-owned missions with a declared follow-up contract may enter
  *  the global composer. A terminal discovered by heuristics is intentionally
- *  not a broadcast target: Cate cannot prove which prompt state it is in. */
+ *  not a broadcast target: openCate cannot prove which prompt state it is in. */
 export function isCodingAgentBroadcastEligible(run: CodingAgentRunSnapshot): boolean {
   return run.followUpSupported && (run.status === 'working' || run.status === 'waiting')
 }

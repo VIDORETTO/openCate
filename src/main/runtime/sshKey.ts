@@ -1,7 +1,7 @@
 // =============================================================================
 // SSH identity helpers. OpenSSH owns key parsing so certificates, security keys,
-// PKCS#11 providers, and future formats work without Cate duplicating its parser.
-// Cate only normalizes pasted paths and retains the actionable PuTTY guidance.
+// PKCS#11 providers, and future formats work without openCate duplicating its parser.
+// openCate only normalizes pasted paths and retains the actionable PuTTY guidance.
 // =============================================================================
 
 import { homedir } from 'os'
@@ -31,7 +31,7 @@ export function normalizeKeyPath(raw: string, home: string = homedir()): string 
 
 /** Preserve the existing targeted guidance for the one format OpenSSH does not
  * accept. Every actual OpenSSH/private-key/certificate parse remains delegated
- * to the system client so Cate cannot reject formats it does not understand. */
+ * to the system client so openCate cannot reject formats it does not understand. */
 export function assertNotPuttyKey(key: Buffer): void {
   const head = key.subarray(0, 64).toString('utf8').trimStart()
   if (head.startsWith('PuTTY-User-Key-File')) {

@@ -1,6 +1,6 @@
-// Chrome password import + Cate-owned credential store.
+// Chrome password import + openCate-owned credential store.
 //
-// Import is explicit. Cate can read a supported local Chrome profile directly,
+// Import is explicit. openCate can read a supported local Chrome profile directly,
 // or import Chrome's portable CSV export on any platform. Passwords are
 // immediately re-encrypted with Electron safeStorage under userData.
 // Password plaintext is never returned to the renderer or browser-agent APIs.

@@ -1,5 +1,5 @@
 // =============================================================================
-// WorkspaceTrustDialog — the one question Cate asks before opening a project it
+// WorkspaceTrustDialog — the one question openCate asks before opening a project it
 // has never opened before: do you trust it?
 //
 // There are exactly two answers. "Trust and open" opens the project normally.

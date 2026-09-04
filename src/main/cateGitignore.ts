@@ -14,7 +14,7 @@ import path from 'path'
 
 /** The single ignore-all-but-workspace rule for `.cate/.gitignore`. Exported so
  *  the remote project-state path can write the same file on the runtime. */
-export const CATE_GITIGNORE_CONTENT = `# Cate project-local state. Only workspace.json is shared; everything else
+export const CATE_GITIGNORE_CONTENT = `# openCate project-local state. Only workspace.json is shared; everything else
 # (session state, backups, the cate-agent dir, and worktrees) stays local.
 *
 !.gitignore

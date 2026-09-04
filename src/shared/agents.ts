@@ -1,5 +1,5 @@
 // =============================================================================
-// Coding agents Cate recognizes — THE canonical registry. Everything Cate knows
+// Coding agents openCate recognizes — THE canonical registry. Everything openCate knows
 // about an agent CLI is declared here (or in a table this file's AgentId keys),
 // so adding an agent is one entry plus whatever the compiler then demands.
 //
@@ -9,7 +9,7 @@
 //   • resume — `resumeArgs`, the argv that re-attaches a restored terminal to
 //     the session it had open (null when the CLI cannot resume by id).
 //   • skills — `skills`, where this agent reads project skills from and how
-//     they are laid out (null when Cate installs no skills for it).
+//     they are laid out (null when openCate installs no skills for it).
 //     src/shared/skills.ts and src/skills/main/targets.ts DERIVE from it.
 //
 // Keyed by AgentId elsewhere, each a TOTAL Record<AgentId, …> so a new id is a
@@ -45,13 +45,13 @@ export type AgentId =
   | 'copilot'
   | 'aider'
 
-/** Every agent integration Cate exposes. External CLIs are AgentId; Cate's
+/** Every agent integration openCate exposes. External CLIs are AgentId; openCate's
  * embedded agent participates in shared integrations such as skills without
  * pretending to have a shell command, process, or workspace hook. */
 export type AgentIntegrationId = AgentId | 'cate-agent'
 
 /** Where one agent reads project skills from, and how they are written.
- *  Cate follows the open Agent Skills standard (a `SKILL.md` folder), so an
+ *  openCate follows the open Agent Skills standard (a `SKILL.md` folder), so an
  *  agent's whole skills integration is its base dir plus a layout flag. */
 export interface AgentSkillTarget {
   /** Stable id, PERSISTED in each workspace's `.cate/skills.json`. Renaming one
@@ -85,7 +85,7 @@ export interface AgentDef {
   /** The CLI command that launches this agent in a terminal — usually the same
    *  as the detected process name. */
   command: string
-  /** Build the shell-free argv for a new Cate-owned mission worker. */
+  /** Build the shell-free argv for a new openCate-owned mission worker. */
   codingAgentArgs: (prompt: string) => string[]
   /** Whether the launched surface accepts another prompt on the same PTY. */
   codingAgentFollowUp: boolean
@@ -103,11 +103,11 @@ export interface AgentDef {
    *  when this CLI has no structured lifecycle events. This never replaces
    *  hooks: once a hook event is observed, the hook FSM is authoritative. */
   screenFallback: boolean
-  /** Project-skills integration, or null when Cate installs no skills for this
+  /** Project-skills integration, or null when openCate installs no skills for this
    *  agent. Verified against each CLI's own docs — see the per-agent notes. */
   skills: AgentSkillTarget | null
   /** Registry-translated structured launch preferences. Omitted means the CLI
-   *  has no verified mapping for that preference; Cate must not invent flags. */
+   *  has no verified mapping for that preference; openCate must not invent flags. */
   launchPreferences?: {
     model?: { args: (model: string) => string[] }
     reasoning?: Partial<Record<'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh', string[]>>
@@ -267,7 +267,7 @@ export const AGENTS: readonly AgentDef[] = [
     },
   },
   // Gemini CLI reads project skills from .gemini/skills and also honors the
-  // shared .agents/skills location. Cate installs only to Gemini's own dir so
+  // shared .agents/skills location. openCate installs only to Gemini's own dir so
   // it never writes another tool's home.
   {
     id: 'gemini',
@@ -322,12 +322,12 @@ export const AGENTS: readonly AgentDef[] = [
   },
 ]
 
-/** Cate's embedded agent belongs to the same integration registry as external
+/** openCate's embedded agent belongs to the same integration registry as external
  * agent CLIs. Consumers that need a command/process use AGENTS; consumers that
  * need shared capabilities such as skills use AGENT_INTEGRATIONS. */
 export const CATE_AGENT: EmbeddedAgentDef = {
   id: 'cate-agent',
-  displayName: 'Cate Agent',
+  displayName: 'openCate Agent',
   skills: folderSkills('cate-agent', ['.cate', 'cate-agent', 'skills']),
 }
 

@@ -160,7 +160,7 @@ describe('skillsInstaller workspace manifest', () => {
     expect(manifest().seeded).toEqual(['keep-me'])
   })
 
-  // Regression: a workspace written by an older Cate can carry rows for a
+  // Regression: a workspace written by an older openCate can carry rows for a
   // target since dropped (`antigravity`). install() reuses "the same skill
   // installed for another agent here" as its file source, and resolving that
   // row's target used to THROW `Unknown skill target: antigravity` — so one

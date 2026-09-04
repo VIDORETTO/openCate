@@ -114,7 +114,7 @@ export function CompanionSettings() {
     <div className="flex flex-col gap-1">
       <SearchableBlock keywords="companion mobile web pairing qr relay device revoke approval">
         <p className="text-xs text-muted pb-2">
-          Pair a web or mobile companion with this workspace. The local relay starts only while Cate is running;
+          Pair a web or mobile companion with this workspace. The local relay starts only while openCate is running;
           session bearers and private host keys never leave the main process.
         </p>
       </SearchableBlock>

@@ -756,11 +756,11 @@
     {
       "id": "cate/cate-cli",
       "name": "cate-cli",
-      "description": "Drive Cate browser, terminal, editor, and panel surfaces from a Cate terminal. Browser page automation uses native agent-browser command syntax.",
+      "description": "Drive openCate browser, terminal, editor, and panel surfaces from a openCate terminal. Browser page automation uses native agent-browser command syntax.",
       "tags": [],
       "format": "skill-md",
       "source": {
-        "repo": "0-AI-UG/cate",
+        "repo": "VIDORETTO/openCate",
         "ref": "main",
         "path": "skills/cate-cli"
       },
@@ -771,11 +771,11 @@
     {
       "id": "cate/cate-extension",
       "name": "cate-extension",
-      "description": "Build, test, and publish a Cate extension, a web panel (optionally backed by a local server) that runs on Cate's canvas. Use when the user wants to create or scaffold a Cate extension, add a panel to Cate, work with the extension manifest, cateApi scopes, or the window.cate host API, or submit an extension to the cate-extensions catalog.",
+      "description": "Build, test, and publish a openCate extension, a web panel (optionally backed by a local server) that runs on openCate's canvas. Use when the user wants to create or scaffold a openCate extension, add a panel to openCate, work with the extension manifest, cateApi scopes, or the window.cate host API, or submit an extension to the cate-extensions catalog.",
       "tags": [],
       "format": "skill-md",
       "source": {
-        "repo": "0-AI-UG/cate",
+        "repo": "VIDORETTO/openCate",
         "ref": "main",
         "path": "skills/cate-extension"
       },
@@ -786,11 +786,11 @@
     {
       "id": "cate/cate-theme",
       "name": "cate-theme",
-      "description": "Author or edit a Cate IDE theme — one data-driven theme covering app chrome colors, the terminal ANSI palette, and Monaco editor syntax tokens. Use when the user asks to create, customize, recolor, or generate a Cate theme, mentions a color scheme (Dracula, Nord, \"make Cate look like X\"), or wants a new light/dark theme.",
+      "description": "Author or edit a openCate IDE theme — one data-driven theme covering app chrome colors, the terminal ANSI palette, and Monaco editor syntax tokens. Use when the user asks to create, customize, recolor, or generate a openCate theme, mentions a color scheme (Dracula, Nord, \"make openCate look like X\"), or wants a new light/dark theme.",
       "tags": [],
       "format": "skill-md",
       "source": {
-        "repo": "0-AI-UG/cate",
+        "repo": "VIDORETTO/openCate",
         "ref": "main",
         "path": "skills/cate-theme"
       },

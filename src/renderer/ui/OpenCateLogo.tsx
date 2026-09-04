@@ -1,11 +1,11 @@
 import type { ComponentProps } from 'react'
 
-interface CateLogoProps extends ComponentProps<'svg'> {
+interface OpenCateLogoProps extends ComponentProps<'svg'> {
   size?: number
   weight?: string
 }
 
-export function CateLogo({ size = 24, className, weight: _weight, ...rest }: CateLogoProps) {
+export function OpenCateLogo({ size = 24, className, weight: _weight, ...rest }: OpenCateLogoProps) {
   return (
     <svg
       width={size}

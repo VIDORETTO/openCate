@@ -251,7 +251,7 @@ export async function ensureSettingsFile(): Promise<string> {
 
 /**
  * Start watching settings.json for EXTERNAL edits. When the user edits the file
- * (e.g. in a Cate editor panel) and saves, `onExternal` fires with the new
+ * (e.g. in a openCate editor panel) and saves, `onExternal` fires with the new
  * settings and the list of keys that changed. The factory reports the whole new
  * value; we diff it against the value we last reported to derive changed keys.
  */

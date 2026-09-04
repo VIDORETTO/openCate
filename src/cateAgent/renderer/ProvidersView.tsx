@@ -957,7 +957,7 @@ function DefaultModelSection({ models }: { models: Array<{ provider: string; mod
 
 export type PickModels = Array<{ provider: string; model: string; label?: string }>
 
-// Shared model-picker row used by the default-model section here and the Cate
+// Shared model-picker row used by the default-model section here and the openCate
 // Agent section (CanvasCateAgentSettings). Exported so both render an identical
 // control. Laid out like a settings SettingRow: label + sublabel on the left,
 // the picker button right-aligned like every other settings control.

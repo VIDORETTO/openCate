@@ -64,7 +64,7 @@ export async function ensureDirectChatSession(
           panelId,
           agentErrorMessage(
             result.error,
-            'Cate couldn’t start the agent. Start a new chat and try again.',
+            'openCate couldn’t start the agent. Start a new chat and try again.',
           ),
           'error',
         )
@@ -125,7 +125,7 @@ export async function promptDirectChat(
         outcome: input.outcome,
         actorKind: 'human',
         actorId: 'local-user',
-        actorLabel: 'Cate Agent chat',
+        actorLabel: 'openCate Agent chat',
         origin: 'direct-chat',
         ...(chat.hostPanelId ? { sourcePanelId: chat.hostPanelId } : {}),
         targetPanelId: panelId,

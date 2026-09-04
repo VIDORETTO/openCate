@@ -2,10 +2,10 @@
 
 ## Decisão atual
 
-- **Base escolhida:** [`0-AI-UG/cate`](https://github.com/0-AI-UG/cate).
+- **Base escolhida:** [`VIDORETTO/openCate`](https://github.com/VIDORETTO/openCate).
 - **Motivo:** maior aderência ao produto desejado, canvas infinito/zoomável nativo, painéis de terminal/editor/browser/documento, agentes CLI integrados, subagentes, orquestrador, worktrees, sessões persistentes e licença MIT.
 - **Clone local:** `C:\Users\gabri\Documents\cate`.
-- **Estratégia:** manter a arquitetura do Cate e absorver as melhores ideias de TermCanvas, Paseo, Nimbalyst e Claude Squad sem quebrar os contratos existentes.
+- **Estratégia:** manter a arquitetura do openCate e absorver as melhores ideias de TermCanvas, Paseo, Nimbalyst e Claude Squad sem quebrar os contratos existentes.
 
 ## Fase 0 — Baseline e governança
 
@@ -22,9 +22,9 @@
   - [x] O caminho reproduzível equivalente (`bun run test:smoke:electron`) e
     os E2Es cobrem a interação mínima; webviews/CDP e hosts remotos continuam
     na revisão manual de segurança.
-- [x] Criar ADR curto confirmando Cate como base e listando integrações prioritárias.
-- [x] Definir nome, identidade visual e metadados de empacotamento: Cate,
-  wordmark compartilhado e contrato desktop `com.cate.app`.
+- [x] Criar ADR curto confirmando openCate como base e listando integrações prioritárias.
+- [x] Definir nome, identidade visual e metadados de empacotamento: openCate,
+  wordmark compartilhado e contrato desktop `com.opencate.app`.
   - [x] Nome canônico, descritor, app ID e nomes de pacote documentados em
     [`BRAND_IDENTITY.md`](../docs/BRAND_IDENTITY.md).
   - [x] Fontes SVG, paleta, tipografia e derivados PNG/ICO referenciados.
@@ -90,7 +90,7 @@
 - [x] Exibir tokens, custo estimado, contexto restante e tempo por execução (commit `191d201`).
 - [x] Unificar histórico, busca e replay de sessões entre CLIs na primeira versão: índice machine-local alimentado por hooks, busca por metadados/conteúdo e replay somente leitura; retomada continua separada e a varredura retroativa global/transcritos remotos permanece como limitação explícita (commit `f1918d9`).
 - [x] Implementar retomada confiável com fallback claro quando a sessão do CLI expirou (registro por agente + stamps/testes de contrato).
-- [x] Criar composer global para um prompt, seleção múltipla, broadcast controlado e tradução opcional de slash commands na primeira versão (commit `e6880b1`); a superfície alcança apenas missões Cate-owned com follow-up suportado.
+- [x] Criar composer global para um prompt, seleção múltipla, broadcast controlado e tradução opcional de slash commands na primeira versão (commit `e6880b1`); a superfície alcança apenas missões openCate-owned com follow-up suportado.
 - [x] Adicionar perfis reutilizáveis de modelo, reasoning, permissões e ambiente (commit `ad68522`).
 
 ## Fase 4 — Subagentes, contexto e conversa entre terminais
@@ -163,7 +163,7 @@
 - [x] Adicionar runtime remoto/container com workspace montado e segredos isolados (seam e critérios em [`ADR 0002`](../docs/adr/0002-runtime-durability-and-remote-boundaries.md)).
   - [x] Contrato Docker/Podman, mount único, root dentro do mount, `--pull never`, rede `none` por padrão e allowlist de ambiente.
   - [x] UI, serialização e erro de imagem ausente integrados ao RuntimeManager.
-  - [x] Executar smoke contra daemon Docker e imagem Cate reais via `npm run test:container:runtime`; Podman continua dependente de um daemon instalado no host.
+  - [x] Executar smoke contra daemon Docker e imagem openCate reais via `npm run test:container:runtime`; Podman continua dependente de um daemon instalado no host.
 - [x] Notificações nativas quando agente pedir input, terminar ou falhar.
 - [ ] Completar a disponibilização do companion mobile/web (protocolo em [`docs/COMPANION_AND_RELAY.md`](../docs/COMPANION_AND_RELAY.md)); a implementação local, UI/QR e companion web já existem, mas deployment e wrappers nativos ainda pendem.
   - [x] Métodos de leitura enumerados, sem scrollback implícito, limites bounded e gateway host-side com nonce/escopos.
@@ -205,7 +205,7 @@
   - [x] CI de release publica instaladores por plataforma, tarballs do runtime e metadados usados pelo `electron-updater`; assinatura/configuração dependem dos secrets de release.
 - [x] Documentação de usuário em português e inglês (`docs/USER_GUIDE.md` e `docs/USER_GUIDE.en.md`).
 - [x] Guia de contribuição, arquitetura e troubleshooting (`CONTRIBUTING.md`, `docs/ARCHITECTURE.md` e `docs/TROUBLESHOOTING.md`).
-- [x] Release candidate com checklist de migração a partir de workspaces do Cate em [`docs/RELEASE_CANDIDATE.md`](../docs/RELEASE_CANDIDATE.md).
+- [x] Release candidate com checklist de migração a partir de workspaces do openCate em [`docs/RELEASE_CANDIDATE.md`](../docs/RELEASE_CANDIDATE.md).
   - [x] Pacote Windows local gerado e validado em `release/` (NSIS, ZIP, blockmap e `latest.yml`); assinatura não foi declarada sem os secrets do release.
   - [ ] Executar o checklist em checkout limpo, obter sign-off cross-platform e publicar artefatos assinados.
 
@@ -233,7 +233,7 @@
 ### Review — 2026-08-29 (Fase 5, quick start de missão isolada)
 
 - O menu de worktrees agora oferece “Start task in new worktree…”, com nome de branch, tarefa inicial, agente opcional e base branch.
-- `startWorktreeMission` compõe um supervisor Cate Agent, o driver autoritativo `cate.codingAgent.create`, o worktree real, a tarefa persistida e a associação do chat ao worktree. O driver continua responsável por hooks, PTY, lifecycle e rollback.
+- `startWorktreeMission` compõe um supervisor openCate Agent, o driver autoritativo `cate.codingAgent.create`, o worktree real, a tarefa persistida e a associação do chat ao worktree. O driver continua responsável por hooks, PTY, lifecycle e rollback.
 - Falhas de criação do painel ou inicialização do terminal encerram a tarefa, fecham o painel e removem o worktree criado pela missão; falhas de preflight continuam usando o rollback existente.
 - Verificação: typecheck aprovado; driver **34 testes**, composição **2 testes** e formulário **2 testes** aprovados.
 
@@ -381,7 +381,7 @@ Mostrar detalhes acionáveis por subagente — especialmente último tool call e
 
 ### Review — 2026-08-27 (Fase 3, registro declarativo e fallback de tela)
 
-- O registro compartilhado agora declara também `screenFallback`; Aider é o único agente habilitado enquanto os demais permanecem hook-first. A identidade pode vir do processo monitorado ou de um lançamento Cate-owned confiável.
+- O registro compartilhado agora declara também `screenFallback`; Aider é o único agente habilitado enquanto os demais permanecem hook-first. A identidade pode vir do processo monitorado ou de um lançamento openCate-owned confiável.
 - O fallback lê somente as linhas visíveis do viewport xterm, remove decoração ANSI e retorna apenas `running`, `waitingForInput` ou ambíguo. Não lê/persiste/transmite scrollback e não cria sessão, métrica ou notificação por heurística.
 - Um evento estruturado observado torna-se autoritativo e desativa amostras heurísticas para aquele terminal; a queda do processo continua fornecendo a aresta `finished`. O nome/logo de um fallback permanece visível apenas enquanto o estado está vivo.
 - Verificação: testes focados **63 aprovados / 0 falhas**; suíte completa **3.121 aprovados / 70 skips / 0 falhas**; typecheck limpo; lint **0 erros / 23 avisos herdados**. Commit: `f559e01`.
@@ -402,7 +402,7 @@ Mostrar detalhes acionáveis por subagente — especialmente último tool call e
 
 - `ProjectTask` agora é um contrato provider-neutral com objetivo, restrições, status, resultado validado, logs e artefatos estruturados. A normalização aplica limites de quantidade/tamanho, remove evidência malformada e ordena de forma determinística.
 - `.cate/tasks.json` é persistido por projeto/worktree no main process, com escrita atômica local/remota, quarentena de JSON corrompido e lock por raiz. O renderer recebe apenas load/save pelo IPC e evita que uma leitura atrasada sobrescreva alterações locais.
-- Missões Cate-owned carregam `taskId`; hooks e encerramento de terminal atualizam a tarefa associada, e arquivos tocados entram somente como referências explícitas. A seção Tasks permite criar/editar contrato, registrar validação, log e artefato manualmente; nenhum scrollback é lido ou salvo implicitamente.
+- Missões openCate-owned carregam `taskId`; hooks e encerramento de terminal atualizam a tarefa associada, e arquivos tocados entram somente como referências explícitas. A seção Tasks permite criar/editar contrato, registrar validação, log e artefato manualmente; nenhum scrollback é lido ou salvo implicitamente.
 - Verificação focada: **11 arquivos / 100 testes aprovados / 0 falhas**. Typecheck, lint, build de produção e smoke Electron passaram. A suíte completa terminou com **379 arquivos / 3.169 testes aprovados / 70 skips** e **3 arquivos / 5 falhas** somente sob execução paralela; `cateApiEndpointManager.test.ts`, `ExtensionServerManager.test.ts` e `workspaceCateApi.test.ts` passaram isoladamente (1, 17 e 17 testes).
 
 ### Review — 2026-08-29 (Fase 4, grafo de dependências)
@@ -435,9 +435,9 @@ Mostrar detalhes acionáveis por subagente — especialmente último tool call e
 - Registro de agentes ampliado para **Gemini CLI, Copilot CLI e Aider**. Gemini recebeu hooks mapeados em `.gemini/settings.json` (merge seguro) e skills em `.gemini/skills`; Copilot recebeu arquivo próprio `.github/hooks/cate-hook.json` com payload VS Code-compatível e skills em `.github/skills`; Aider foi registrado como agente parcial com lançamento one-shot `--message`, sem resume por id, skills ou hooks — todas as lacunas ficam protegidas por tripwires. Sessões, logos, preflight, argv de missões, status lifecycle e exclusão git foram cobertos por testes. Verificação: typecheck, lint **0 erros / 23 avisos herdados** e suíte completa — **3.047 aprovados / 0 falhas / 70 skips**. Contratos Gemini/Copilot derivam das fontes salvas em `work/`; validação live com binários permanece como próximo passo.
 - Overrides declarativos de comando implementados por workspace: perfis nomeados com executável/argv sem shell, interpolação `{PROMPT}` nos argumentos e precedência perfil explícito > override por agente > registro canônico. A configuração é normalizada em settings/store/schema, propagada do driver até o spawn do PTY e o CLI ganhou `cate agent create --profile`. Verificação: typecheck, lint 0 erros / **23 avisos herdados** e suíte completa — **3.057 aprovados / 0 falhas / 70 skips**.
 - Lição registrada em `tasks/lessons.md`: sessão anterior avançou da Fase 0 direto para Fase 2/3 sem executar Fase 1. Regra adicionada: verificar fases pendentes antes de iniciar qualquer item e perguntar ao usuário se houver pulo.
-- Métricas de execução adicionadas para missões de agentes CLI (commit `191d201`): duração calculada com início/fim real e atualizada enquanto o processo está ativo; uso estruturado opcional (`inputTokens`, `outputTokens`, cache, total, custo reportado, modelo, contexto usado/janela) é normalizado a partir de payloads de hooks e persistido no `codingAgentRun` em `session.json`. O cartão do Cate Agent e os detalhes de `inspect`/`wait` mostram tokens, duração, contexto restante e custo; quando o CLI não reporta usage, a UI mostra `tokens unavailable`/`Unavailable` sem estimar a partir de texto. Pi agora envia usage/contexto disponível no evento `agent_end`. Verificação: typecheck, lint sem erros (**23 avisos herdados**) e suíte completa — **3.064 testes aprovados / 0 falhas / 70 skips**.
-- Histórico unificado de sessões implementado na primeira versão (commit `f1918d9`): contrato canônico provider-neutral, índice machine-local em `.cate/agent-sessions.json`, registro idempotente a partir dos hooks, busca por metadados e conteúdo de transcripts conhecidos e replay somente leitura no Cate Agent. A chave composta inclui runtime, agente e sessão; caminhos de transcript são validados no processo principal e não são lidos diretamente pelo renderer. Retomada não é acionada pelo replay. A versão atual indexa sessões observadas enquanto o Cate está ativo; varredura retroativa global e leitura de transcripts externos em runtimes remotos ficam documentadas como próxima evolução. Verificação: typecheck passou; lint sem erros (**23 avisos herdados**); testes focados passaram; suíte completa terminou com **3.074 testes aprovados / 70 skips**, mas 2 suítes falharam em cleanup de infraestrutura no Windows (`extension-daemon.e2e.test.ts` por timeout do `afterAll` e `local-daemon-tarball.test.ts` por `EBUSY` ao remover diretório temporário).
-- Composer global de agentes implementado na primeira versão (commit `e6880b1`): botão no toolbar do canvas, lista reativa de missões Cate-owned, seleção múltipla, confirmação obrigatória para broadcast, envio por driver com validação de prompt e tradução opt-in somente para `/status`, `/plan` e `/review`. Sessões arbitrárias de terminal, missões encerradas e CLIs sem follow-up ficam indisponíveis. Verificação: typecheck passou; lint sem erros (**23 avisos herdados**); testes focados — **36 aprovados / 0 falhas**; suíte completa — **3.080 aprovados / 70 skips / 0 falhas**.
+- Métricas de execução adicionadas para missões de agentes CLI (commit `191d201`): duração calculada com início/fim real e atualizada enquanto o processo está ativo; uso estruturado opcional (`inputTokens`, `outputTokens`, cache, total, custo reportado, modelo, contexto usado/janela) é normalizado a partir de payloads de hooks e persistido no `codingAgentRun` em `session.json`. O cartão do openCate Agent e os detalhes de `inspect`/`wait` mostram tokens, duração, contexto restante e custo; quando o CLI não reporta usage, a UI mostra `tokens unavailable`/`Unavailable` sem estimar a partir de texto. Pi agora envia usage/contexto disponível no evento `agent_end`. Verificação: typecheck, lint sem erros (**23 avisos herdados**) e suíte completa — **3.064 testes aprovados / 0 falhas / 70 skips**.
+- Histórico unificado de sessões implementado na primeira versão (commit `f1918d9`): contrato canônico provider-neutral, índice machine-local em `.cate/agent-sessions.json`, registro idempotente a partir dos hooks, busca por metadados e conteúdo de transcripts conhecidos e replay somente leitura no openCate Agent. A chave composta inclui runtime, agente e sessão; caminhos de transcript são validados no processo principal e não são lidos diretamente pelo renderer. Retomada não é acionada pelo replay. A versão atual indexa sessões observadas enquanto o openCate está ativo; varredura retroativa global e leitura de transcripts externos em runtimes remotos ficam documentadas como próxima evolução. Verificação: typecheck passou; lint sem erros (**23 avisos herdados**); testes focados passaram; suíte completa terminou com **3.074 testes aprovados / 70 skips**, mas 2 suítes falharam em cleanup de infraestrutura no Windows (`extension-daemon.e2e.test.ts` por timeout do `afterAll` e `local-daemon-tarball.test.ts` por `EBUSY` ao remover diretório temporário).
+- Composer global de agentes implementado na primeira versão (commit `e6880b1`): botão no toolbar do canvas, lista reativa de missões openCate-owned, seleção múltipla, confirmação obrigatória para broadcast, envio por driver com validação de prompt e tradução opt-in somente para `/status`, `/plan` e `/review`. Sessões arbitrárias de terminal, missões encerradas e CLIs sem follow-up ficam indisponíveis. Verificação: typecheck passou; lint sem erros (**23 avisos herdados**); testes focados — **36 aprovados / 0 falhas**; suíte completa — **3.080 aprovados / 70 skips / 0 falhas**.
 - Perfis estruturados de lançamento implementados (commit `ad68522`): o registro canônico agora traduz modelo, níveis suportados de reasoning e posturas explícitas de permissão por agente; overrides e perfis nomeados aceitam essas preferências além de variáveis de ambiente adicionais. O ambiente é validado antes do spawn — chaves reservadas `CATE_*` são bloqueadas, valores com NUL são rejeitados e há limite de entradas/tamanho. A resolução mantém argv fechado, injeta permissões antes do prompt quando o agente define posição conhecida e usa `strictUnsupported: false` no spawn de produção para ignorar preferência não suportada sem quebrar o lançamento. Verificação: typecheck limpo; lint sem erros (**23 avisos herdados**); testes focados passaram; suíte completa — **3.082 aprovados / 70 skips / 0 falhas**.
 
 ### Review — Fase 1 (auditoria de dependências nativas)
@@ -448,8 +448,8 @@ Mostrar detalhes acionáveis por subagente — especialmente último tool call e
 | PTY | `node-pty@^1.0.0` (devDep) | ✅ prebuild `win32-x64/pty.node` presente | Médio | Carregado lazy no daemon (`src/runtime/capabilities/process.ts:142`). Runtime tarball já contém prebuild por target (`scripts/build-runtime-tarball.mjs:stageNodePty`). Empacotado via `asarUnpack`. |
 | Terminal render | `@xterm/addon-webgl@^0.18.0` | ✅ JS puro (WebGL via browser) | Baixo | Budget de contexts gerenciado por `src/main/webglBudget.ts`; fallback DOM renderer quando budget excedido. |
 | Watcher | `@parcel/watcher@^2.5.1` + `@parcel/watcher-win32-x64` | ✅ prebuild presente | Baixo | Usado apenas no daemon (`src/runtime/capabilities/fileWatcher.ts:26`); externalizado no esbuild bundle. |
-| Ripgrep | `@vscode/ripgrep@^1.18.0` + `ripgrep-win32-x64` | ✅ binário `rg.exe` (5.4 MB) | Baixo | Daemon resolve via sibling do node (`daemonRgPath()`); tarball local `dist-runtime/cate-runtime-1.6.1-beta.2-win32-x64.tgz` presente (73 MB). |
-| Runtime tarball | `cate-runtime-1.6.1-beta.2-win32-x64` | ✅ buildado em `dist-runtime/` | Baixo | Instalação local em `~/.cate/runtime/<ver>/<target>` ainda não criada (será criada no primeiro `bun run dev` ou smoke test). |
+| Ripgrep | `@vscode/ripgrep@^1.18.0` + `ripgrep-win32-x64` | ✅ binário `rg.exe` (5.4 MB) | Baixo | Daemon resolve via sibling do node (`daemonRgPath()`); tarball local `dist-runtime/opencate-runtime-1.6.1-beta.2-win32-x64.tgz` presente (73 MB). |
+| Runtime tarball | `opencate-runtime-1.6.1-beta.2-win32-x64` | ✅ buildado em `dist-runtime/` | Baixo | Instalação local em `~/.cate/runtime/<ver>/<target>` ainda não criada (será criada no primeiro `bun run dev` ou smoke test). |
 | Sharp/WASM | `sharp@^0.35.3`, `pdfjs-dist`, `mammoth` | ⚠️ empacotados via `asarUnpack` mas não validados em runtime Windows | Médio | Não exercitados nesta auditoria estática; cobrir no smoke test manual (Fase 0). |
 
 **Conclusão:** Nenhum bloqueador nativo para desenvolvimento Windows. Todos os prebuilds críticos presentes. Scripts shell (`postinstall`, `predev`) funcionam via Git Bash no Windows mas não são portáveis sem ele — risco documentado, correção adiada para o próximo item.
@@ -715,7 +715,7 @@ Todos os 5 itens da Fase 1 finalizados. Suíte unitária completa: 3057 aprovado
 - O Docker Desktop ficou disponivel neste host durante a retomada e respondeu
   com daemon `29.1.5`; containers existentes do usuario foram preservados.
 - O tarball `linux-x64` foi reconstruido com `--docker`, a imagem
-  `cate-runtime-smoke` foi criada a partir do Dockerfile versionado e o E2E
+  `opencate-runtime-smoke` foi criada a partir do Dockerfile versionado e o E2E
   real passou em 2/2 cenários: handshake, leitura/escrita no workspace, mount
   somente leitura com escrita recusada e boundary de `/workspace` confirmados.
 - A validacao agora e reproduzivel com `npm run test:container:runtime`, que
@@ -782,7 +782,7 @@ Todos os 5 itens da Fase 1 finalizados. Suíte unitária completa: 3057 aprovado
 - A suite E2E completa passou com **58 testes aprovados e 1 skip condicional**
   em 10,2 minutos. O skip permanece o cenario de encaixar um painel canvas em
   um mini-dock de canvas, quando a capacidade nao esta disponivel. A auditoria
-  posterior encontrou **0** Electron do Cate, **0** daemons runtime, **0**
+  posterior encontrou **0** Electron do openCate, **0** daemons runtime, **0**
   agentes ConPTY, **0** workers Playwright e **0** launchers E2E reais.
 - Gates locais finais passaram: `npm run typecheck`, `npm run lint`, `npm test`,
   `npm run build`, `npm run build:runtime`, `npm run runtime:tarball`,
@@ -817,10 +817,10 @@ Todos os 5 itens da Fase 1 finalizados. Suíte unitária completa: 3057 aprovado
   com **24/24** testes dos tres arquivos envolvidos.
 - Depois das correcoes, `npm run build`, `verify:hygiene` e o empacotamento
   Windows terminaram com exit code 0. O smoke Electron e a auditoria de
-  processos tambem ficaram limpos; nao ha orfaos Cate/E2E/runtime/hygiene.
-- O release local atual permanece consistente: `Cate-Setup-1.6.1-beta.2.exe`,
+  processos tambem ficaram limpos; nao ha orfaos openCate/E2E/runtime/hygiene.
+- O release local atual permanece consistente: `openCate-Setup-1.6.1-beta.2.exe`,
   blockmap, ZIP e `latest.yml`; o hash/tamanho do instalador conferem com o
-  manifesto e o ZIP contem `Cate.exe`, `resources/app.asar` e
+  manifesto e o ZIP contem `openCate.exe`, `resources/app.asar` e
   `resources/runtime-host.tgz`.
 - Permanecem abertos somente itens que nao podem ser declarados concluídos
   neste Windows sem autorização/recursos adicionais: identidade do produto,
@@ -840,8 +840,8 @@ Todos os 5 itens da Fase 1 finalizados. Suíte unitária completa: 3057 aprovado
 - A matriz E2E completa passou **73/73**, com **4 skips esperados**; `build`,
   typecheck, lint, `verify:hygiene`, smoke Electron e `git diff --check`
   tambem passaram. A auditoria posterior confirmou zero processos
-  Cate/E2E/runtime/hygiene orfaos.
-- O pacote Windows foi regenerado apos a correcao: `Cate-Setup-1.6.1-beta.2`
+  openCate/E2E/runtime/hygiene orfaos.
+- O pacote Windows foi regenerado apos a correcao: `openCate-Setup-1.6.1-beta.2`
   continua alinhado ao `latest.yml`, com hash/tamanho conferidos e sem os
   artefatos antigos com espacos.
 - Os gates complementares `build:sdk`, `build:runtime` e `npm audit
@@ -870,25 +870,25 @@ Todos os 5 itens da Fase 1 finalizados. Suíte unitária completa: 3057 aprovado
   o Vitest ainda processava os 412 arquivos; a execucao diagnostica com
   `hanging-process` terminou com exit 0 e a repeticao oficial de
   `verify:hygiene` tambem terminou com exit 0. Os processos filhos foram
-  auditados depois, sem sobras Cate/E2E/runtime.
+  auditados depois, sem sobras openCate/E2E/runtime.
 - A regressao de compatibilidade da persistencia/migracao passou **57/57**:
   arquivo ausente/corrompido, edicao externa, lock orfao, fallback atomic e
   round-trip separado de `workspace.json`/`session.json`.
-- A distribuicao local do companion web agora inclui manifest PWA, icone Cate
+- A distribuicao local do companion web agora inclui manifest PWA, icone openCate
   e service worker com cache seguro do app shell; o smoke confirmou pairing,
   persistencia IndexedDB e reload offline, e o tarball contem esses artefatos.
 
 ## Review - 2026-09-01 (companion PWA e asset distribuido)
 
 - O companion web passou a ter manifest instalavel, escopo PWA, metadata,
-  icone Cate e service worker. O worker cacheia apenas navegacao e ativos
+  icone openCate e service worker. O worker cacheia apenas navegacao e ativos
   estaticos, aguarda a gravacao no cache e nunca persiste respostas dinamicas
   do relay.
 - O smoke `test:companion:web` confirmou pairing, identidade IndexedDB,
   registro/controle do service worker e reload offline; `typecheck`, lint e
   `verify:hygiene` passaram depois da alteracao.
-- O tarball `release/cate-companion-web-1.6.1-beta.2.tgz` foi regenerado e
-  contem `index.html`, `manifest.webmanifest`, `cate-logo.svg`, `sw.js` e os
+- O tarball `release/opencate-companion-web-1.6.1-beta.2.tgz` foi regenerado e
+  contem `index.html`, `manifest.webmanifest`, `opencate-logo.svg`, `sw.js` e os
   bundles versionados.
 
 ## Review - 2026-09-01 (integridade do pacote companion)
@@ -947,11 +947,11 @@ essas validações continuam abertas sem marcar caixas por inferência.
   `lint` e `npm test -- --no-file-parallelism` passaram; o teste unitario
   completo terminou com exit code 0.
 - O pacote Windows foi regenerado depois do build atual: NSIS, ZIP, blockmap e
-  `latest.yml` foram produzidos; o ZIP contem `Cate.exe`, `resources/app.asar`
+  `latest.yml` foram produzidos; o ZIP contem `openCate.exe`, `resources/app.asar`
   e `resources/runtime-host.tgz`, e o SHA-512 do instalador confere com o
   digest publicado em `latest.yml`. O smoke Electron tambem passou.
 - A consistencia do updater foi corrigida em `electron-builder.yml`: o nome
-  explicito `Cate-Setup-${version}.${ext}` evita que o arquivo fisico use
+  explicito `openCate-Setup-${version}.${ext}` evita que o arquivo fisico use
   espacos enquanto `latest.yml` aponta para a variante segura com hifens. O
   pacote foi regenerado e os tres artefatos antigos incompatíveis foram
   removidos do diretorio `release`; eles sao regeneraveis pelo mesmo comando.
@@ -1011,18 +1011,18 @@ essas validações continuam abertas sem marcar caixas por inferência.
       perfil e projeto temporários;
 - [x] verificar que o app grava/restaura `workspace.json` e `session.json` sem
       alterar as versões de schema;
-- [x] verificar encerramento do app e ausência de processos Cate/daemon órfãos;
+- [x] verificar encerramento do app e ausência de processos openCate/daemon órfãos;
 - [x] executar typecheck, lint, smoke focado e atualizar o RC com a evidência;
 - [ ] manter pendentes as validações manuais de instalador, macOS/Linux, SSH
       externo, Podman, deployment público e sign-off.
 
 ## Review - 2026-09-02 (round-trip empacotado de sessão)
 
-- `test:smoke:packaged-restore` passou contra `release/win-unpacked/Cate.exe`:
+- `test:smoke:packaged-restore` passou contra `release/win-unpacked/openCate.exe`:
   criou um terminal, redimensionou para **677x423**, salvou os dois arquivos
   `.cate`, encerrou o primeiro processo, reabriu o mesmo perfil e confirmou a
   geometria restaurada no segundo processo.
-- A auditoria pós-execução não encontrou `Cate.exe`, `cate-runtime`, Electron
+- A auditoria pós-execução não encontrou `openCate.exe`, `cate-runtime`, Electron
   ou Node residual associado ao pacote. O workflow de release Windows agora
   executa o smoke após o empacotamento.
 - O smoke comprova round-trip no Windows empacotado; não fecha migração manual,
@@ -1036,7 +1036,7 @@ essas validações continuam abertas sem marcar caixas por inferência.
 
 ## Review - 2026-09-02 (toggle empacotado de telemetria)
 
-- `test:smoke:telemetry` passou novamente contra o `release/win-unpacked/Cate.exe`:
+- `test:smoke:telemetry` passou novamente contra o `release/win-unpacked/openCate.exe`:
   o perfil sem consentimento produziu **0 requests**, o perfil com consentimento
   produziu **3 requests** incluindo `app_start`, e a mesma sessão alternou para
   opt-in/opt-out via `settingsSet` sem emitir o evento após o opt-out.
@@ -1120,7 +1120,7 @@ essas validações continuam abertas sem marcar caixas por inferência.
   entry**); `test:smoke:telemetry` passou com 0 requests sem opt-in, 3 com
   opt-in e toggle same-session; `test:smoke:packaged-restore` passou salvando e
   restaurando a geometria **677x423**.
-- A auditoria pós-smoke não encontrou `Cate.exe`, `cate-runtime`, Electron ou
+- A auditoria pós-smoke não encontrou `openCate.exe`, `cate-runtime`, Electron ou
   Node residual associado ao pacote.
 
 ## Plano de retomada - 2026-09-02 (BrowserPanel local)
@@ -1141,7 +1141,7 @@ essas validações continuam abertas sem marcar caixas por inferência.
 - `src/main/webSecurity.test.ts` passou 6/6, incluindo popup HTTPS permitido,
   esquemas inseguros bloqueados e popups recusados em extension webviews.
 - O `afterEach` encerrou o app e removeu o diretório temporário; a auditoria
-  posterior não encontrou processos Cate/Electron residuais.
+  posterior não encontrou processos openCate/Electron residuais.
 - A cobertura local reduz o escopo manual, mas não fecha navegação externa,
   popups OAuth ou extensão server-backed real.
 - A primeira execução de `npm run verify:hygiene` após este spec ficou
@@ -1232,7 +1232,7 @@ essas validações continuam abertas sem marcar caixas por inferência.
 - `npm run test:smoke:telemetry` passou com 0 requests sem opt-in, 3 apos
   opt-in e toggle same-session; `test:smoke:packaged-restore` passou
   restaurando 677x423; `test:smoke:electron` terminou com exit 0.
-- A auditoria posterior nao encontrou Cate/Electron/daemon/processos de smoke
+- A auditoria posterior nao encontrou openCate/Electron/daemon/processos de smoke
   residuais. Instaladores de outras plataformas, deployment externo e
   assinatura continuam pendentes.
 - A checagem read-only em Ubuntu WSL confirmou que `podman` nao esta instalado;
@@ -1382,7 +1382,7 @@ essas validações continuam abertas sem marcar caixas por inferência.
   progress ~100%` → `update downloaded`.
 - O launcher agora executa o CLI local do `electron-vite` via `process.execPath`,
   evitando os erros Windows `ENOENT`/`EINVAL` dos shims npm; a sessão foi
-  encerrada de forma bounded, sem processos Cate/Electron/updater residuais e
+  encerrada de forma bounded, sem processos openCate/Electron/updater residuais e
   sem `dev-app-update.yml`.
 - A cadeia dev confirma check/download/eventos, mas não substitui a troca real
   entre builds assinados, notarização ou rollback operacional.
@@ -1460,7 +1460,7 @@ essas validações continuam abertas sem marcar caixas por inferência.
   `package:linux` geraram AppImage, `.deb`, tarball e `latest-linux.yml`; o
   `verify:release-metadata` passou com 1 metadata e 2 artifacts.
 - O `.deb` foi instalado com `dpkg --root` em raiz temporaria e o executavel
-  instalado foi `/opt/Cate/cate` dentro dessa raiz. O smoke empacotado passou:
+  instalado foi `/opt/openCate/cate` dentro dessa raiz. O smoke empacotado passou:
   **saved and restored 677x423**, sem processos orfaos observados.
 - AppImage foi reconhecido como ELF Linux x64 e o tarball foi validado como
   arquivo nao vazio com `resources/app.asar`/runtime no conteudo. A primeira
@@ -1473,7 +1473,7 @@ essas validações continuam abertas sem marcar caixas por inferência.
 
 ## Plano de retomada - 2026-09-04 (metadado desktop Linux)
 
-- [x] declarar `desktopName: Cate` junto ao `productName` existente e ativar
+- [x] declarar `desktopName: openCate` junto ao `productName` existente e ativar
       `linux.syncDesktopName`, evitando o aviso do electron-builder e
       estabilizando a associacao de janelas Linux;
 - [x] executar typecheck, lint e `git diff --check` depois da alteracao;
@@ -1482,7 +1482,7 @@ essas validações continuam abertas sem marcar caixas por inferência.
 
 ## Review - 2026-09-04 (metadado desktop Linux)
 
-- `package.json` agora declara `desktopName: Cate`, alinhado ao `productName`
+- `package.json` agora declara `desktopName: openCate`, alinhado ao `productName`
   existente, e `electron-builder.yml` ativa `linux.syncDesktopName`; nenhuma
   decisao de rename foi inferida.
 - `typecheck`, `lint` e `git diff --check` passaram apos a alteracao.
@@ -1530,23 +1530,23 @@ essas validações continuam abertas sem marcar caixas por inferência.
 
 ### Replanejamento do smoke NSIS
 
-- O instalador terminou com exit `0` e criou `Cate.exe`, `resources/app.asar`,
-  `resources/runtime-host.tgz` e `Uninstall Cate.exe`; a primeira checagem usou
+- O instalador terminou com exit `0` e criou `openCate.exe`, `resources/app.asar`,
+  `resources/runtime-host.tgz` e `Uninstall openCate.exe`; a primeira checagem usou
   o nome incorreto `uninstall.exe` e nao constitui falha do instalador.
 
 ## Review - 2026-09-04 (instalador Windows bounded)
 
-- O NSIS `release/Cate-Setup-1.6.1-beta.2.exe` executou em modo silencioso
-  para `release/installer-smoke` com exit `0`; o destino continha `Cate.exe`,
-  `resources/app.asar`, `resources/runtime-host.tgz` e `Uninstall Cate.exe`.
+- O NSIS `release/openCate-Setup-1.6.1-beta.2.exe` executou em modo silencioso
+  para `release/installer-smoke` com exit `0`; o destino continha `openCate.exe`,
+  `resources/app.asar`, `resources/runtime-host.tgz` e `Uninstall openCate.exe`.
 - O smoke do executavel instalado e a repeticao explicita do unpacked
-  `release/win-unpacked/Cate.exe` passaram, ambos restaurando `677x423` e sem
+  `release/win-unpacked/openCate.exe` passaram, ambos restaurando `677x423` e sem
   processos orfaos detectados.
 - `verify-packaged-restore.mjs` agora usa retries bounded no `fs.rm` para locks
   transitórios do Chromium e deriva o filtro de processos do executavel real.
   A tentativa default anterior ficou presa por uma arvore stale; ela foi
   encerrada por PIDs exatos, o perfil foi removido e a repeticao limpa passou.
-- A limpeza final confirmou nenhum `Cate.exe`/`node.exe` associado e removeu
+- A limpeza final confirmou nenhum `openCate.exe`/`node.exe` associado e removeu
   `release/installer-smoke`; instalador original, ZIP, blockmap, metadata e
   companion foram preservados.
 
@@ -1592,17 +1592,17 @@ essas validações continuam abertas sem marcar caixas por inferência.
 
 - [x] instalar novamente o NSIS em `release/installer-smoke`, com destino
       explicito e sem alterar a instalacao padrao do usuario;
-- [x] executar `Uninstall Cate.exe /S` e confirmar exit code e remocao do
+- [x] executar `Uninstall openCate.exe /S` e confirmar exit code e remocao do
       diretorio instalado;
-- [x] confirmar que nao restam processos Cate/runtime associados e registrar a
+- [x] confirmar que nao restam processos openCate/runtime associados e registrar a
       evidencia sem remover os artefatos de release preservados.
 
 ## Review - 2026-09-04 (ciclo NSIS de desinstalacao)
 
 - Um segundo ciclo instalou o NSIS em `release/installer-smoke` com exit `0`.
-  `Uninstall Cate.exe /S` tambem terminou com exit `0` e removeu completamente
+  `Uninstall openCate.exe /S` tambem terminou com exit `0` e removeu completamente
   o destino temporario.
-- A consulta final nao encontrou processos `Cate.exe`/`node.exe` associados ao
+- A consulta final nao encontrou processos `openCate.exe`/`node.exe` associados ao
   destino; os artefatos originais de release permaneceram preservados.
 
 ## Plano de retomada - 2026-09-04 (launcher do gate hygiene)
@@ -1627,7 +1627,7 @@ essas validações continuam abertas sem marcar caixas por inferência.
 
 - O spawn do SDK agora executa `node_modules/typescript/bin/tsc` via Node;
   `npm run build:sdk`, `npm run typecheck` e `npm run lint` passaram.
-- O packaging Windows gerou `release/Cate-Setup-1.6.1-beta.2.exe`, ZIP,
+- O packaging Windows gerou `release/openCate-Setup-1.6.1-beta.2.exe`, ZIP,
   blockmap e `latest.yml`; `npm run verify:release-metadata` passou com hash e
   tamanho conferidos. O wrapper nao devolveu exit final depois de gerar os
   arquivos e nao ha processo de build vivo.
@@ -1805,7 +1805,7 @@ essas validações continuam abertas sem marcar caixas por inferência.
 ## Review - 2026-09-04 (smoke Docker local)
 
 - Docker Desktop `29.1.5`/Linux `amd64` executou o cross-build de `node-pty`,
-  construiu a imagem `cate-runtime-smoke` e o `containerRuntime.itest.ts`
+  construiu a imagem `opencate-runtime-smoke` e o `containerRuntime.itest.ts`
   passou **2/2**, cobrindo mount read-only, rede isolada, mount gravável e
   boundary de caminho.
 - O teste de imagem ausente com `--pull never` retornou o `code 125` esperado.
@@ -1905,7 +1905,7 @@ essas validações continuam abertas sem marcar caixas por inferência.
 
 ## Plano de retomada - 2026-09-04 (identidade e metadata canônicos)
 
-- [x] consolidar em documentação o nome `Cate`, wordmark, ícone, paleta e
+- [x] consolidar em documentação o nome `openCate`, wordmark, ícone, paleta e
       tipografia já usados pelo produto;
 - [x] verificar que os identificadores de empacotamento e os três formatos de
       ícone continuam apontando para essa identidade;
@@ -1914,11 +1914,11 @@ essas validações continuam abertas sem marcar caixas por inferência.
 
 ## Review - 2026-09-04 (identidade e metadata canônicos)
 
-- [`BRAND_IDENTITY.md`](../docs/BRAND_IDENTITY.md) consolida o nome `Cate`,
+- [`BRAND_IDENTITY.md`](../docs/BRAND_IDENTITY.md) consolida o nome `openCate`,
   descritor, app ID, wordmarks, tokens visuais, tipografia e contrato de
   empacotamento para desktop/companion.
-- `package.json` reporta `cate`/`Cate`/`Cate`; `electron-builder.yml` aponta
-  `com.cate.app`, os ícones das três plataformas, `Cate-Setup-<version>` e
+- `package.json` reporta `cate`/`openCate`/`openCate`; `electron-builder.yml` aponta
+  `com.opencate.app`, os ícones das três plataformas, `openCate-Setup-<version>` e
   `syncDesktopName` no Linux.
 - `npm run icons` passou no Windows; PNG/ICO permaneceram byte-a-byte estáveis
   (SHA-256 `974f2340…e0d3` e `8e602a8c…a8d3`). Aprovação jurídica/marketing e
@@ -1937,7 +1937,7 @@ essas validações continuam abertas sem marcar caixas por inferência.
 - `npm run test:smoke:packaged-restore` passou: restauração confirmada em
   `677x423`.
 - O fallback Windows agora encerra a árvore exata do processo com
-  `taskkill /PID /T /F`; a verificação pós-teste não encontrou processos Cate
+  `taskkill /PID /T /F`; a verificação pós-teste não encontrou processos openCate
   ou runtime ativos.
 - O perfil temporário criado pela execução (`cate-packaged-restore-i0Otjh`) foi
   removido pelo caminho literal e confirmado ausente. Os artefatos em `release/`
@@ -2060,3 +2060,31 @@ essas validações continuam abertas sem marcar caixas por inferência.
 - O commit `b4cf963f20e69ba79ae9408d5a334eb97bfd75e1` foi enviado com sucesso
   para `VIDORETTO/openCate` em `product/agent-canvas`.
 - A branch remota foi confirmada pelo SHA; nenhuma release ou tag foi criada.
+
+## Plano de retomada - 2026-09-04 (renomeação do produto para openCate)
+
+- [x] mapear ocorrências rastreadas de `openCate/cate` e separar identidade pública,
+  nomes técnicos e compatibilidade legada;
+- [x] atualizar a identidade pública do produto para `openCate`, incluindo
+  metadados, URLs, documentação e superfícies visíveis;
+- [x] validar que o código continua compilando e que só permanecem referências
+  técnicas/legadas justificadas;
+- [x] registrar a revisão e deixar explícito o estado de publicação da mudança.
+
+### Review - 2026-09-04 (renomeação do produto para openCate)
+
+- A identidade pública foi atualizada para `openCate`: metadados npm/Electron,
+  App ID, URLs do repositório, logos, título, textos visíveis, documentação,
+  workflows e nomes dos artefatos de distribuição.
+- O CLI canônico agora é `opencate`, com launchers `opencate`/`.cmd` e o
+  alias `cate` preservado para instalações e automações existentes. O runtime
+  usa `opencate/` como layout novo e ainda encontra `cate/` legado.
+- `.cate`, `CATE_*`, `cate.*`, `cate-runtime://` e identificadores internos foram
+  mantidos como contratos técnicos/compatibilidade. `NOTICE.md` e as URLs do
+  repositório externo `0-AI-UG/cate-extensions` também permanecem por origem e
+  integração, respectivamente.
+- Validações concluídas: typecheck, lint, suíte completa serializada,
+  `verify:hygiene`, build desktop, build/test/package do companion, verificações
+  de release/deployment/boundaries, bundle runtime e tarball Windows.
+- A renomeação ainda não foi commitada nem enviada ao GitHub; nenhum release foi
+  publicado.

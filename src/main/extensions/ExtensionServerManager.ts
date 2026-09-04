@@ -420,7 +420,7 @@ export class ExtensionServerManager {
         // var; servers honoring it stay on 127.0.0.1.
         HOST: '127.0.0.1',
         // Phase 3C: the loopback URL (on the daemon host) the server uses to call
-        // back into Cate's reverse API; the listener tunnels it back to main.
+        // back into openCate's reverse API; the listener tunnels it back to main.
         CATE_API: `http://127.0.0.1:${cateApiPort}`,
       },
       portEnv: server.portEnv || DEFAULT_PORT_ENV,

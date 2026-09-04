@@ -1,6 +1,6 @@
-# Guia de uso do Cate
+# Guia de uso do openCate
 
-O Cate transforma uma pasta em um workspace visual para executar agentes CLI,
+O openCate transforma uma pasta em um workspace visual para executar agentes CLI,
 terminais, editores e ferramentas lado a lado. O canvas guarda a geometria e
 os painéis; o dock organiza painéis em abas e divisões.
 
@@ -20,13 +20,13 @@ agentes sem uma decisão explícita do usuário.
 
 ## Terminais e agentes
 
-Cada terminal tem um PTY próprio. O Cate acompanha estados como trabalhando,
+Cada terminal tem um PTY próprio. O openCate acompanha estados como trabalhando,
 aguardando resposta, concluído, erro e parado quando o agente fornece sinais
 estruturados ou quando o fallback suportado consegue inferi-los.
 
 O terminal pode ser nomeado, marcado com estrela, tags e cor. Esses metadados,
 assim como scrollback limitado e dicas de retomada, pertencem à sessão local.
-O Cate não copia scrollback inteiro para o barramento de contexto ou para a
+O openCate não copia scrollback inteiro para o barramento de contexto ou para a
 auditoria de autoria.
 
 ## Worktrees e missões paralelas
@@ -36,7 +36,7 @@ um terminal, um agente e uma tarefa inicial. Cada worktree recebe território
 visual próprio. Antes de integrar, revise o diff, aprove hunks quando
 necessário e passe pela fila de merge.
 
-Commits e pull requests são ações assistidas: o Cate verifica o estado atual,
+Commits e pull requests são ações assistidas: o openCate verifica o estado atual,
 mostra o que será feito e não deve publicar trabalho sem a confirmação pedida
 pela interface.
 

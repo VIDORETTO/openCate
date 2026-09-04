@@ -115,7 +115,7 @@ export class LocalSubprocessTransport implements RuntimeTransport {
    * Where this transport's tarball installs to: `<installRoot>/<target>-<hash>`.
    * Null in direct mode.
    *
-   * CONTENT-KEYED on purpose. Keying by version alone put a packaged Cate and a
+   * CONTENT-KEYED on purpose. Keying by version alone put a packaged openCate and a
    * dev build — same RUNTIME_VERSION, different daemon bytes — in one directory,
    * where each read the other's `.ok` as stale and `rm -rf`d a tree the other
    * app's daemon was running from. Every agent hook bridge wrapper embeds

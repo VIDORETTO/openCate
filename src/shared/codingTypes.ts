@@ -40,7 +40,7 @@ export interface ProviderVerification {
   error?: string
 }
 
-/** A Cate-managed OpenAI-compatible endpoint (Ollama, LM Studio, vLLM, a
+/** A openCate-managed OpenAI-compatible endpoint (Ollama, LM Studio, vLLM, a
  *  proxy, ...), written to pi's models.json. */
 export interface CustomOpenAIProvider {
   /** Stable pi provider id. `custom-openai` is retained for legacy configs. */

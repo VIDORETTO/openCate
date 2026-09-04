@@ -1,18 +1,18 @@
 // =============================================================================
 // Cross-agent skills — shared types + the target table.
 //
-// Cate installs skills (the open Agent Skills standard: a `SKILL.md` folder with
+// openCate installs skills (the open Agent Skills standard: a `SKILL.md` folder with
 // `name`/`description` frontmatter + optional scripts/references/assets) into
-// several coding agents that share a project. Everything Cate writes lands in the
-// opened workspace (each agent's per-target dir) or in Cate's own userData — never
+// several coding agents that share a project. Everything openCate writes lands in the
+// opened workspace (each agent's per-target dir) or in openCate's own userData — never
 // in another agent's user-home dir.
 //
 // This table is DERIVED from the canonical agent integration registry
-// (src/shared/agents.ts): external CLIs and Cate's embedded agent each declare
+// (src/shared/agents.ts): external CLIs and openCate's embedded agent each declare
 // their skills dir + layout, and SKILL_TARGETS projects them.
 //
 // Two homes for a skill:
-//   - saved:     cached in Cate's userData library (skillStore bytes + a
+//   - saved:     cached in openCate's userData library (skillStore bytes + a
 //                saved-skills.json entry). A personal library, in no workspace.
 //   - installed: written into a workspace's per-target dir for one agent,
 //                recorded in <ws>/.cate/skills.json. Always explicit.
@@ -63,7 +63,7 @@ export interface SkillEntry {
   updatedAt?: string
   provenance: 'curated' | 'user'
   sourceId: string
-  /** True for Cate's own skills (from a `firstParty` source) — pinned to the top
+  /** True for openCate's own skills (from a `firstParty` source) — pinned to the top
    *  of the skills catalog. Absent for third-party entries. */
   firstParty?: boolean
 }
@@ -88,7 +88,7 @@ export interface InstalledSkill {
   origin: 'local'
 }
 
-/** A skill saved to the user's Cate library. The canonical bytes live in the
+/** A skill saved to the user's openCate library. The canonical bytes live in the
  *  userData skill store keyed by `skillId`; this is the metadata used to list it
  *  and to (re)install it into a workspace without re-fetching. */
 export interface SavedSkill {
@@ -136,7 +136,7 @@ export const SKILL_TARGETS: readonly SkillTargetInfo[] = [
 const SKILL_TARGET_IDS: ReadonlySet<string> = new Set(SKILL_TARGETS.map((t) => t.id))
 
 /** Whether a target id is still supported. Persisted data (a workspace's
- *  `.cate/skills.json`) can name a target from an older Cate — `antigravity`
+ *  `.cate/skills.json`) can name a target from an older openCate — `antigravity`
  *  was a target until agent support for it was dropped — so anything read back
  *  from disk must be checked before it reaches code that assumes a live target
  *  (getSkillTarget throws, and skillsRootDir has no dir for it). */

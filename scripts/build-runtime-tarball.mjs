@@ -1,7 +1,7 @@
 // =============================================================================
 // Build ONE self-contained cate-runtime tarball for a single target:
 //
-//   dist-runtime/cate-runtime-<version>-<target>.tgz
+//   dist-runtime/opencate-runtime-<version>-<target>.tgz
 //     runtime.cjs                       (esbuild bundle, runtime-agnostic)
 //     node_modules/node-pty/...           (with prebuilds/<target>/pty.node
 //                                          + spawn-helper)
@@ -103,7 +103,7 @@ mkdirSync(stageDir, { recursive: true })
 // isInstalled probe failed forever → reinstall on every connect). Now an
 // aborted build leaves no tarball at all.
 const exe = targetPlatform === 'win32' ? '.exe' : ''
-const outTar = path.join(dist, `cate-runtime-${version}-${targetArg}.tgz`)
+const outTar = path.join(dist, `opencate-runtime-${version}-${targetArg}.tgz`)
 rmSync(outTar, { force: true })
 
 // Unified runtime/bin/ layout; only the filename gains a `.exe` on win32 so the
@@ -114,7 +114,7 @@ await stageParcelWatcher(stageDir)
 await stageNodeRuntime(targetPlatform, targetArch, path.join(stageDir, 'runtime', 'bin', `node${exe}`))
 await stageRipgrep(targetArg, path.join(stageDir, 'runtime', 'bin', `rg${exe}`))
 stagePi(path.join(stageDir, 'pi'))
-await stageCateCli(path.join(stageDir, 'cate'))
+await stageCateCli(path.join(stageDir, 'opencate'))
 signMacNatives(stageDir)
 
 // Fail loudly if anything the daemon's install-probe requires is missing, rather
@@ -126,9 +126,11 @@ const required = [
   path.join('runtime', 'bin', `node${exe}`),
   path.join('runtime', 'bin', `rg${exe}`),
   path.join('pi', 'dist', 'cli.js'),
-  path.join('cate', 'dist', 'cli.cjs'),
-  path.join('cate', 'bin', 'cate'),
-  path.join('cate', 'bin', 'cate.cmd'),
+  path.join('opencate', 'dist', 'cli.cjs'),
+  path.join('opencate', 'bin', 'opencate'),
+  path.join('opencate', 'bin', 'opencate.cmd'),
+  path.join('opencate', 'bin', 'cate'),
+  path.join('opencate', 'bin', 'cate.cmd'),
 ]
 const missing = required.filter((rel) => !existsSync(path.join(stageDir, rel)))
 if (missing.length) throw new Error(`[runtime] incomplete stage for ${targetArg}; missing: ${missing.join(', ')}`)
@@ -140,7 +142,7 @@ if (missing.length) throw new Error(`[runtime] incomplete stage for ${targetArg}
 //
 // Write to a temp file then atomically rename into place. The app extracts this
 // exact tarball (dist-runtime/) for the LOCAL runtime, so a rebuild while
-// Cate is running must never expose a half-written archive — a reader that
+// openCate is running must never expose a half-written archive — a reader that
 // caught `tar -czf` mid-stream would hit "truncated gzip input" and cache a
 // corrupt install. rename(2) within the same dir is atomic.
 const tmpTar = `${path.basename(outTar)}.partial`
@@ -572,7 +574,7 @@ function stagePi(outRoot) {
   const piVersion = JSON.parse(
     readFileSync(path.join(repoRoot, 'node_modules', '@earendil-works', 'pi-coding-agent', 'package.json'), 'utf-8'),
   ).version
-  const tar = path.join(dist, `cate-pi-${piVersion}.tgz`)
+  const tar = path.join(dist, `opencate-pi-${piVersion}.tgz`)
   if (!existsSync(tar)) {
     console.log('[runtime] pi tarball missing; building it…')
     execFileSync('node', [path.join(repoRoot, 'scripts', 'build-pi-tarball.mjs')], { stdio: 'inherit' })
@@ -587,10 +589,10 @@ function stagePi(outRoot) {
   console.log(`[runtime] staged pi ${piVersion}`)
 }
 
-/** Stage the `cate` in-terminal CLI into <outRoot> (cate/dist/cli.cjs + the two
- *  launcher shims under cate/bin/). The CLI rides in the runtime tarball exactly
+/** Stage the `openCate` in-terminal CLI into <outRoot> (opencate/dist/cli.cjs +
+ *  the launcher shims under opencate/bin/). The CLI rides in the runtime tarball exactly
  *  like pi, so it lands on every host — local + remote/WSL — the moment the
- *  daemon is provisioned; the env-injection layer prepends cate/bin to a shell's
+ *  daemon is provisioned; the env-injection layer prepends opencate/bin to a shell's
  *  PATH. Bundled to a single self-contained CJS file (node built-ins + global
  *  fetch only), so the bundled node runs it directly. */
 async function stageCateCli(outRoot) {
@@ -608,10 +610,14 @@ async function stageCateCli(outRoot) {
   })
 
   const shimSrc = path.join(repoRoot, 'src', 'cli', 'bin')
+  cpSync(path.join(shimSrc, 'opencate'), path.join(outRoot, 'bin', 'opencate'))
+  chmodSync(path.join(outRoot, 'bin', 'opencate'), 0o755)
+  cpSync(path.join(shimSrc, 'opencate.cmd'), path.join(outRoot, 'bin', 'opencate.cmd'))
+  // Keep the old command as a compatibility alias for existing agent hooks.
   cpSync(path.join(shimSrc, 'cate'), path.join(outRoot, 'bin', 'cate'))
   chmodSync(path.join(outRoot, 'bin', 'cate'), 0o755)
   cpSync(path.join(shimSrc, 'cate.cmd'), path.join(outRoot, 'bin', 'cate.cmd'))
-  console.log('[runtime] staged cate CLI')
+  console.log('[runtime] staged openCate CLI (with cate compatibility alias)')
 }
 
 /**

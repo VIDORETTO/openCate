@@ -10,9 +10,9 @@
 // Defaults
 // -----------------------------------------------------------------------------
 
-/** Default HTTP path Cate probes to decide a server-backed extension is ready. */
+/** Default HTTP path openCate probes to decide a server-backed extension is ready. */
 export const DEFAULT_READY_PATH = '/health'
-/** Default env var Cate uses to hand the chosen free port to a server. */
+/** Default env var openCate uses to hand the chosen free port to a server. */
 export const DEFAULT_PORT_ENV = 'PORT'
 
 // -----------------------------------------------------------------------------

@@ -1,5 +1,5 @@
-appId: com.cate.app
-productName: Cate
+appId: com.opencate.app
+productName: openCate
 directories:
   output: release
 # The cate-runtime daemon is NOT bundled in the app. One self-contained
@@ -59,7 +59,7 @@ extraResources:
     filter:
       - "**/*"
   # Pi ships its subagent tool as a supported example rather than a built-in.
-  # Cate installs these two source files into every workspace-scoped agent home.
+  # openCate installs these two source files into every workspace-scoped agent home.
   - from: node_modules/@earendil-works/pi-coding-agent/examples/extensions/subagent
     to: cate-subagent-runtime
     filter:
@@ -87,8 +87,8 @@ extraResources:
       - runtime-host*.tgz
 publish:
   provider: github
-  owner: 0-AI-UG
-  repo: cate
+  owner: VIDORETTO
+  repo: openCate
   releaseType: release
 mac:
   icon: build/icon.icns
@@ -99,7 +99,7 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: true
   extendInfo:
-    NSMicrophoneUsageDescription: Cate needs microphone access so terminal-based tools (like Claude Code) can record audio for voice input.
+    NSMicrophoneUsageDescription: openCate needs microphone access so terminal-based tools (like Claude Code) can record audio for voice input.
   target:
     - target: dmg
       arch:

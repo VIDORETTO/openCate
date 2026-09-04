@@ -81,7 +81,7 @@ export function CliSettings() {
     <div className="flex flex-col gap-1">
       <SettingRow
         label="Command-line control (cate CLI)"
-        description="Lets agents and tools running in your terminals drive Cate through the `cate` command. Off: no endpoint is created and nothing below applies. New terminals pick up a change."
+        description="Lets agents and tools running in your terminals drive openCate through the `cate` command. Off: no endpoint is created and nothing below applies. New terminals pick up a change."
       >
         <Toggle
           checked={store.cliEnabled}

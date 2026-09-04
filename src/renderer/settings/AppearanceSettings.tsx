@@ -8,7 +8,7 @@ import { validateTheme } from '../../shared/theme'
 import { BASE_DARK, BASE_LIGHT, BUILT_IN_THEMES } from '../../shared/themes'
 import { errorMessage } from '../lib/errorMessage'
 
-const SKILL_GUIDE_URL = 'https://github.com/0-AI-UG/cate/blob/main/skills/cate-theme/SKILL.md'
+const SKILL_GUIDE_URL = 'https://github.com/VIDORETTO/openCate/blob/main/skills/cate-theme/SKILL.md'
 
 const UI_SCALE_OPTIONS = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5].map((s) => ({
   value: String(s),
@@ -174,7 +174,7 @@ export function AppearanceSettings() {
       </button>
       </SearchableBlock>
 
-      <SettingRow label="UI scale" description="Zooms Cate's interface; doesn't affect browser-panel pages">
+      <SettingRow label="UI scale" description="Zooms openCate's interface; doesn't affect browser-panel pages">
         <Select
           value={String(store.uiScale)}
           onChange={(v) => store.setSetting('uiScale', parseFloat(v))}
@@ -197,10 +197,10 @@ export function AppearanceSettings() {
       <SearchableBlock keywords="gpu rasterization rendering glyph text missing garbled corruption render acceleration restart">
         <SettingRow
           label="Disable GPU text rendering"
-          description="Fixes occasional missing or garbled glyphs by rasterizing text on the CPU. May slightly increase CPU use during canvas zoom. Takes effect after restarting Cate."
+          description="Fixes occasional missing or garbled glyphs by rasterizing text on the CPU. May slightly increase CPU use during canvas zoom. Takes effect after restarting openCate."
           hint={
             store.disableGpuRasterization ? (
-              <span className="text-[11px] text-amber-400">Restart Cate for this to take effect.</span>
+              <span className="text-[11px] text-amber-400">Restart openCate for this to take effect.</span>
             ) : undefined
           }
         >

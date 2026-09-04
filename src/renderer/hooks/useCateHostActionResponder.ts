@@ -1,7 +1,7 @@
 // =============================================================================
 // useCateHostActionResponder — renderer side of the extension "reverse API".
 //
-// Extensions ask Cate to do things (open a file, create a panel, retitle a
+// Extensions ask openCate to do things (open a file, create a panel, retitle a
 // panel) through their preload's cate.* bridge. Those calls are forwarded by
 // the main process to the renderer over CATE_HOST_ACTION; this hook is the
 // single subscriber that executes them against the app store and replies with

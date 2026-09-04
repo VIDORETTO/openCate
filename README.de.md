@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/cate-logo.svg" />
-    <img src="assets/cate-logo-light.svg" alt="Cate" width="140" />
+    <source media="(prefers-color-scheme: dark)" srcset="assets/opencate-logo.svg" />
+    <img src="assets/opencate-logo-light.svg" alt="openCate" width="140" />
   </picture>
 </p>
 
@@ -16,20 +16,20 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/0-AI-UG/cate?style=flat-square" alt="MIT License" /></a>
-  <a href="https://github.com/0-AI-UG/cate/actions"><img src="https://img.shields.io/github/actions/workflow/status/0-AI-UG/cate/ci.yml?style=flat-square" alt="CI" /></a>
-  <a href="https://github.com/0-AI-UG/cate/releases"><img src="https://img.shields.io/github/downloads/0-AI-UG/cate/total?style=flat-square" alt="Downloads" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/VIDORETTO/openCate?style=flat-square" alt="MIT License" /></a>
+  <a href="https://github.com/VIDORETTO/openCate/actions"><img src="https://img.shields.io/github/actions/workflow/status/VIDORETTO/openCate/ci.yml?style=flat-square" alt="CI" /></a>
+  <a href="https://github.com/VIDORETTO/openCate/releases"><img src="https://img.shields.io/github/downloads/VIDORETTO/openCate/total?style=flat-square" alt="Downloads" /></a>
 </p>
 
 ---
 
 <p align="center">
-  <img src="assets/demo-canvas.gif" alt="Cate demo" width="900" />
+  <img src="assets/demo-canvas.gif" alt="openCate demo" width="900" />
 </p>
 
-Cate ist eine Desktop-IDE auf einer unendlichen Arbeitsfläche, gebaut für viele Terminals und Coding-Agenten gleichzeitig. Starten Sie Claude Code, Codex oder einen beliebigen Agenten-CLI in einem Cate-Terminal, und die Arbeitsfläche wird zur Missionskontrolle: Jedes Terminal zeigt, ob sein Agent arbeitet, fertig ist oder auf Sie wartet, und Cate benachrichtigt Sie in dem Moment, in dem einer Ihre Eingabe braucht. Erstellen Sie parallele Git-Worktrees mit einem Klick: Jeder bekommt sein eigenes farbiges Territorium auf der Fläche, sodass fünf Agenten auf fünf Branches fünf klar getrennte Arbeitsstränge bleiben statt eines Stapels von Tabs.
+openCate ist eine Desktop-IDE auf einer unendlichen Arbeitsfläche, gebaut für viele Terminals und Coding-Agenten gleichzeitig. Starten Sie Claude Code, Codex oder einen beliebigen Agenten-CLI in einem openCate-Terminal, und die Arbeitsfläche wird zur Missionskontrolle: Jedes Terminal zeigt, ob sein Agent arbeitet, fertig ist oder auf Sie wartet, und openCate benachrichtigt Sie in dem Moment, in dem einer Ihre Eingabe braucht. Erstellen Sie parallele Git-Worktrees mit einem Klick: Jeder bekommt sein eigenes farbiges Territorium auf der Fläche, sodass fünf Agenten auf fünf Branches fünf klar getrennte Arbeitsstränge bleiben statt eines Stapels von Tabs.
 
-Um diesen Kern herum steht eine vollständige IDE: Monaco-Editoren, eingebettete Browser, Dokumentanzeigen, Git-Werkzeuge und ein integrierter Agent-Chat. Lassen Sie Panels frei auf der Fläche schweben, docken Sie sie als Tabs und Splits an oder lösen Sie sie in eigene Fenster. Cate stellt das gesamte Layout wieder her, wenn Sie den Ordner erneut öffnen.
+Um diesen Kern herum steht eine vollständige IDE: Monaco-Editoren, eingebettete Browser, Dokumentanzeigen, Git-Werkzeuge und ein integrierter Agent-Chat. Lassen Sie Panels frei auf der Fläche schweben, docken Sie sie als Tabs und Splits an oder lösen Sie sie in eigene Fenster. openCate stellt das gesamte Layout wieder her, wenn Sie den Ordner erneut öffnen.
 
 **Erste Schritte:** Öffnen Sie einen Ordner und er wird zum Arbeitsbereich. Rechtsklick fügt Panels hinzu, `Cmd+K` öffnet die Befehlspalette, Panels aufs Dock ziehen erzeugt Tabs und Splits. Keine Konfigurationsdateien.
 
@@ -38,7 +38,7 @@ Um diesen Kern herum steht eine vollständige IDE: Monaco-Editoren, eingebettete
 </p>
 
 <p align="center">
-  <a href="https://github.com/0-AI-UG/cate"><img src="https://img.shields.io/github/stars/0-AI-UG/cate?style=social" alt="Star Cate on GitHub" /></a>
+  <a href="https://github.com/VIDORETTO/openCate"><img src="https://img.shields.io/github/stars/VIDORETTO/openCate?style=social" alt="Star openCate on GitHub" /></a>
 </p>
 
 ## Installation
@@ -47,29 +47,29 @@ Laden Sie eine vorgefertigte Version herunter. Bauen Sie für den täglichen Geb
 
 | Plattform | Formate | Link |
 |----------|---------|------|
-| macOS | DMG, ZIP (`arm64`, `x64`) | [Neueste Version](https://github.com/0-AI-UG/cate/releases/latest) |
-| Windows | NSIS-Installer, ZIP (`x64`) | [Neueste Version](https://github.com/0-AI-UG/cate/releases/latest) |
-| Linux | AppImage, DEB, `tar.gz` (`x64`) | [Neueste Version](https://github.com/0-AI-UG/cate/releases/latest) |
+| macOS | DMG, ZIP (`arm64`, `x64`) | [Neueste Version](https://github.com/VIDORETTO/openCate/releases/latest) |
+| Windows | NSIS-Installer, ZIP (`x64`) | [Neueste Version](https://github.com/VIDORETTO/openCate/releases/latest) |
+| Linux | AppImage, DEB, `tar.gz` (`x64`) | [Neueste Version](https://github.com/VIDORETTO/openCate/releases/latest) |
 
 Unter macOS geht auch Homebrew:
 
 ```sh
-brew install --cask cate
+brew install --cask opencate
 ```
 
 ## Was drinsteckt
 
-- **Agenten-bewusste Terminals:** Cate klinkt sich per Hooks in die unterstützten Agenten-CLIs ein (Claude Code, Codex, Cursor, Grok, OpenCode, Pi), sodass der Agent selbst Turn-Beginn, Turn-Ende und Berechtigungsabfragen meldet. Das steuert den Panel-Zustand (läuft, wartet, fertig) und die Benachrichtigung, wenn einer eine Antwort braucht. Ein Agent, der keine Hooks sendet, zeigt keinen Status.
+- **Agenten-bewusste Terminals:** openCate klinkt sich per Hooks in die unterstützten Agenten-CLIs ein (Claude Code, Codex, Cursor, Grok, OpenCode, Pi), sodass der Agent selbst Turn-Beginn, Turn-Ende und Berechtigungsabfragen meldet. Das steuert den Panel-Zustand (läuft, wartet, fertig) und die Benachrichtigung, wenn einer eine Antwort braucht. Ein Agent, der keine Hooks sendet, zeigt keinen Status.
 - **Agenten-Sitzungen überstehen Neustarts:** Der Hook-Strom trägt die Sitzungs-ID jeder CLI. Öffnen Sie das Projekt erneut, kommen die Terminals mit ihrem Verlauf zurück und der Agent wird mit seinem eigenen Resume-Befehl wieder angehängt. Eine veraltete ID fällt auf eine einfache Shell zurück, statt die falsche Unterhaltung fortzusetzen.
-- **Worktrees für parallele Branches:** Beschreiben Sie, woran Sie arbeiten, und Cate legt Worktree und Branch an, ausgehend von einem lokalen oder entfernten Branch oder einer offenen PR. Jeder bekommt eine Farbe, die ihn durch Seitenleiste und Dock-Tabs begleitet, samt Territorium hinter seinen Panels auf der Arbeitsfläche.
+- **Worktrees für parallele Branches:** Beschreiben Sie, woran Sie arbeiten, und openCate legt Worktree und Branch an, ausgehend von einem lokalen oder entfernten Branch oder einer offenen PR. Jeder bekommt eine Farbe, die ihn durch Seitenleiste und Dock-Tabs begleitet, samt Territorium hinter seinen Panels auf der Arbeitsfläche.
 - **Panels auf der Fläche oder im Dock:** Terminals, Monaco-Editoren, Browser, PDF-/Bild-/DOCX-Anzeigen, Erweiterungs-Webviews, verschachtelte Flächen. Lassen Sie sie schweben, docken Sie sie als Tabs und Splits an oder ziehen Sie sie in ein eigenes Fenster. Das Layout bleibt pro Projekt erhalten.
 - **Git und Suche:** Versionsverwaltungs-Seitenleiste für Staging, Commits, Branches, Stash und Verlauf über mehrere Repos; Git-Markierungen im Dateibaum; Diffs nebeneinander. Ripgrep-Suche über den Arbeitsbereich, und `Cmd+K` für Befehle, Panels und Dateien.
-- **Eine CLI, die Agenten aufrufen können:** In einem Cate-Terminal steuert `cate` ein Browser-Panel (`open`, `screenshot`, `snapshot`, `click`, `type`), liest ein anderes Terminal, öffnet Dateien, verwaltet Panels. Einstellungen → CLI gibt jede Fläche getrennt für Lesen und Steuern frei.
-- **Lokal und remote gehen denselben Weg:** Ein einziger Runtime-Daemon bedient jeden Arbeitsbereich. Zeigen Sie Cate per SSH oder WSL auf einen Host: Terminals, Git, Suche und Agenten laufen dort; Editoren, Browser und Fläche bleiben lokal.
+- **Eine CLI, die Agenten aufrufen können:** In einem openCate-Terminal steuert `cate` ein Browser-Panel (`open`, `screenshot`, `snapshot`, `click`, `type`), liest ein anderes Terminal, öffnet Dateien, verwaltet Panels. Einstellungen → CLI gibt jede Fläche getrennt für Lesen und Steuern frei.
+- **Lokal und remote gehen denselben Weg:** Ein einziger Runtime-Daemon bedient jeden Arbeitsbereich. Zeigen Sie openCate per SSH oder WSL auf einen Host: Terminals, Git, Suche und Agenten laufen dort; Editoren, Browser und Fläche bleiben lokal.
 
 ## Erweiterungen
 
-Cate hat ein Erweiterungssystem für Panels von Drittanbietern (MCP-Server, Diagramme und mehr), jedes in einer eigenen isolierten Webview. Stöbern und bauen Sie im Begleit-Repo: [0-AI-UG/cate-extensions](https://github.com/0-AI-UG/cate-extensions).
+openCate hat ein Erweiterungssystem für Panels von Drittanbietern (MCP-Server, Diagramme und mehr), jedes in einer eigenen isolierten Webview. Stöbern und bauen Sie im Begleit-Repo: [0-AI-UG/cate-extensions](https://github.com/0-AI-UG/cate-extensions).
 
 ## Tastenkürzel
 
@@ -113,8 +113,8 @@ Für Mitwirkende. Andernfalls die Version oben nutzen.
 Frischer Klon, ein Befehl richtet alles ein (installiert Abhängigkeiten und baut den lokalen Runtime-Daemon):
 
 ```bash
-git clone https://github.com/0-AI-UG/cate.git
-cd cate
+git clone https://github.com/VIDORETTO/openCate.git
+cd openCate
 bun run setup
 ```
 
@@ -136,7 +136,7 @@ Die paketierten Binärdateien landen in `release/`. Der Runtime-Daemon wird mit 
 ```text
 src/
 ├── agent/      # Eingebetteter Pi-Coding-Agent: Prozessmanager, Auth, Marktplatz, Panel-UI
-├── cli/        # Die `cate`-CLI in Cate-Terminals (Browser-Steuerung, Panels, Editor)
+├── cli/        # Die `cate`-CLI in openCate-Terminals (Browser-Steuerung, Panels, Editor)
 ├── main/       # Electron-Hauptprozess: IPC, Arbeitsbereiche, Fenster, Updater, Sicherheit
 ├── preload/    # Kontextisolierte IPC-Brücke
 ├── renderer/   # React-18-App: Arbeitsfläche, Docking, Panels, Seitenleiste, Stores, Hooks
@@ -144,7 +144,7 @@ src/
 └── shared/     # IPC-Kanäle und gemeinsame Typen
 ```
 
-Cate leitet sämtliches IPC über eine kontextisolierte Preload-Brücke. Der Dateisystemzugriff ist auf registrierte Arbeitsbereichs-Wurzeln beschränkt, Browser-Panels deaktivieren die Node-Integration, und Terminals können nicht außerhalb genehmigter Verzeichnisse starten.
+openCate leitet sämtliches IPC über eine kontextisolierte Preload-Brücke. Der Dateisystemzugriff ist auf registrierte Arbeitsbereichs-Wurzeln beschränkt, Browser-Panels deaktivieren die Node-Integration, und Terminals können nicht außerhalb genehmigter Verzeichnisse starten.
 
 **Stack:** Electron 41, React 18, Zustand 5, Monaco 0.52, xterm.js 5.5 + node-pty 1.0, Tailwind 3.4, electron-vite, electron-builder, electron-updater, Sentry. PDFs und DOCX über pdf.js und mammoth, Git über simple-git, Dateiüberwachung über `@parcel/watcher` und chokidar. Der eingebettete Coding-Agent basiert auf `@earendil-works/pi` und wird als On-Demand-Runtime mit der App ausgeliefert.
 
@@ -154,11 +154,11 @@ Siehe [CONTRIBUTING.md](CONTRIBUTING.md). Die Historie Version für Version steh
 
 ## Star-Verlauf
 
-<a href="https://www.star-history.com/?repos=0-AI-UG%2Fcate&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=VIDORETTO%2FopenCate&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=0-AI-UG/cate&type=date&theme=dark&legend=top-left&sealed_token=LE-sv5TdJtUmugufglkRue9ZJ6mVXcScJNurvXl9qwGAOHy-taiZA7-UfpBCAHbsxUZESm-1aSxX55u3DTth--kCTUty5gqe7XMhmI-dHz2IOkizZgAk26fW8iovuRbeMSyla3c2T9w9fAj6x2_SZZEGbmvonWJvvLcI-X35nHZFkQQIn_ueBO07uQZM" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=0-AI-UG/cate&type=date&legend=top-left&sealed_token=LE-sv5TdJtUmugufglkRue9ZJ6mVXcScJNurvXl9qwGAOHy-taiZA7-UfpBCAHbsxUZESm-1aSxX55u3DTth--kCTUty5gqe7XMhmI-dHz2IOkizZgAk26fW8iovuRbeMSyla3c2T9w9fAj6x2_SZZEGbmvonWJvvLcI-X35nHZFkQQIn_ueBO07uQZM" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=0-AI-UG/cate&type=date&legend=top-left&sealed_token=LE-sv5TdJtUmugufglkRue9ZJ6mVXcScJNurvXl9qwGAOHy-taiZA7-UfpBCAHbsxUZESm-1aSxX55u3DTth--kCTUty5gqe7XMhmI-dHz2IOkizZgAk26fW8iovuRbeMSyla3c2T9w9fAj6x2_SZZEGbmvonWJvvLcI-X35nHZFkQQIn_ueBO07uQZM" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=VIDORETTO/openCate&type=date&theme=dark&legend=top-left&sealed_token=LE-sv5TdJtUmugufglkRue9ZJ6mVXcScJNurvXl9qwGAOHy-taiZA7-UfpBCAHbsxUZESm-1aSxX55u3DTth--kCTUty5gqe7XMhmI-dHz2IOkizZgAk26fW8iovuRbeMSyla3c2T9w9fAj6x2_SZZEGbmvonWJvvLcI-X35nHZFkQQIn_ueBO07uQZM" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=VIDORETTO/openCate&type=date&legend=top-left&sealed_token=LE-sv5TdJtUmugufglkRue9ZJ6mVXcScJNurvXl9qwGAOHy-taiZA7-UfpBCAHbsxUZESm-1aSxX55u3DTth--kCTUty5gqe7XMhmI-dHz2IOkizZgAk26fW8iovuRbeMSyla3c2T9w9fAj6x2_SZZEGbmvonWJvvLcI-X35nHZFkQQIn_ueBO07uQZM" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=VIDORETTO/openCate&type=date&legend=top-left&sealed_token=LE-sv5TdJtUmugufglkRue9ZJ6mVXcScJNurvXl9qwGAOHy-taiZA7-UfpBCAHbsxUZESm-1aSxX55u3DTth--kCTUty5gqe7XMhmI-dHz2IOkizZgAk26fW8iovuRbeMSyla3c2T9w9fAj6x2_SZZEGbmvonWJvvLcI-X35nHZFkQQIn_ueBO07uQZM" />
  </picture>
 </a>
 

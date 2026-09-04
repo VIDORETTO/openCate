@@ -9,7 +9,7 @@ import changelogMarkdown from '../../../CHANGELOG.md?raw'
 
 type Payload = { fromVersion: string; toVersion: string }
 
-const GITHUB_REPO = 'https://github.com/0-AI-UG/cate'
+const GITHUB_REPO = 'https://github.com/VIDORETTO/openCate'
 const CHANGELOG_URL = `${GITHUB_REPO}/blob/main/CHANGELOG.md`
 const NEWSLETTER_URL = 'https://cate.cero-ai.com'
 const changelogReleases = parseChangelog(changelogMarkdown)
@@ -118,7 +118,7 @@ export function PostUpdateFeedbackDialog() {
                   {isFirstInstall ? 'Welcome' : `v${payload.toVersion}`}
                 </span>
                 <h2 className="text-white text-lg font-bold leading-tight drop-shadow-lg">
-                  {isFirstInstall ? 'Welcome to Cate' : "What's New"}
+                  {isFirstInstall ? 'Welcome to openCate' : "What's New"}
                 </h2>
               </div>
             </div>
@@ -157,7 +157,7 @@ export function PostUpdateFeedbackDialog() {
                 </>
               ) : (
                 <p className="text-[#999] text-[12px] leading-relaxed">
-                  Cate has been updated. Detailed notes for this build are available in the full changelog.
+                  openCate has been updated. Detailed notes for this build are available in the full changelog.
                 </p>
               )}
 

@@ -1,5 +1,5 @@
 // =============================================================================
-// Project tasks — the durable contract for work Cate assigns to an agent or
+// Project tasks — the durable contract for work openCate assigns to an agent or
 // records manually. The file contains intent and evidence, never an implicit
 // terminal transcript or a second live-process state machine.
 // =============================================================================
@@ -98,7 +98,7 @@ export interface ProjectTask {
   artifacts: ProjectTaskArtifact[]
   createdAt: number
   updatedAt: number
-  /** Optional link to the Cate-owned mission that is working this task. */
+  /** Optional link to the openCate-owned mission that is working this task. */
   runId?: string
   ownerPanelId?: string
   worktreeId?: string

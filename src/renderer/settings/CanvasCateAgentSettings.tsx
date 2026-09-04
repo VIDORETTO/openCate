@@ -8,12 +8,12 @@ export function CanvasCateAgentSettings() {
     <div className="flex flex-col gap-5">
       {gate === 'noProvider' && (
         <p className="rounded-md border border-agent/30 bg-agent/10 px-3 py-2.5 text-xs text-primary">
-          Connect an AI provider to use the Cate Agent.
+          Connect an AI provider to use the openCate Agent.
         </p>
       )}
       {gate === 'needsReauth' && (
         <p className="rounded-md border border-agent/30 bg-agent/10 px-3 py-2.5 text-xs text-primary">
-          Reconnect your AI provider to keep using the Cate Agent.
+          Reconnect your AI provider to keep using the openCate Agent.
         </p>
       )}
       <div>

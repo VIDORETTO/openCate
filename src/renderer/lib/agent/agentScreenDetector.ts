@@ -342,7 +342,7 @@ export function noteAgentPresence(terminalId: string, present: boolean): void {
 }
 
 /**
- * Main's process scan (or a trusted Cate-owned launch) identified the
+ * Main's process scan (or a trusted openCate-owned launch) identified the
  * foreground agent. Only registry entries with `screenFallback` participate;
  * hook-capable CLIs remain invisible here until their structured channel
  * speaks. Passing null clears the fallback and supplies the finished edge.

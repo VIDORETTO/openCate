@@ -22,7 +22,7 @@
 
 | Projeto | Stars | Licença | Linguagem | Último push | Força principal | Limite para este produto |
 |---|---:|---|---|---|---|---|
-| **Cate** | 2.088 | MIT | TypeScript | 2026-08-23 | Canvas IDE completo com terminais, editor, browser, agentes e subagentes | Menos maduro em fila de atenção, telemetria rica e companion mobile |
+| **openCate** | 2.088 | MIT | TypeScript | 2026-08-23 | Canvas IDE completo com terminais, editor, browser, agentes e subagentes | Menos maduro em fila de atenção, telemetria rica e companion mobile |
 | Paseo | 14.764 | AGPL-3.0 | TypeScript | 2026-08-23 | Daemon multiplataforma, CLI, SDK, relay, mobile/web | Canvas não é o núcleo e AGPL restringe fork fechado |
 | Claude Squad | 8.355 | AGPL-3.0 | Go | 2026-08-20 | tmux + git worktrees + TUI simples | Sem canvas gráfico |
 | Nimbalyst | 1.550 | MIT | TypeScript | 2026-08-23 | Sessões/tasks kanban, editores visuais, mobile, diffs | Canvas livre não é o centro do produto |
@@ -30,7 +30,7 @@
 
 ## Avaliação detalhada
 
-### Cate — base recomendada
+### openCate — base recomendada
 
 Evidências na codebase:
 
@@ -86,7 +86,7 @@ Ideias aproveitáveis:
 - Extensões através de contrato comum.
 - Mobile para acompanhar e responder agentes.
 
-Cuidado: editor visual/documento é central; canvas livre não substitui o núcleo do Cate.
+Cuidado: editor visual/documento é central; canvas livre não substitui o núcleo do openCate.
 
 ### Claude Squad — melhor modelo de isolamento simples
 
@@ -124,7 +124,7 @@ Serviço opcional
 
 ## Riscos principais
 
-1. **Windows:** Cate usa scripts Bash, Electron, `node-pty` e runtime embutido; precisa validação imediata.
+1. **Windows:** openCate usa scripts Bash, Electron, `node-pty` e runtime embutido; precisa validação imediata.
 2. **Compatibilidade de agentes:** hooks variam por versão; exigir contratos testáveis e fallback.
 3. **Contexto entre terminais:** compartilhar tudo cria ruído, custo e risco; usar seleção/contrato explícito.
 4. **Performance:** muitos xterm WebGL + canvas podem degradar; manter culling e medir cedo.

@@ -16,7 +16,7 @@ import {
   Hand,
   X,
 } from '@phosphor-icons/react'
-import { CateLogo } from '../ui/CateLogo'
+import { OpenCateLogo } from '../ui/OpenCateLogo'
 import Minimap from './Minimap'
 import WorktreeToolbarMenu from './WorktreeToolbarMenu'
 import ExtensionToolbarMenu from './ExtensionToolbarMenu'
@@ -288,8 +288,8 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
       <ToolbarButton onClick={onNewEditor} title={`Editor (${newEditorKey})`} size="panel" placement={place}>
         <FileText size={18} />
       </ToolbarButton>
-      <ToolbarButton onClick={onNewAgent} title="Cate Agent" size="panel" placement={place}>
-        <CateLogo size={18} />
+      <ToolbarButton onClick={onNewAgent} title="openCate Agent" size="panel" placement={place}>
+        <OpenCateLogo size={18} />
       </ToolbarButton>
       <GlobalAgentComposer workspaceId={workspaceId} placement={place} />
       <ExtensionToolbarMenu
@@ -303,7 +303,7 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
   )
 
   // Minimap pill docking corner + drag-to-dock handling. The corner is driven
-  // straight from the UI-state store so an external shove (the Cate Agent landing on
+  // straight from the UI-state store so an external shove (the openCate Agent landing on
   // this corner) moves the pill immediately. The toggle button doubles as a
   // drag handle: a click toggles the map, a drag past a small threshold re-docks
   // the pill to whichever corner the cursor ends up in.
@@ -320,7 +320,7 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
     const startY = e.clientY
     minimapDidDragRef.current = false
     // Resolve corners against this canvas's own area so the quadrant split lines
-    // up with where the pill (and the Cate Agent) actually render.
+    // up with where the pill (and the openCate Agent) actually render.
     const area = minimapPillRef.current?.closest('[data-canvas-area]')
     const rect = area?.getBoundingClientRect() ??
       { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }

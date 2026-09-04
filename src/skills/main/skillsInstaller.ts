@@ -51,7 +51,7 @@ async function readManifestData(runtime: Runtime, runtimeId: string, hostCwd: st
     const raw = await runtime.file.readFile(manifestPath(runtimeId, hostCwd))
     const parsed = JSON.parse(raw) as SkillsManifest
     return {
-      // Rows for targets this Cate no longer supports (e.g. `antigravity`,
+      // Rows for targets this openCate no longer supports (e.g. `antigravity`,
       // dropped with its agent) are filtered out on the way in: they would
       // otherwise render as a phantom agent in the skills tree, and reaching
       // targetInfo/skillsRootDir with one THROWS — which used to break

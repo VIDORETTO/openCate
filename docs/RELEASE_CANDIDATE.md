@@ -73,13 +73,13 @@ Windows, macOS e Linux; o empacotamento usa `npm run package:win`,
             raiz isolada e executou o smoke de restore/autosave do binário;
             isso não substitui abrir o instalador no host Linux.
       - [x] NSIS Windows executado em modo silencioso para diretório temporário
-            explícito; `Cate.exe`, `app.asar`, runtime e `Uninstall Cate.exe`
+            explícito; `openCate.exe`, `app.asar`, runtime e `Uninstall openCate.exe`
             foram conferidos, o smoke de restore passou e o destino foi removido;
             isso não substitui a abertura manual em todos os hosts.
 - [ ] confirmar migração, autosave, restore e encerramento sem daemon órfão;
       - [x] smoke do executável Windows empacotado criou um terminal, salvou
             `.cate/workspace.json`/`.cate/session.json`, fechou, reabriu o mesmo
-            perfil e restaurou a geometria; nenhuma sobra de `Cate.exe` ou
+            perfil e restaurou a geometria; nenhuma sobra de `openCate.exe` ou
             `cate-runtime` foi observada.
       - [x] smoke do binário Linux instalado em raiz temporária salvou e
             restaurou a geometria `677x423` sob Xvfb, sem processos órfãos.
@@ -196,7 +196,7 @@ Windows, macOS e Linux; o empacotamento usa `npm run package:win`,
       passaram 34/34.
 - [x] Reconstruir o pacote Windows e repetir metadata, telemetry smoke, restore
       empacotado e smoke Electron com o codigo atual; todos terminaram com
-      exit 0 e nao houve processo Cate/Electron/daemon residual.
+      exit 0 e nao houve processo openCate/Electron/daemon residual.
 - [x] A tentativa de validação manual Windows em 2026-09-04 foi preparada com
       diretório temporário explícito, mas não executada: o helper Computer Use
       disponível nesta sessão não expõe API para abrir aplicativos nativos.
@@ -246,7 +246,7 @@ O companion web tambem foi endurecido para distribuicao PWA local: manifest,
 icone e service worker com cache restrito ao app shell/ativos estaticos. O
 smoke confirmou pairing, persistencia IndexedDB e reload offline; o empacotador
 agora valida o manifesto, o service worker, o icone e a presenca desses artefatos
-no tarball versionado, que contem `manifest.webmanifest`, `cate-logo.svg` e
+no tarball versionado, que contem `manifest.webmanifest`, `opencate-logo.svg` e
 `sw.js`. O fixture live opt-in com Caddy tambem validou localmente TLS
 autenticado, rotacao do token do proxy, reinicio e round-trip criptografado;
 hosting, TLS operacional e wrappers nativos continuam fora do que pode ser

@@ -41,14 +41,14 @@ export interface ReverseSession {
    *  browser consent prompt. Absent for extension-server sessions (the default).
    *  `extensionId` may be a sentinel string for first-party sessions. */
   caller?: 'first-party' | 'cate-agent'
-  /** Owning Cate Agent session/panel for native worktree affinity. */
+  /** Owning openCate Agent session/panel for native worktree affinity. */
   panelId?: string
   /** Runtime-absolute cwd of the embedded supervisor session. */
   originCwd?: string
   /** Scopes granted to a first-party caller (used instead of a manifest's
    *  `cateApi`). Absent for extension-server sessions. */
   grantedScopes?: string[]
-  /** Exact renderer hosting the embedded Cate Agent. Server extensions do not
+  /** Exact renderer hosting the embedded openCate Agent. Server extensions do not
    * have one and retain the active-window fallback. */
   ownerWebContents?: WebContents
 }

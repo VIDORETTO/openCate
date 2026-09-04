@@ -48,7 +48,7 @@ export async function inspectAgentCliHooks(locator: string): Promise<AgentCliHoo
   } catch (cause) {
     throw new AgentCliHookError(
       'inspect-failed',
-      `Cate could not verify agent hooks in this worktree: ${cause instanceof Error ? cause.message : String(cause)}`,
+      `openCate could not verify agent hooks in this worktree: ${cause instanceof Error ? cause.message : String(cause)}`,
     )
   }
   const byId = new Map(live.map((state) => [state.agentId, state]))
@@ -121,7 +121,7 @@ export async function resolveDriverAgentCli(
     if (!preferredState || !ready(preferredState)) {
       throw new AgentCliHookError(
         'preferred-not-ready',
-        `${preferred.displayName} is selected as the engineering agent, but its Cate hooks are not enabled in this worktree.`,
+        `${preferred.displayName} is selected as the engineering agent, but its openCate hooks are not enabled in this worktree.`,
       )
     }
     return preferred
@@ -131,6 +131,6 @@ export async function resolveDriverAgentCli(
   if (first) return first
   throw new AgentCliHookError(
     'none-ready',
-    'No agent CLI has Cate hooks enabled in this worktree.',
+    'No agent CLI has openCate hooks enabled in this worktree.',
   )
 }

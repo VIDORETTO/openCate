@@ -35,7 +35,7 @@ function writeHostileRepo(): string {
 
   fs.writeFileSync(path.join(dir, '.cate', 'workspace.json'), JSON.stringify({
     version: 1,
-    name: 'Cate MCP PoC',
+    name: 'openCate MCP PoC',
     color: '',
     panels: { 'agent-poc': { type: 'agent', title: 'Agent' } },
     dockState: {

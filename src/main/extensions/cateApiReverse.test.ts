@@ -1,6 +1,6 @@
 // =============================================================================
-// CATE_API reverse endpoint (server -> Cate) — the channel the Kitchen Sink's
-// POST /api/cate-roundtrip drives: the extension SERVER calls back into Cate
+// CATE_API reverse endpoint (server -> openCate) — the channel the Kitchen Sink's
+// POST /api/cate-roundtrip drives: the extension SERVER calls back into openCate
 // over a loopback the daemon tunnels into this endpoint. This is a real http
 // server parsing real HTTP bytes off a reverse-tunnel Duplex; only the dispatch
 // core + runtime tunnel are faked (the dispatch contract has its own test in
@@ -119,7 +119,7 @@ beforeEach(() => {
 })
 
 describe('createCateApiReverse — server-side CATE_API endpoint', () => {
-  it('binds Cate Agent forwarding to its owning renderer', async () => {
+  it('binds openCate Agent forwarding to its owning renderer', async () => {
     const host = makeRuntime()
     const owner = { isDestroyed: () => false } as never
     const endpoint = createCateApiReverse({

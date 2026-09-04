@@ -31,7 +31,7 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-describe('active Cate Agent chat worktree projection', () => {
+describe('active openCate Agent chat worktree projection', () => {
   it('reactively follows chat switches for canvas terrace membership', () => {
     let current: Record<string, string> = {}
     const Probe = () => {

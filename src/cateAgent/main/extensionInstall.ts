@@ -44,7 +44,7 @@ export function findSourceDir(candidates: string[]): string | null {
 }
 
 /**
- * Build an installer for a Cate-managed extension bundled as index.ts +
+ * Build an installer for a openCate-managed extension bundled as index.ts +
  * package.json. Concurrent sessions share one in-flight copy, successful
  * installs are skipped thereafter, and transient failures remain retryable.
  */
@@ -98,7 +98,7 @@ export async function hostFileExists(runtime: Runtime, hostPath: string): Promis
  *
  *  Overwrite semantics depend on `overwrite`:
  *   - 'if-changed': rewrite only when the host copy differs from the bundled
- *     source (Cate-managed files where the bundle is authoritative — comparing
+ *     source (openCate-managed files where the bundle is authoritative — comparing
  *     first still skips the write when nothing changed, but a shipped update
  *     reliably reaches hosts that already have an older copy).
  *   - 'if-missing': skip entirely when the host already has the file, so a

@@ -228,7 +228,7 @@ export function createPanelSlice(set: AppSet, get: AppGet): PanelSliceActions {
       const panel: PanelState = {
         id: generateId(),
         type: 'cateAgent',
-        title: nextNumberedTitle(get, workspaceId, 'cateAgent', 'Cate Agent'),
+        title: nextNumberedTitle(get, workspaceId, 'cateAgent', 'openCate Agent'),
         isDirty: false,
       }
       return addAndPlacePanel(set, get, workspaceId, panel, withDefaultSize('cateAgent', placement, { workspaceId }), position)

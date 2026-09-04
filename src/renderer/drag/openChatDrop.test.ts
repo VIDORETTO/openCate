@@ -27,7 +27,7 @@ import { createSeededChatPanel } from './openChatDrop'
 afterEach(() => vi.clearAllMocks())
 
 describe('createSeededChatPanel', () => {
-  it('creates a Cate Agent panel seeded with the dragged chat', () => {
+  it('creates a openCate Agent panel seeded with the dragged chat', () => {
     const panelId = createSeededChatPanel(
       'ws-1',
       { chatId: 'chat-7', rootPath: '/repo' },

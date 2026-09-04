@@ -1,10 +1,10 @@
 # Arquitetura — Modelo de Processos, IPC, Persistência e Segurança
 
-> Documento técnico para desenvolvedores. Descreve como o Cate funciona internamente, baseado na leitura do código-fonte (não no README). Última atualização: 2026-08-29 — CLI/SDK, reconexão bounded, restore serializado e diagnóstico de runtime.
+> Documento técnico para desenvolvedores. Descreve como o openCate funciona internamente, baseado na leitura do código-fonte (não no README). Última atualização: 2026-08-29 — CLI/SDK, reconexão bounded, restore serializado e diagnóstico de runtime.
 
 ## Visão geral dos processos
 
-O Cate é um app Electron com **três camadas de processo**:
+O openCate é um app Electron com **três camadas de processo**:
 
 ```
 ┌──────────────────────────────────────────────────────┐
@@ -137,7 +137,7 @@ Antes de cada write, copia o arquivo atual pra `.bak`. Na leitura, se o primary 
 
 ### Multi-instância
 
-Lock file `.cate/workspace.lock` contém `{pid}`. Outro Cate que encontra lock vivo pula o autosave desse root. Crash → pid morto → lock reclaimado automaticamente.
+Lock file `.cate/workspace.lock` contém `{pid}`. Outro openCate que encontra lock vivo pula o autosave desse root. Crash → pid morto → lock reclaimado automaticamente.
 
 ### Histórico unificado de agentes
 
@@ -159,7 +159,7 @@ replay inventado.
 ### Composer global de agentes
 
 `src/renderer/canvas/GlobalAgentComposer.tsx` oferece um ponto único para
-enviar um follow-up a missões `codingAgentRun` criadas pelo Cate. A lista só
+enviar um follow-up a missões `codingAgentRun` criadas pelo openCate. A lista só
 habilita alvos cujo registro declara follow-up e cujo estado derivado está em
 `working` ou `waiting`; terminais arbitrários, processos encerrados e CLIs sem
 esse contrato permanecem indisponíveis. Mais de um alvo exige uma segunda
@@ -230,7 +230,7 @@ Documentados honestamente (não são bugs, são tradeoffs):
    específica no runtime, em vez de ampliar silenciosamente o escopo de
    filesystem.
 8. **Broadcast global**: a primeira versão só alcança missões criadas pelo
-   Cate com follow-up declarado; sessões de CLI abertas manualmente em
+   openCate com follow-up declarado; sessões de CLI abertas manualmente em
    terminais não são alvos até existir um protocolo de estado e envio seguro.
 9. **Durabilidade e expansão remota**: tmux, containers, companion e relay não
    são inferidos a partir do transporte SSH/WSL. Seus contratos de identidade,

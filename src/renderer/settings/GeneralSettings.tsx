@@ -20,7 +20,7 @@ export function GeneralSettings() {
       </SettingRow>
       <SettingRow
         label="Privacy"
-        description="Review what Cate collects and how to change your privacy choices."
+        description="Review what openCate collects and how to change your privacy choices."
       >
         <button
           type="button"

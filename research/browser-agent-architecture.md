@@ -1,10 +1,10 @@
-# State of the Art in Agentic Browser Control — Implications for Cate
+# State of the Art in Agentic Browser Control — Implications for openCate
 
 Date: 2026-07-27
 
 ## Executive conclusion
 
-Cate should not try to make its current `cate browser` command set incrementally
+openCate should not try to make its current `cate browser` command set incrementally
 larger. The command vocabulary is already broad. The core problem is that one
 home-grown stack currently performs four different jobs:
 
@@ -33,7 +33,7 @@ control state. The agent cursor should remain visible for the whole control
 lease, user input should preempt the lease immediately, and every action should
 return a new observation or a concise state delta.
 
-For Cate specifically, the highest-value change is to move browser automation
+For openCate specifically, the highest-value change is to move browser automation
 out of the React renderer into one main-process browser automation service with
 one CDP connection per live guest. That service should own observations, refs,
 input, waits, action traces, and control leases. The CLI and any future MCP
@@ -42,22 +42,22 @@ surface should be thin clients of the same typed protocol.
 ## Implemented clean cut
 
 The implementation accompanying this report adopts `agent-browser` 0.33.0 as
-the only page-automation engine and deletes Cate's Playwright proxy, injected
+the only page-automation engine and deletes openCate's Playwright proxy, injected
 DOM snapshot/input stack, renderer console buffer, and synthetic-input
 fallback. The native binary is pinned, packaged outside `app.asar`, and attached
-to the exact marked Electron webview through Cate's main process.
+to the exact marked Electron webview through openCate's main process.
 
 The `cate` CLI no longer mirrors agent-browser with a second locator grammar,
-flag parser, or formatter. Cate retains only the operations it must own:
+flag parser, or formatter. openCate retains only the operations it must own:
 panels, tabs, responsive viewport, canvas size, editor, and terminal. Other
 browser argv crosses the boundary in native agent-browser syntax. `browser
 open` creates a tab; `browser navigate` is the explicit replace-current-tab
 operation; `browser new-panel` is the explicit separate-panel operation.
 
-This is not an unrestricted subprocess bridge. Cate pins the daemon
+This is not an unrestricted subprocess bridge. openCate pins the daemon
 configuration, namespace, session, and target. It rejects CDP/session switching,
 native tab management, startup/config/plugin flags, batch/server/setup commands,
-and arbitrary host file paths. Screenshot destinations are always Cate-managed.
+and arbitrary host file paths. Screenshot destinations are always openCate-managed.
 Read/control permission classification is repeated at the trusted host boundary,
 so an acting command cannot be smuggled through a read envelope.
 
@@ -118,33 +118,33 @@ Anthropic's current desktop control has an application lock and a global Escape
 stop mechanism
 ([Claude Code computer use](https://code.claude.com/docs/en/computer-use)).
 
-## Reuse decision: adopt an engine, keep the Cate integration
+## Reuse decision: adopt an engine, keep the openCate integration
 
-Cate should reuse an existing browser-control engine rather than continue
+openCate should reuse an existing browser-control engine rather than continue
 implementing snapshots, target discovery, refs, waits, input, frames, streaming,
 network inspection, and policy enforcement independently. It should not adopt a
 complete third-party agent runtime as the product architecture, because binding
-an action to the exact visible Cate panel, showing control to the user, and
-coordinating canvas geometry are Cate-specific responsibilities.
+an action to the exact visible openCate panel, showing control to the user, and
+coordinating canvas geometry are openCate-specific responsibilities.
 
-| Project | Fit for Cate's embedded browser | Recommendation |
+| Project | Fit for openCate's embedded browser | Recommendation |
 | --- | --- | --- |
-| [agent-browser](https://github.com/vercel-labs/agent-browser) | Closest fit. Apache-2.0, native Rust daemon, direct CDP, accessibility refs, typed CLI and MCP surfaces, action policies, screenshots, streaming, and explicit Electron/webview target support. | First implementation spike and preferred engine if target binding passes Cate's tests. Pin the version and place it behind a Cate-owned protocol. |
+| [agent-browser](https://github.com/vercel-labs/agent-browser) | Closest fit. Apache-2.0, native Rust daemon, direct CDP, accessibility refs, typed CLI and MCP surfaces, action policies, screenshots, streaming, and explicit Electron/webview target support. | First implementation spike and preferred engine if target binding passes openCate's tests. Pin the version and place it behind a openCate-owned protocol. |
 | [Playwright MCP](https://github.com/microsoft/playwright-mcp) | Strong agent interface and semantic snapshot model, but optimized for Playwright-managed browser pages. Playwright's Electron API remains experimental and centers on launching an application rather than controlling arbitrary live webview guests. | Reuse its interface and evaluation ideas; do not make it the core live-panel backend. |
 | [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp) | Excellent console, network, performance, screenshot, accessibility, and WebMCP surface. It uses Puppeteer and officially targets Chrome; other Chromium embeddings are not guaranteed. | Reference implementation and possible standalone developer-browser mode, not the initial embedded-panel dependency. |
 | [Stagehand](https://docs.stagehand.dev/) | Useful higher-level `observe`/`act`/`extract` intelligence and self-healing, but adds model inference, latency, and cost on top of a browser automation page. | Optional high-level layer later, not the low-level control plane. |
-| [Browser Use](https://github.com/browser-use/browser-use) | Mature autonomous browsing workflows, but brings a Python runtime and generally owns or connects to a separate browser session. | Optional external/cloud provider, not Cate's shared visible browser. |
+| [Browser Use](https://github.com/browser-use/browser-use) | Mature autonomous browsing workflows, but brings a Python runtime and generally owns or connects to a separate browser session. | Optional external/cloud provider, not openCate's shared visible browser. |
 | [WebMCP](https://github.com/webmachinelearning/webmcp) | Best typed path when a site opts in, but experimental and sparsely available. | Add later as a preferred route with ordinary browser automation as fallback. |
 
 `agent-browser` is a candidate, not a blind drop-in. Its current release line is
 still pre-1.0 and moving quickly. An older direct-target limitation for Electron
 webviews was documented externally; upstream added webview target-type support
-in version 0.17.1. Cate must therefore validate the current release against its
+in version 0.17.1. openCate must therefore validate the current release against its
 own multi-webview layout rather than infer compatibility from the README.
 
 The decision gate should be a short, measured spike:
 
-1. Connect `agent-browser` to Cate's existing remote-debugging endpoint.
+1. Connect `agent-browser` to openCate's existing remote-debugging endpoint.
 2. Bind commands deterministically to one browser panel and one tab.
 3. Verify snapshots and actions in normal pages, cross-origin iframes, shadow
    DOM, authenticated sessions, popups, uploads, guest zoom, reload, and crash
@@ -155,19 +155,19 @@ The decision gate should be a short, measured spike:
    exact viewport shown in the panel.
 
 If it passes, reuse its daemon and typed MCP/CLI surface, while implementing a
-thin Cate adapter for panel identity, permissions, control leases, the persistent
+thin openCate adapter for panel identity, permissions, control leases, the persistent
 cursor, user takeover, canvas transforms, and action traces. If its public
 process interface is insufficient, prefer contributing a stable protocol
 upstream or vendoring the narrowly required Apache-licensed CDP core over
 building another automation engine. If it fails specifically on Electron guest
-targets, retain the same Cate protocol and replace only the engine with direct
+targets, retain the same openCate protocol and replace only the engine with direct
 CDP or Puppeteer after a `WebContentsView` proof of concept.
 
-## Findings from Cate's current implementation
+## Findings from openCate's current implementation
 
 ### Useful foundations that should be preserved
 
-Cate already has several good ideas:
+openCate already has several good ideas:
 
 - Snapshot refs are scoped to a generation, preventing an old ref from silently
   resolving to a different newly tagged element.
@@ -194,7 +194,7 @@ elements far above or below the viewport are returned as “visible”
 The actionability script then calls `scrollIntoView()` before its visibility and
 hit-test checks
 ([guestScripts.ts](../src/renderer/lib/browser/guestScripts.ts#L205)). This means
-an agent can select an offscreen ref from its snapshot and Cate silently moves
+an agent can select an offscreen ref from its snapshot and openCate silently moves
 the page before showing the target cursor. The user and agent do not share the
 same observation history.
 
@@ -208,7 +208,7 @@ The correct default is:
 
 There is also a modality gap in the current CLI contract. A screenshot command
 prints only a temporary file path
-([cate.ts](../src/cli/cate.ts#L901)), and the Cate CLI skill says the same
+([cate.ts](../src/cli/cate.ts#L901)), and the openCate CLI skill says the same
 ([SKILL.md](../skills/cate-cli/SKILL.md#L53)). Returning a path does not mean a
 model has received image content. Some coding agents can separately open the
 file; others will continue from the textual snapshot and never visually inspect
@@ -300,7 +300,7 @@ There are several concrete hot paths.
    [currently recommends not using `<webview>`](https://www.electronjs.org/docs/latest/api/webview-tag)
    because Chromium architectural changes affect webview stability, rendering,
    navigation, and event routing. It suggests `WebContentsView`, `iframe`, or an
-   architecture without embedded content. Migrating Cate is non-trivial because
+   architecture without embedded content. Migrating openCate is non-trivial because
    canvas panels use CSS transforms, but the warning aligns with the observed
    instability and should inform the long-term design.
 
@@ -403,7 +403,7 @@ Debug observations must still be treated as untrusted page content.
 
 For each step, route in this order:
 
-1. A trusted Cate-native or external MCP connector, when it directly represents
+1. A trusted openCate-native or external MCP connector, when it directly represents
    the user's requested action.
 2. A page-provided WebMCP tool, after origin, manifest, arguments, and risk
    checks.
@@ -464,7 +464,7 @@ OpenAI similarly describes prompt injection as third-party content attempting to
 replace the user's intent
 ([prompt injection overview](https://openai.com/safety/prompt-injections/)).
 
-Cate should enforce policy outside the model:
+openCate should enforce policy outside the model:
 
 - Separate permissions for normal observation, normal interaction, sensitive
   data access, developer inspection/evaluation, clipboard, uploads/downloads,
@@ -557,7 +557,7 @@ during an OAuth or file-upload flow.
 
 Evaluate `WebContentsView` in a separate proof of concept. It would give the
 main process direct ownership of the content and follows Electron's supported
-direction, but Cate must verify:
+direction, but openCate must verify:
 
 - correct clipping inside canvas nodes,
 - bounds updates during pan/zoom/drag/resize,
@@ -575,7 +575,7 @@ The automation redesign does not need to wait for the container migration.
 Establish budgets before implementation:
 
 - automation adds effectively zero idle CPU when no lease is active,
-- no automation task blocks the Cate renderer for more than one frame,
+- no automation task blocks the openCate renderer for more than one frame,
 - viewport semantic observation p95 under 100 ms on ordinary pages,
 - semantic action dispatch p95 under 250 ms excluding page/network completion,
 - no unbounded snapshot or console result,
@@ -598,7 +598,7 @@ evaluation notes that changed dates and removed infeasible tasks make
 self-reported results hard to compare
 ([evaluation details](https://storage.googleapis.com/deepmind-media/gemini/computer_use_eval_additional_info.pdf)).
 
-Build a Cate-specific regression suite:
+Build a openCate-specific regression suite:
 
 - standard links, buttons, labels, forms, selects, and uploads,
 - React/Vue SPA navigation and re-rendering,
@@ -651,7 +651,7 @@ both task success and resource use.
 ### Phase 2 — Redesign the agent contract
 
 - Implement `observe`, `act`, and compact post-action deltas.
-- Add persistent CLI NDJSON and a concise Cate browser skill.
+- Add persistent CLI NDJSON and a concise openCate browser skill.
 - Add an MCP adapter only as another client of the same service.
 - Split normal browsing permissions from developer inspection/evaluation.
 
@@ -680,12 +680,12 @@ The defining invariants should be:
 2. Every visible action has one executor, one cursor, and one trace.
 3. Every action is serialized against a specific observed revision.
 4. The user can preempt control immediately.
-5. Automation work never runs in the Cate UI renderer.
+5. Automation work never runs in the openCate UI renderer.
 6. Semantic automation is primary; screenshots are a visual fallback; DOM and
    DevTools inspection are explicit.
 7. CLI, MCP, and built-in agents share one typed backend.
 8. Resource use is bounded by a deliberate tab and observation lifecycle.
 
 That architecture matches the direction of the strongest current systems while
-remaining appropriate for Cate's distinctive requirement: a live browser panel
+remaining appropriate for openCate's distinctive requirement: a live browser panel
 that both the user and a coding agent can operate together.

@@ -1,6 +1,6 @@
 # Desenvolvimento, validação e CI
 
-Este é o guia comum para instalar, executar e validar o Cate. `AGENTS.md`,
+Este é o guia comum para instalar, executar e validar o openCate. `AGENTS.md`,
 `CLAUDE.md` e `CONTRIBUTING.md` apontam para este documento para evitar que os
 comandos de desenvolvimento se afastem entre si.
 
@@ -70,7 +70,7 @@ um segundo evento não é enviado.
 Depois de gerar o mesmo `release/win-unpacked`, o round-trip do estado pode ser
 validado no executável final. O smoke cria um terminal em projeto temporário,
 salva os dois arquivos `.cate`, fecha o app, reabre o perfil e verifica a
-geometria restaurada e a ausência de processos Cate/daemon órfãos:
+geometria restaurada e a ausência de processos openCate/daemon órfãos:
 
 ```bash
 npm run test:smoke:packaged-restore

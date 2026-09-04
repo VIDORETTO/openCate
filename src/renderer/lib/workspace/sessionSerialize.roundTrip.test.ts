@@ -259,7 +259,7 @@ describe('workspace.json + session.json round-trip', () => {
     expect(sessFile.panels['term-1']).toMatchObject({ starred, tags, accentColor })
   })
 
-  it('round-trips Cate-owned run metadata but never its one-shot launch', () => {
+  it('round-trips openCate-owned run metadata but never its one-shot launch', () => {
     const { snapshot } = buildSnapshot()
     const codingAgentRun = {
       id: 'run-1',
@@ -414,7 +414,7 @@ describe('workspace.json + session.json round-trip', () => {
     expect(restored.terminalCwds).toEqual({ 'term-1': WORKTREE_PATH })
   })
 
-  it('drops legacy worktree tags from Cate Agent panel records', () => {
+  it('drops legacy worktree tags from openCate Agent panel records', () => {
     const { snapshot } = buildSnapshot()
     snapshot.panels!['agent-1'] = panel({
       id: 'agent-1',

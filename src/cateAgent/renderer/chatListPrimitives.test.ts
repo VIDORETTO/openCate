@@ -3,7 +3,7 @@ import { chatDragPayload } from './chatListPrimitives'
 import type { Chat } from '../../shared/types'
 
 describe('chatDragPayload', () => {
-  it('identifies one durable Cate Agent chat without an engine mode', () => {
+  it('identifies one durable openCate Agent chat without an engine mode', () => {
     const chat: Chat = {
       id: 'c1',
       title: 'T',

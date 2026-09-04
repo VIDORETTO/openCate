@@ -43,7 +43,7 @@ describe('keepMountedOffscreenPanelIds', () => {
     expect(keepMountedOffscreenPanelIds(panels).has('p-editor')).toBe(false)
   })
 
-  it('keeps a live Cate-owned coding-agent terminal mounted', () => {
+  it('keeps a live openCate-owned coding-agent terminal mounted', () => {
     const runPanel: PanelState = {
       id: 'worker',
       type: 'terminal',

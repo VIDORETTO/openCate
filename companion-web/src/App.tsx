@@ -52,7 +52,7 @@ export function App() {
       setClient(nextClient)
       setProof(encodeCompanionPairingProof(nextProof))
       setIdentityReady(true)
-      setStatus('Proof ready. Paste it into Cate desktop to finish pairing.')
+      setStatus('Proof ready. Paste it into openCate desktop to finish pairing.')
     } catch (cause) {
       setError(messageOf(cause))
     } finally {
@@ -115,9 +115,9 @@ export function App() {
     <main className="shell">
       <header className="hero">
         <div>
-          <p className="eyebrow">CATE COMPANION</p>
+          <p className="eyebrow">openCate COMPANION</p>
           <h1>Keep an eye on your workspace.</h1>
-          <p className="lede">Pair this browser with Cate desktop, read bounded workspace facts, and send only actions that the host approved.</p>
+          <p className="lede">Pair this browser with openCate desktop, read bounded workspace facts, and send only actions that the host approved.</p>
         </div>
         <div className="identity-pill" data-ready={identityReady}>{identityReady ? 'Identity stored locally' : 'No device identity yet'}</div>
       </header>
@@ -144,7 +144,7 @@ export function App() {
         <button onClick={() => void preparePairing()} disabled={busy || !invitationText.trim() || code.length !== 6}>
           {busy ? 'Preparing…' : 'Generate pairing proof'}
         </button>
-        {proof && <label>Proof to paste into Cate desktop
+        {proof && <label>Proof to paste into openCate desktop
           <textarea value={proof} readOnly rows={5} className="mono" />
           <button className="secondary" onClick={() => void navigator.clipboard.writeText(proof)}>Copy proof</button>
         </label>}
@@ -159,7 +159,7 @@ export function App() {
           </div>
           <button className="secondary" onClick={() => void refresh()} disabled={busy || !client}>Refresh</button>
         </div>
-        {!client && <p className="hint">Finish pairing in Cate desktop, then return here to refresh.</p>}
+        {!client && <p className="hint">Finish pairing in openCate desktop, then return here to refresh.</p>}
         {snapshot && <pre className="snapshot">{JSON.stringify(snapshot, null, 2)}</pre>}
       </section>
 

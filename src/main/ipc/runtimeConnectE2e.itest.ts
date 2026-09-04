@@ -63,9 +63,9 @@ vi.mock('electron', () => ({
   app: {
     isPackaged: false,
     getAppPath: () => process.cwd(),
-    getName: () => 'Cate',
+    getName: () => 'openCate',
     // userData → a throwaway dir so the real encrypted secret store round-trips
-    // on disk without touching the developer's actual Cate state.
+    // on disk without touching the developer's actual openCate state.
     getPath: (name: string) => (name === 'userData' ? H.state.userDataDir : join(H.state.userDataDir, name)),
   },
   // Reversible stand-in for the OS keychain — exercises sshSecretStore's encrypt

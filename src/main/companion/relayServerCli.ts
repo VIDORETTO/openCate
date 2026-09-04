@@ -10,7 +10,7 @@ if (!Number.isInteger(port) || port < 0 || port > 65_535) {
 
 const relay = new CompanionRelayServer({ host, port, corsOrigin })
 const address = await relay.listen()
-process.stdout.write(`Cate companion relay listening on ${address.host}:${address.port}\n`)
+process.stdout.write(`openCate companion relay listening on ${address.host}:${address.port}\n`)
 
 const stop = (): void => {
   void relay.close().finally(() => process.exit(0))

@@ -42,6 +42,6 @@ describe('assertNotPuttyKey', () => {
   })
 
   it('delegates every other identity format to OpenSSH', () => {
-    expect(() => assertNotPuttyKey(Buffer.from('not parsed by Cate'))).not.toThrow()
+    expect(() => assertNotPuttyKey(Buffer.from('not parsed by openCate'))).not.toThrow()
   })
 })

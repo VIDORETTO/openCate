@@ -4,7 +4,7 @@
 // Most per-agent tables are TOTAL `Record<AgentId, …>`, so adding an agent id
 // is already a compile error until each is filled in. Three things escape that:
 //
-//   • the skills targets, because AgentDef.skills is nullable (an agent Cate
+//   • the skills targets, because AgentDef.skills is nullable (an agent openCate
 //     installs no skills for is legitimate) — so nothing catches a NEW agent
 //     that silently forgot its skills dir;
 //   • the SkillTargetId union, which must stay exactly `cate-agent` plus the

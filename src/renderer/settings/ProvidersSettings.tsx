@@ -1,5 +1,5 @@
 // =============================================================================
-// ProvidersSettings — the agent ProvidersView embedded under Settings → Cate
+// ProvidersSettings — the agent ProvidersView embedded under Settings → openCate
 // Agent. Provider credentials (auth.json) and the custom OpenAI endpoint
 // (models.json) are GLOBAL and shared across every workspace (mirrored into each
 // workspace's .cate/cate-agent/), so the unified chat setup owns them.

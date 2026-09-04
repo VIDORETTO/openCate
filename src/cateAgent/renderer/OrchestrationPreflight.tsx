@@ -34,7 +34,7 @@ export function useOrchestrationPreflight({
       setAgents(await inspectAgentCliHooks(rootPath))
     } catch (cause) {
       setAgents([])
-      setError(cause instanceof Error ? cause.message : 'Cate could not inspect agent hooks.')
+      setError(cause instanceof Error ? cause.message : 'openCate could not inspect agent hooks.')
     }
   }, [active, rootPath])
 

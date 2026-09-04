@@ -50,7 +50,7 @@ export interface PtyCreateOptions {
    *  change is needed to reach a remote host. */
   env?: Record<string, string>
   /** Opt this pty into agent hook injection (hook env + workspace hook files
-   *  — see src/runtime/capabilities/agentHooks.ts). Set by Cate's
+   *  — see src/runtime/capabilities/agentHooks.ts). Set by openCate's
    *  terminal layer for user terminals; OFF by default so bare process.create
    *  callers (tests, tooling) spawn untouched shells and write nothing. Rides
    *  the same opts pass-through as `env`. */

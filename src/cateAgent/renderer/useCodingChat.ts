@@ -571,7 +571,7 @@ export function useCodingChat({
   }, [])
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
-    // Files dragged from Cate's own Explorer come through as a JSON payload of
+    // Files dragged from openCate's own Explorer come through as a JSON payload of
     // absolute paths under `application/cate-files`. Image files are attached as
     // image inputs; everything else is inserted into the draft as @-mentions.
     const cateRaw = e.dataTransfer?.getData('application/cate-files')

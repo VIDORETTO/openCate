@@ -16,7 +16,7 @@ architecture, validation, or code style, this document is the common source.
 
 ## System boundaries
 
-Cate is an Electron application built with React, TypeScript, Tailwind CSS,
+openCate is an Electron application built with React, TypeScript, Tailwind CSS,
 Zustand, Monaco, xterm.js, and a headless Node runtime.
 
 - `src/main/` owns windows, native APIs, filesystem, Git, process launch, and

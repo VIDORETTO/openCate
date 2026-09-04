@@ -20,7 +20,7 @@ import {
 } from '@phosphor-icons/react'
 import pkg from '../../../package.json'
 import { Tooltip } from '../ui/Tooltip'
-import { CateLogo } from '../ui/CateLogo'
+import { OpenCateLogo } from '../ui/OpenCateLogo'
 import { IS_MAC } from '../lib/platform'
 import { useWindowFullscreen } from '../lib/useWindowFullscreen'
 import { MAC_CHROME_HEIGHT } from '../shells/MacWindowChrome'
@@ -30,7 +30,7 @@ import { MAC_CHROME_HEIGHT } from '../shells/MacWindowChrome'
 // ---------------------------------------------------------------------------
 
 // Icons are called as `<Icon size={n} className=… />`; Phosphor icons and the
-// Cate wordmark both satisfy this call signature. A plain function type (rather
+// openCate wordmark both satisfy this call signature. A plain function type (rather
 // than ComponentType) sidesteps the static propTypes clash between Phosphor's
 // forward-ref icons and a custom SVG component.
 type SidebarViewIcon = (props: { size?: number; className?: string }) => React.ReactNode
@@ -40,7 +40,7 @@ const VIEW_META: Record<SidebarView, { icon: SidebarViewIcon; title: string }> =
   explorer: { icon: FolderOpen, title: 'Explorer' },
   search: { icon: MagnifyingGlass, title: 'Search' },
   git: { icon: GitBranch, title: 'Source Control' },
-  cateAgent: { icon: CateLogo, title: 'Cate Agent' },
+  cateAgent: { icon: OpenCateLogo, title: 'openCate Agent' },
 }
 
 // ---------------------------------------------------------------------------
@@ -421,7 +421,7 @@ const ActivityBarSidebar: React.FC<ActivityBarSidebarProps> = ({ side, defaultWi
       {/* Version marker — shown on whichever side hosts the workspaces view */}
       {isExpanded && activeView === 'workspaces' && (
         <div className="flex-shrink-0 px-2 pt-1.5 pb-4 flex items-center justify-center gap-1.5 select-none">
-          <svg viewBox="0 0 389 204" className="h-3 w-auto text-secondary" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-label="Cate">
+          <svg viewBox="0 0 389 204" className="h-3 w-auto text-secondary" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-label="openCate">
             <path d="M274 203.2L307.29 1.79999H388.29L384.51 24.84H329.97L320.5 80.16H342.22H366.34L362.74 103.2H338.62H316.5L304.06 180.16H358.6L355 203.2H314.5H274Z" />
             <path d="M201.264 203.2L230.424 26.5H197.124L201.264 1.3H294.864L290.724 26.5H257.424L228.264 203.2H201.264Z" />
             <path d="M89 133.2L142.1 1.79999H176.3L188 133.2H161.18L159.56 103.5H128.24L117.26 133.2H89ZM136.16 81.9H158.3L157.04 50.22C156.92 45.66 156.68 41.16 156.32 36.72C156.08 32.16 155.9 28.62 155.78 26.1C154.94 28.62 153.8 32.1 152.36 36.54C151.04 40.98 149.54 45.48 147.86 50.04L136.16 81.9Z" />

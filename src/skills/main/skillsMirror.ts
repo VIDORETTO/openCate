@@ -110,7 +110,7 @@ async function readMirrorManifest(
       : []
     return { version: MIRROR_VERSION, skills }
   } catch {
-    // Missing or corrupt ownership metadata grants Cate no ownership.
+    // Missing or corrupt ownership metadata grants openCate no ownership.
     return { version: MIRROR_VERSION, skills: [] }
   }
 }
@@ -310,7 +310,7 @@ function warn(result: SkillMirrorSyncResult, message: string, error?: unknown): 
 }
 
 /**
- * Materialize Cate-managed skills from a base workspace into another checkout.
+ * Materialize openCate-managed skills from a base workspace into another checkout.
  *
  * The base `.cate/skills.json` is the only desired-state manifest. The target
  * receives ownership metadata, never another normal skills manifest. This is

@@ -27,7 +27,7 @@ vi.mock('electron', () => ({
     isPackaged: false,
     getAppPath: () => process.cwd(),
     getPath: () => join(process.cwd(), '.cate-live-tmp'),
-    getName: () => 'Cate',
+    getName: () => 'openCate',
   },
 }))
 

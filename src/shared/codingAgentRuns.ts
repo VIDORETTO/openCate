@@ -1,27 +1,27 @@
 import { AGENTS, type AgentDef, type AgentId } from './agents'
 import { resolveAgentLifecycleState, type AgentLifecycleState } from './agentLifecycle'
 
-/** A coding agent process Cate created and owns inside a terminal panel. */
+/** A coding agent process openCate created and owns inside a terminal panel. */
 export interface CodingAgentRun {
   id: string
   agentId: AgentId
   panelId: string
   /** Short user-facing responsibility, e.g. “Integration tests”. */
   title?: string
-  /** Cate terminal or embedded-agent panel that owns and may control this run. */
+  /** openCate terminal or embedded-agent panel that owns and may control this run. */
   ownerPanelId: string
   prompt: string
   createdAt: number
   worktreeId?: string
   /** True only when this mission created the worktree and may offer discard. */
   ownsWorktree?: boolean
-  /** When true, Cate wakes the owning supervisor on actionable state changes.
+  /** When true, openCate wakes the owning supervisor on actionable state changes.
    *  When false, the supervisor must wait for this run explicitly. */
   background?: boolean
   /** Follow-up prompts sent after the initial task. Kept with panel state so
-   *  mission context survives a Cate restart. */
+   *  mission context survives a openCate restart. */
   followUps?: Array<{ prompt: string; sentAt: number }>
-  /** Optional durable task contract associated with this Cate-owned mission. */
+  /** Optional durable task contract associated with this openCate-owned mission. */
   taskId?: string
   /** Latest structured usage observation from the CLI hook stream. Optional
    *  because several CLIs expose lifecycle hooks but no usage payload. */
@@ -69,7 +69,7 @@ export type CodingAgentRunStatus =
   | 'failed'
 
 /** Usage observed from a coding-agent hook payload. Every field is optional:
- * CLIs expose different subsets, and Cate must not manufacture a number when
+ * CLIs expose different subsets, and openCate must not manufacture a number when
  * the provider did not report one. Values are snapshots from the latest
  * structured report; they are not inferred from terminal text. */
 export interface CodingAgentUsage {
@@ -155,7 +155,7 @@ function firstString(records: readonly (Record<string, unknown> | undefined)[], 
 /** Extract only explicit, structured usage fields from a raw hook payload.
  * Supports the common shapes used by Claude/Codex-compatible hooks, OpenAI
  * responses, and Pi's `{message: {usage}}` payload without parsing free-form
- * terminal output. Returns null when the CLI gave Cate no metric. */
+ * terminal output. Returns null when the CLI gave openCate no metric. */
 export function normalizeCodingAgentUsage(raw: unknown, observedAt = Date.now()): CodingAgentUsage | null {
   const root = recordValue(raw)
   if (!root) return null
@@ -494,7 +494,7 @@ export type AgentPermissionMode = 'default' | 'ask' | 'workspace-write' | 'bypas
 
 export interface AgentEnvironmentPreferences extends AgentLaunchPreferences {
   permissions?: AgentPermissionMode
-  /** Extra spawn environment. Keys cannot reserve Cate's CATE_* namespace and
+  /** Extra spawn environment. Keys cannot reserve openCate's CATE_* namespace and
    *  values are length/NUL-bounded. Invalid entries invalidate the whole object
    *  so a hand edit can never partially become a spawn contract. */
   env?: Record<string, string>
@@ -729,7 +729,7 @@ export function parseCodingAgentId(value: unknown): AgentId | null {
 }
 
 /**
- * Build the exact executable + argv for a Cate-owned coding-agent PTY.
+ * Build the exact executable + argv for a openCate-owned coding-agent PTY.
  *
  * No shell is involved, so task text cannot become shell syntax. Prefixing the
  * positional task also prevents option/subcommand injection into the CLI's own

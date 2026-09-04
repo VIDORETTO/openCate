@@ -1,5 +1,5 @@
 [Unit]
-Description=Cate companion relay
+Description=openCate companion relay
 Wants=network-online.target
 After=network-online.target
 

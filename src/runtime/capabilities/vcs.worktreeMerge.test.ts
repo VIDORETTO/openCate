@@ -15,7 +15,7 @@ describe('vcs.worktreeMergeTo', () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'cate-vcs-merge-'))
     const git = simpleGit(root)
     await git.init()
-    await git.addConfig('user.name', 'Cate Test')
+    await git.addConfig('user.name', 'openCate Test')
     await git.addConfig('user.email', 'cate@example.test')
     await fs.writeFile(path.join(root, 'shared.txt'), 'base\n')
     await git.add('shared.txt')

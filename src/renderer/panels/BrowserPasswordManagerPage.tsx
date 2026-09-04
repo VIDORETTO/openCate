@@ -83,7 +83,7 @@ export function BrowserPasswordManagerPage(): JSX.Element {
   }
 
   const removeAll = async () => {
-    if (!window.confirm('Remove all passwords imported into Cate?')) return
+    if (!window.confirm('Remove all passwords imported into openCate?')) return
     await window.electronAPI.browserCredentialClear()
     setCredentials([])
     setMessage('Saved passwords removed.')
@@ -196,7 +196,7 @@ export function BrowserPasswordManagerPage(): JSX.Element {
             <section className="flex items-center justify-between rounded-xl border border-subtle bg-surface-1 p-5">
               <div>
                 <h2 className="text-sm font-medium">Delete saved passwords</h2>
-                <p className="mt-1 text-xs text-muted">{credentials.length} saved in Cate</p>
+                <p className="mt-1 text-xs text-muted">{credentials.length} saved in openCate</p>
               </div>
               <SecondaryButton onClick={() => void removeAll()} disabled={credentials.length === 0}>
                 Delete all

@@ -11,7 +11,7 @@ describe('terminal durability identifiers', () => {
     expect(first).not.toContain('workspace-secret-looking-id')
   })
 
-  test('rejects names outside Cate-owned tmux namespace', () => {
+  test('rejects names outside openCate-owned tmux namespace', () => {
     expect(isValidTmuxSessionName('other-session')).toBe(false)
     expect(isValidTmuxSessionName('cate-')).toBe(false)
     expect(isValidTmuxSessionName(`cate-${'a'.repeat(70)}`)).toBe(false)

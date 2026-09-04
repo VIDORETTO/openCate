@@ -1,5 +1,5 @@
 // =============================================================================
-// useAgentTerminalStatus — a live read of one Cate-Agent-controlled terminal for
+// useAgentTerminalStatus — a live read of one openCate-Agent-controlled terminal for
 // the job cards: the canonical run status (derived from the run + terminal
 // lifecycle) plus a sampled "status line" peeked from the live xterm buffer.
 // This makes a card answer "is it working or stuck?" without opening it.

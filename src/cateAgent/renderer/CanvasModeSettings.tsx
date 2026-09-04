@@ -36,7 +36,7 @@ const ACCESS_OPTIONS: { value: CanvasModeAccess; label: string; title: string }[
   {
     value: 'create',
     label: 'New panels',
-    title: 'Allow Cate to open or create panels when needed',
+    title: 'Allow openCate to open or create panels when needed',
   },
 ]
 

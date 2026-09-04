@@ -2,7 +2,7 @@
 // browserProxy — HTTP/HTTPS/SOCKS5/PAC proxy for Browser panels
 // (issue #241)
 //
-// Browser panels using the proxy configured in Cate settings share a
+// Browser panels using the proxy configured in openCate settings share a
 // proxy-derived persistent session (see BrowserPanel.tsx `partitionFor`). This
 // module applies the proxy to that session and answers Chromium's proxy auth
 // challenge for credentialed proxies (`user:pass@host`), since the credentials

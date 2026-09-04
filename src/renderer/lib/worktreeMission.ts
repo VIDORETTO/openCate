@@ -1,7 +1,7 @@
 // =============================================================================
 // worktreeMission — the user-facing one-click mission flow.
 //
-// A quick start creates a Cate Agent supervisor, asks the canonical coding-agent
+// A quick start creates a openCate Agent supervisor, asks the canonical coding-agent
 // driver to create an isolated worktree + task + worker terminal, then tags the
 // supervisor's first chat to that worktree. The driver remains the authority for
 // hook readiness, task persistence, PTY startup, lifecycle, and cleanup; this
@@ -44,7 +44,7 @@ export async function startWorktreeMission(
   if (!worktreeName) throw new Error('Enter a worktree name.')
   if (!prompt) throw new Error('Enter an initial task.')
 
-  // The owner is a real Cate Agent panel so the mission is visible in the
+  // The owner is a real openCate Agent panel so the mission is visible in the
   // existing supervisor → worker tree instead of inventing a hidden owner id.
   const placement = options.canvasPanelId
     ? { target: 'canvas' as const, canvasPanelId: options.canvasPanelId, focus: false }

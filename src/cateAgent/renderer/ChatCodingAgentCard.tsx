@@ -12,7 +12,7 @@ import {
   type CodingAgentRunStatus,
 } from '../../shared/codingAgentRuns'
 import { getAgentLogoById } from '../../renderer/lib/agent/agentLogos'
-import { CateLogo } from '../../renderer/ui/CateLogo'
+import { OpenCateLogo } from '../../renderer/ui/OpenCateLogo'
 import { OrchestrationToolDetails } from './ChatOrchestrationToolCard'
 import {
   applyCodingAgentWorktree,
@@ -76,7 +76,7 @@ function RunMetrics({ usage, durationMs }: { usage: CodingAgentUsage | undefined
   )
 }
 
-/** Native card for a worker created by Cate Agent. The terminal remains a real,
+/** Native card for a worker created by openCate Agent. The terminal remains a real,
  * visible canvas panel; this is its live mission-level summary and jump target. */
 export function CodingAgentCard({ msg }: { msg: ToolMessage; shimmer?: boolean }) {
   const result = useMemo(() => resultObject(msg.result), [msg.result])
@@ -121,9 +121,9 @@ export function CodingAgentCard({ msg }: { msg: ToolMessage; shimmer?: boolean }
       data-tool-name="create_coding_agent"
     >
       <div className="flex min-w-0 items-center gap-2">
-        <CateLogo
+        <OpenCateLogo
           size={15}
-          aria-label="Cate"
+          aria-label="openCate"
           className="shrink-0 text-[rgb(var(--agent-rgb))]"
         />
         <button

@@ -53,7 +53,7 @@ describe('claude spec', () => {
     }
   })
 
-  test('merges into an existing settings.local.json: user fields/hooks kept, stale Cate groups refreshed', () => {
+  test('merges into an existing settings.local.json: user fields/hooks kept, stale openCate groups refreshed', () => {
     const existing = JSON.stringify({
       permissions: { allow: ['Bash(npm test)'] }, // claude's own "always allow" grants
       hooks: {
@@ -143,7 +143,7 @@ describe('codex spec', () => {
     }
   })
 
-  test('merges into an existing hooks.json: user hooks/fields kept, stale Cate groups refreshed', () => {
+  test('merges into an existing hooks.json: user hooks/fields kept, stale openCate groups refreshed', () => {
     const existing = JSON.stringify({
       notifications: true, // a foreign top-level field survives
       hooks: {
@@ -244,7 +244,7 @@ describe('cursor spec', () => {
     }
   })
 
-  test('merges into an existing hooks.json: user hooks/fields kept, stale Cate entries refreshed', () => {
+  test('merges into an existing hooks.json: user hooks/fields kept, stale openCate entries refreshed', () => {
     const existing = JSON.stringify({
       version: 1,
       hooks: {
@@ -252,7 +252,7 @@ describe('cursor spec', () => {
           { command: '/home/u/my-stop-hook.sh' },
           { command: `/old-boot-dir/${CATE_HOOK_MARKER}-bridge-cursor` },
         ],
-        // A user event Cate doesn't track survives untouched.
+        // A user event openCate doesn't track survives untouched.
         beforeShellExecution: [{ command: '/home/u/audit.sh' }],
       },
     })
@@ -338,7 +338,7 @@ describe('pi spec', () => {
     // Marker in the header — prepareWorkspace re-recognizes the file as ours.
     expect(src).toContain(CATE_HOOK_MARKER)
     // The extension posts identity from ctx.sessionManager, echoes the env,
-    // and self-gates on the Cate env vars (inert in a teammate's checkout).
+    // and self-gates on the openCate env vars (inert in a teammate's checkout).
     expect(src).toContain('getSessionId')
     expect(src).toContain('getContextUsage')
     expect(src).toContain('usageFor')
@@ -348,7 +348,7 @@ describe('pi spec', () => {
       expect(src).toContain(ev)
     }
     // Content is boot-independent: up-to-date file untouched, ANY drift
-    // (even a user edit — Cate owns this file) rewritten.
+    // (even a user edit — openCate owns this file) rewritten.
     expect(file.build(src, ctx)).toBeNull()
     expect(file.build('// user-edited\n' + src, ctx)).toBe(src)
   })
@@ -460,14 +460,14 @@ describe('grok spec', () => {
 describe('opencode spec', () => {
   const spec = AGENT_HOOK_SPECS.opencode
 
-  test('the plugin lands where opencode scans, and Cate owns it outright', () => {
+  test('the plugin lands where opencode scans, and openCate owns it outright', () => {
     const pf = spec.projectFiles![0]
     // opencode scans `{plugin,plugins}/*.{ts,js}` under its config dirs — .mjs
     // would never be picked up.
     expect(pf.relPath).toBe('.opencode/plugin/cate-hook.js')
 
     const source = pf.build(null, ctx)!
-    // Cate owns the file outright: marked, never rewritten when current,
+    // openCate owns the file outright: marked, never rewritten when current,
     // reclaimed on 'off', and a same-named user file is left alone.
     expect(source).toContain(CATE_HOOK_MARKER)
     expect(pf.build(source, ctx)).toBeNull()

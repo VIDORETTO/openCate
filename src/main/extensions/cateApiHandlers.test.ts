@@ -412,7 +412,7 @@ describe('dispatchCateInvoke — Kitchen Sink reverse API', () => {
   })
 })
 
-describe('dispatchCateInvoke — Cate Agent orchestration boundary', () => {
+describe('dispatchCateInvoke — openCate Agent orchestration boundary', () => {
   it('stops mission workers in the supervisor and every detached owner window', async () => {
     const supervisorSend = vi.fn(() => { throw new Error('closed for test') })
     const detachedSend = vi.fn(() => { throw new Error('closed for test') })
@@ -473,7 +473,7 @@ describe('dispatchCateInvoke — Cate Agent orchestration boundary', () => {
     }
   })
 
-  it('forwards orchestration only for the embedded Cate Agent and carries its cwd', async () => {
+  it('forwards orchestration only for the embedded openCate Agent and carries its cwd', async () => {
     const forward = vi.fn(async () => ({ id: 'run-1' }))
     const result = await dispatchCateInvoke({
       extensionId: 'cate-agent',
@@ -497,7 +497,7 @@ describe('dispatchCateInvoke — Cate Agent orchestration boundary', () => {
     }))
   })
 
-  it('applies the CLI master switch to Cate Agent orchestration', async () => {
+  it('applies the CLI master switch to openCate Agent orchestration', async () => {
     settings.cliEnabled = false
     const forward = vi.fn()
 
@@ -509,13 +509,13 @@ describe('dispatchCateInvoke — Cate Agent orchestration boundary', () => {
       grantedScopes: [...CATE_AGENT_GRANTED_SCOPES],
       forward,
     }, 'cate.codingAgent.create', { agentId: 'codex', prompt: 'Implement it' })).toEqual({
-      error: 'cli-disabled: enable Command-line control (cate CLI) in Cate Settings → CLI',
+      error: 'cli-disabled: enable Command-line control (cate CLI) in openCate Settings → CLI',
       method: 'cate.codingAgent.create',
     })
     expect(forward).not.toHaveBeenCalled()
   })
 
-  it('applies the CLI master switch to Cate Agent host capabilities', async () => {
+  it('applies the CLI master switch to openCate Agent host capabilities', async () => {
     settings.cliEnabled = false
     const forward = vi.fn()
 
@@ -527,13 +527,13 @@ describe('dispatchCateInvoke — Cate Agent orchestration boundary', () => {
       grantedScopes: [...CATE_AGENT_GRANTED_SCOPES],
       forward,
     }, 'cate.terminal.press', { key: 'enter' })).toEqual({
-      error: 'cli-disabled: enable Command-line control (cate CLI) in Cate Settings → CLI',
+      error: 'cli-disabled: enable Command-line control (cate CLI) in openCate Settings → CLI',
       method: 'cate.terminal.press',
     })
     expect(forward).not.toHaveBeenCalled()
   })
 
-  it('applies per-capability CLI permissions to Cate Agent host capabilities', async () => {
+  it('applies per-capability CLI permissions to openCate Agent host capabilities', async () => {
     settings.cliTerminalInputEnabled = false
     const forward = vi.fn()
 
@@ -1210,7 +1210,7 @@ describe('dispatchCateInvoke — cate.terminal.* namespace', () => {
 // the browser consent prompt (~408-412), and carry GRANTED_SCOPES that include
 // `browser` instead of a manifest (workspaceCateApi.ts ~14-15, ~41-56). The
 // bearer token is a per-workspace randomBytes(32) bound to loopback and injected
-// into every terminal PTY's env, so anything spawned in a Cate terminal inherits
+// into every terminal PTY's env, so anything spawned in a openCate terminal inherits
 // it and can drive `cate.browser.*` on the user's live browser with no prompt.
 //
 // This is a product/security TRADEOFF ("trusted terminal"), not a missing check.
@@ -1380,7 +1380,7 @@ describe('dispatchCateInvoke — first-party trust boundary (characterization)',
     expect(forward).not.toHaveBeenCalled()
   })
 
-  it('applies the Agents permission cells to Cate Agent orchestration too', async () => {
+  it('applies the Agents permission cells to openCate Agent orchestration too', async () => {
     settings.cliAgentControlEnabled = false
     const forward = vi.fn()
     expect(await dispatchCateInvoke({

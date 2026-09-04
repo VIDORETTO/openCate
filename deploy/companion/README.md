@@ -1,4 +1,4 @@
-# Cate companion deployment
+# openCate companion deployment
 
 These files describe a Linux host deployment for the static companion and the
 self-hosted relay. They are operator examples, not a hosted service or a
@@ -14,7 +14,7 @@ replacement for a public identity/access-control provider.
 
 ## Install
 
-1. Put the Cate checkout, including `package.json` and its installed Bun
+1. Put the openCate checkout, including `package.json` and its installed Bun
    dependencies, at `/opt/cate`. Install Bun and Caddy from the operator's
    trusted distribution channels.
 2. Create the service identity and directories:
@@ -30,7 +30,7 @@ replacement for a public identity/access-control provider.
 
    ```bash
    npm run package:companion
-   sudo tar -xzf release/cate-companion-web-<version>.tgz -C /srv/cate-companion
+   sudo tar -xzf release/opencate-companion-web-<version>.tgz -C /srv/cate-companion
    ```
 
 4. Install the environment and unit with explicit non-executable modes, edit
@@ -64,7 +64,7 @@ requirement in front of the relay without extending the invitation contract.
 - Reloading Caddy after a proxy policy/certificate change uses the Caddy reload
   path and does not require changing relay channel bearers.
 - Pairing/channel tokens are short-lived and revocable. On suspected exposure,
-  revoke the device in Cate and issue a new pairing instead of reusing a QR.
+  revoke the device in openCate and issue a new pairing instead of reusing a QR.
 - Validate the local boundary before deployment with
   `npm run test:companion:proxy`. That fixture covers TLS, proxy authentication,
   token rotation, process restart and encrypted round-trips; it does not prove

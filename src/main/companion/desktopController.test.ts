@@ -17,7 +17,7 @@ describe('desktop companion controller', () => {
   test('starts loopback pairing, completes proof, and serves an encrypted read', async () => {
     const gateway = new CompanionGateway({
       forward: async () => {},
-      dispatch: async () => ({ product: 'Cate' }),
+      dispatch: async () => ({ product: 'openCate' }),
     })
     const relay = new CompanionRelayServer()
     controller = new MainCompanionController({
@@ -36,6 +36,6 @@ describe('desktop companion controller', () => {
       pollIntervalMs: 10,
       timeoutMs: 2_000,
     })
-    await expect(client.read('cate.version')).resolves.toEqual({ product: 'Cate' })
+    await expect(client.read('cate.version')).resolves.toEqual({ product: 'openCate' })
   })
 })

@@ -20,7 +20,7 @@ describe('createBranch', () => {
     repoDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cate-git-'))
     const git = simpleGit(repoDir)
     await git.init()
-    await git.addConfig('user.name', 'Cate Tests')
+    await git.addConfig('user.name', 'openCate Tests')
     await git.addConfig('user.email', 'cate@example.com')
     await fs.writeFile(path.join(repoDir, 'README.md'), 'base\n', 'utf8')
     await git.add('README.md')

@@ -13,7 +13,7 @@ import log from './logger'
 // edit — the spurious "Reload workspace?" loop.
 //
 // So we drop a .cate/workspace.lock holding the owning pid when a project opens
-// here. A second Cate that finds a *live* owner won't autosave that project.
+// here. A second openCate that finds a *live* owner won't autosave that project.
 // The pid lets us recover from a crash: a leftover lock whose pid is gone is
 // reclaimed instead of bricking the project read-only. Advisory only — if the
 // file can't be written we fail open and behave as the owner.

@@ -32,7 +32,7 @@ export type PanelPlacement =
    *  `size` pins the node's size (used by layout restore to reproduce the saved
    *  geometry exactly); without it the panel type's default size is used.
    *  `focus: false` adds the node WITHOUT focusing it or moving the viewport —
-   *  for background creates (Cate Agent terminals). An off-view unfocused node
+   *  for background creates (openCate Agent terminals). An off-view unfocused node
    *  is culled, so a creator that needs it mounted (a terminal booting its pty)
    *  must keep it exempt itself (see useVisibleNodeIds' alwaysMount). */
   | {

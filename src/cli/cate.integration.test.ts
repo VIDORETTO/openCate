@@ -5,7 +5,7 @@
 // response → formatted stdout + exit code.
 //
 // Boundary: the socket and the binary are real, but the server is a scripted stub,
-// not Cate's real dispatch core (dispatchCateInvoke). This asserts the CLI honours
+// not openCate's real dispatch core (dispatchCateInvoke). This asserts the CLI honours
 // the documented wire contract in cateApiReverse.ts; it does not exercise the host
 // method implementations themselves.
 
@@ -126,7 +126,7 @@ function runCli(args: string[], env: Record<string, string>): Promise<RunResult>
   })
 }
 
-/** Base child env with the loopback endpoint + bearer token Cate would inject. */
+/** Base child env with the loopback endpoint + bearer token openCate would inject. */
 function connectedEnv(): Record<string, string> {
   return {
     PATH: process.env.PATH ?? '',

@@ -41,7 +41,7 @@ function sessionPath(rootPath: string): string {
 // External-edit guard for workspace.json
 //
 // workspace.json is committable and may be edited on disk (by hand or another
-// tool) while Cate is running. But the renderer also autosaves the live layout
+// tool) while openCate is running. But the renderer also autosaves the live layout
 // back over it (~30s + on quit), which would clobber any such edit. To prevent
 // that, we remember the hash of the content we last wrote/read per project;
 // before any autosave overwrite we compare it against what's on disk. A mismatch means the file was edited
@@ -455,11 +455,11 @@ export function registerProjectStateHandlers(): void {
       const wsJson = JSON.stringify(workspace, null, 2)
       const sessJson = JSON.stringify(session, null, 2)
       lastSavedProjectStates.set(rootPath, { workspace: wsJson, session: sessJson })
-      // If another live Cate instance owns this project, don't autosave over
+      // If another live openCate instance owns this project, don't autosave over
       // it — that's the two-writers loop. Re-acquire each time so we resume
       // saving once the owner exits; only skip while it's genuinely held.
       if (!holdsProjectLock(rootPath) && !acquireProjectLock(rootPath)) {
-        log.debug('Skipping save for %s — another Cate instance owns it', cateDir(rootPath))
+        log.debug('Skipping save for %s — another openCate instance owns it', cateDir(rootPath))
         lastSavedProjectStates.delete(rootPath) // keep the quit-time sync fallback out too
         return
       }

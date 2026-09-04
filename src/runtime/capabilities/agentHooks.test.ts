@@ -300,7 +300,7 @@ describe('agentHooks capability', () => {
 
   // Cross-vendor guard. grok scans .claude/settings.local.json (and
   // .cursor/hooks.json) by default, so a grok session ALSO spawns the wrapper
-  // Cate injected for claude — with a grok payload. GROK_HOOK_EVENT is a
+  // openCate injected for claude — with a grok payload. GROK_HOOK_EVENT is a
   // reserved var grok's runner injects into every hook process it spawns, so
   // it deterministically identifies the caller: the claude wrapper must stay
   // silent when grok ran it, and the grok wrapper must stay silent when
@@ -384,7 +384,7 @@ describe('agentHooks capability', () => {
       ),
     )
 
-    // grok merges every *.json in <project>/.grok/hooks; Cate owns cate-hook.json
+    // grok merges every *.json in <project>/.grok/hooks; openCate owns cate-hook.json
     // there. CamelCase event keys, 60s timeout, PreToolUse deliberately absent.
     const grokHooks = JSON.parse(readFileSync(path.join(cwd, '.grok', 'hooks', 'cate-hook.json'), 'utf-8')) as {
       hooks: Record<string, Array<{ hooks: Array<{ command: string; timeout: number }> }>>
@@ -400,7 +400,7 @@ describe('agentHooks capability', () => {
     })
 
     // pi's extension is auto-discovered from <cwd>/.pi/extensions — self-gated
-    // on the hook env, so it is inert outside Cate terminals.
+    // on the hook env, so it is inert outside openCate terminals.
     const piExt = readFileSync(path.join(cwd, '.pi', 'extensions', 'cate-hook.ts'), 'utf-8')
     expect(piExt).toContain('CATE_HOOK_ENDPOINT')
 
@@ -412,7 +412,7 @@ describe('agentHooks capability', () => {
     expect(Object.keys(geminiSettings.hooks)).toContain('BeforeAgent')
     expect(Object.keys(geminiSettings.hooks)).toContain('AfterAgent')
 
-    // Copilot loads repository-level *.json files from .github/hooks; Cate owns
+    // Copilot loads repository-level *.json files from .github/hooks; openCate owns
     // exactly one file there and leaves user-owned siblings untouched.
     const copilotHooks = JSON.parse(readFileSync(path.join(cwd, '.github', 'hooks', 'cate-hook.json'), 'utf-8')) as {
       hooks: Record<string, Array<{ command: string; timeoutSec: number }>>
@@ -481,7 +481,7 @@ describe('agentHooks capability', () => {
     await cap.prepareWorkspace(cwd)
 
     expect(readFileSync(path.join(cwd, '.pi', 'extensions', 'user-ext.ts'), 'utf-8')).toBe('// mine\n')
-    // Cate owns cate-hook.ts outright — drifted content is rewritten.
+    // openCate owns cate-hook.ts outright — drifted content is rewritten.
     expect(readFileSync(path.join(cwd, '.pi', 'extensions', 'cate-hook.ts'), 'utf-8')).toContain('CATE_HOOK_ENDPOINT')
   })
 
@@ -595,7 +595,7 @@ describe('agentHooks capability', () => {
     expect(existsSync(path.join(gated, rel))).toBe(false)
 
     // 'on' writes it even without the folder; it must land in opencode's scan
-    // glob (`{plugin,plugins}/*.{ts,js}`) and carry Cate's marker.
+    // glob (`{plugin,plugins}/*.{ts,js}`) and carry openCate's marker.
     await cap.prepareWorkspace(gated, { opencode: 'on' })
     expect(readFileSync(path.join(gated, rel), 'utf-8')).toContain(CATE_HOOK_MARKER)
 

@@ -1,5 +1,5 @@
 // =============================================================================
-// Agent hooks settings — per-workspace, per-agent control over Cate's hook
+// Agent hooks settings — per-workspace, per-agent control over openCate's hook
 // injection (the push-based agent status/session events). Every agent injects
 // through workspace files, so every agent gets the same tri-state: Auto (inject
 // only when the agent's own config folder is already in the repo), On, or Off.
@@ -74,7 +74,7 @@ export function AgentHooksSettings() {
     <div className="flex flex-col gap-1">
       <SearchableBlock keywords="agent hooks injection claude codex cursor grok pi opencode gemini copilot aider status presence auto on off">
         <p className="text-xs text-muted py-2 leading-relaxed">
-          Cate writes tiny git-ignored hook files so agent CLIs report session and turn status
+          openCate writes tiny git-ignored hook files so agent CLIs report session and turn status
           back to it. <span className="text-secondary">Auto</span> injects only where an agent&apos;s
           config folder already exists. Changes apply to terminals opened after saving.
         </p>

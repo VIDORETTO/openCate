@@ -7,11 +7,11 @@ import { fileURLToPath } from 'node:url'
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const packageJson = JSON.parse(await readFile(path.join(repoRoot, 'package.json'), 'utf8'))
 const version = String(packageJson.version)
-const tarballName = `cate-runtime-${version}-linux-x64.tgz`
+const tarballName = `opencate-runtime-${version}-linux-x64.tgz`
 const tarballPath = path.join(repoRoot, 'dist-runtime', tarballName)
 const dockerfilePath = path.join(repoRoot, 'docker', 'cate-runtime', 'Dockerfile')
 const vitestPath = path.join(repoRoot, 'node_modules', 'vitest', 'vitest.mjs')
-const imageTag = `cate-runtime-smoke:${version.replace(/[^a-zA-Z0-9_.-]/g, '-')}-${process.pid}`
+const imageTag = `opencate-runtime-smoke:${version.replace(/[^a-zA-Z0-9_.-]/g, '-')}-${process.pid}`
 const engine = process.env.CATE_CONTAINER_ENGINE === 'podman' ? 'podman' : 'docker'
 
 if (process.env.CATE_CONTAINER_ENGINE && !['docker', 'podman'].includes(process.env.CATE_CONTAINER_ENGINE)) {
@@ -83,7 +83,7 @@ try {
 }
 
 async function assertMissingImageFails() {
-  const missingImage = `cate-runtime-smoke-missing:${process.pid}-${Date.now()}`
+  const missingImage = `opencate-runtime-smoke-missing:${process.pid}-${Date.now()}`
   try {
     await runProcess(engine, ['run', '--rm', '--pull', 'never', missingImage, 'true'], repoRoot)
   } catch (error) {

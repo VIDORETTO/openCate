@@ -289,15 +289,15 @@ export function buildApplicationMenu(): void {
       role: 'help',
       submenu: [
         {
-          label: 'Cate Documentation',
+          label: 'openCate Documentation',
           click: (): void => {
-            shell.openExternal('https://github.com/0-AI-UG/cate')
+            shell.openExternal('https://github.com/VIDORETTO/openCate')
           },
         },
         {
           label: 'Report Issue...',
           click: (): void => {
-            shell.openExternal('https://github.com/0-AI-UG/cate/issues')
+            shell.openExternal('https://github.com/VIDORETTO/openCate/issues')
           },
         },
         { type: 'separator' },

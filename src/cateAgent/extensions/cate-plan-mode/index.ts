@@ -9,13 +9,13 @@
 //   • Status footer shows "Plan mode" via ctx.ui.setStatus.
 //
 // The custom `plan_complete` tool has no side effects — it's just the channel
-// the agent uses to surface a structured summary + steps that Cate renders as
+// the agent uses to surface a structured summary + steps that openCate renders as
 // a "Plan ready" card with Implement / Refine / Clear actions.
 //
 // Implement is driven entirely by `/apply-plan`: it clears plan mode and kicks
 // off the execution turn via pi.sendMessage({triggerTurn}) using a *custom*
 // (non-user) message. So no synthetic "execute the plan" user prompt appears in
-// the thread — Cate only renders user/assistant/tool roles, and the user sees
+// the thread — openCate only renders user/assistant/tool roles, and the user sees
 // the implementation work directly. `/apply-plan fresh` restates the recorded
 // plan in full for the "Clear context & implement" path (post-compaction).
 // =============================================================================
@@ -77,7 +77,7 @@ Output:
     • summary  — one paragraph: what you're proposing and why.
     • steps    — an ordered list of concrete steps; each step has a short
                  \`title\` and an optional \`detail\` (1-2 sentences).
-- Do NOT just write the plan in prose. CALL the plan_complete tool. The Cate
+- Do NOT just write the plan in prose. CALL the plan_complete tool. The openCate
   UI renders its arguments as a structured card with Implement / Refine /
   Clear-and-implement actions; prose plans are invisible to that UI.
 - After calling plan_complete, stop. The user will decide what to do next.
@@ -172,7 +172,7 @@ export default function (pi: ExtensionAPI) {
 
   const enable = (ctx: { ui: { setStatus: (k: string, v: string | undefined) => void } }) => {
     active = true
-    // The status key drives the toggle-button highlight in Cate. The footer
+    // The status key drives the toggle-button highlight in openCate. The footer
     // entry is filtered out renderer-side so the button is the only indicator.
     ctx.ui.setStatus(STATUS_KEY, "Plan mode")
   }
@@ -202,7 +202,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerCommand("apply-plan", {
     description:
-      "Exit plan mode and implement the approved plan (called by Cate's Implement button). Pass 'fresh' when the conversation was just compacted so the plan is restated in full.",
+      "Exit plan mode and implement the approved plan (called by openCate's Implement button). Pass 'fresh' when the conversation was just compacted so the plan is restated in full.",
     handler: async (args, ctx) => {
       disable(ctx)
       // "Clear context & implement" compacts first, then calls `/apply-plan fresh`.
@@ -213,7 +213,7 @@ export default function (pi: ExtensionAPI) {
           ? `${EXECUTE_PREAMBLE} The prior conversation was compacted, so the approved plan is restated here in full:\n\n${formatPlanText(lastPlan)}`
           : `${EXECUTE_PREAMBLE} The plan you proposed is above; follow it.`
       // Drive the implement turn from the extension as a custom (non-user)
-      // message. Cate renders only user/assistant/tool roles, so this carries the
+      // message. openCate renders only user/assistant/tool roles, so this carries the
       // instruction to the model without showing up as a user message — and the
       // user sees the implementation work directly, not a synthetic prompt.
       pi.sendMessage(
@@ -255,7 +255,7 @@ export default function (pi: ExtensionAPI) {
     name: "plan_complete",
     label: "Plan ready",
     description:
-      "Submit a structured plan for the user to review. Call this once you have investigated enough and have a concrete, ordered set of steps. Has no side effects — the Cate UI renders summary + steps as a card with Implement/Refine/Clear actions.",
+      "Submit a structured plan for the user to review. Call this once you have investigated enough and have a concrete, ordered set of steps. Has no side effects — the openCate UI renders summary + steps as a card with Implement/Refine/Clear actions.",
     parameters: Type.Object({
       summary: Type.String({
         description: "One-paragraph summary of what you're proposing to do.",

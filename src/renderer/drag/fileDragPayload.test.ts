@@ -22,7 +22,7 @@ function transfer(initial: Record<string, string> = {}) {
   }
 }
 
-describe('Cate file drag payload', () => {
+describe('openCate file drag payload', () => {
   it('writes and reads multi-file and line-location payloads', () => {
     const dt = transfer()
     writeCateFileDrag(dt, ['/a.ts', '/b.ts'], { path: '/a.ts', line: 12, column: 4 })
@@ -46,7 +46,7 @@ describe('Cate file drag payload', () => {
     expect(readCateFileLocation(dt)).toBeNull()
   })
 
-  it('detects Cate file payload types and ignores empty writes', () => {
+  it('detects openCate file payload types and ignores empty writes', () => {
     expect(hasCateFileDrag({ types: [CATE_FILES_MIME] })).toBe(true)
     expect(hasCateFileDrag({ types: ['text/plain'] })).toBe(false)
     expect(hasCateFileDrag(null)).toBe(false)
@@ -58,7 +58,7 @@ describe('Cate file drag payload', () => {
 })
 
 describe('Chat drag payload', () => {
-  it('round-trips a durable Cate Agent chat', () => {
+  it('round-trips a durable openCate Agent chat', () => {
     const dt = transfer()
     setChatDrag(dt, { chatId: 'chat-1', rootPath: '/repo' })
 

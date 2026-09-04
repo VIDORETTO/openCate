@@ -2,7 +2,7 @@
 // browserControl — main-process half of the `cate.browser.*` agent surface.
 //
 // Browser automation is main-process-owned and implemented by agent-browser.
-// The renderer resolves the visible Cate panel and forwards the method here;
+// The renderer resolves the visible openCate panel and forwards the method here;
 // this module enforces guest ownership before the service can reach CDP.
 //
 // Every op re-uses the WEBVIEW_SCREENSHOT ownership rule: the target

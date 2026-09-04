@@ -46,8 +46,8 @@ import {
   type UpdateRecord,
 } from './updateState'
 
-const GITHUB_OWNER = '0-AI-UG'
-const GITHUB_REPO = 'cate'
+const GITHUB_OWNER = 'VIDORETTO'
+const GITHUB_REPO = 'openCate'
 const RELEASES_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`
 const CHECK_INTERVAL_MS = 15 * 60 * 1000
 
@@ -142,10 +142,10 @@ async function promptManualReinstall(version: string, opts: { offerMove: boolean
     ? ['Download latest', 'Move to Applications', 'Later']
     : ['Download latest', 'Later']
   const detail = opts.offerMove
-    ? 'Cate is running from outside the Applications folder, so it can’t update itself ' +
-      '(macOS blocks self-updates there). Download the latest build, or move Cate into ' +
+    ? 'openCate is running from outside the Applications folder, so it can’t update itself ' +
+      '(macOS blocks self-updates there). Download the latest build, or move openCate into ' +
       'Applications to enable automatic updates. Your settings and sessions are preserved.'
-    : 'Cate couldn’t finish installing the update automatically. Download and install the ' +
+    : 'openCate couldn’t finish installing the update automatically. Download and install the ' +
       'latest build to get the newest version. Your settings and sessions are preserved.'
 
   let response = buttons.length - 1

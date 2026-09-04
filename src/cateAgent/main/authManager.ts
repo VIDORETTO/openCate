@@ -207,7 +207,7 @@ export class AuthManager {
    *  state — connected providers in auth.json (or env keys) crossed with pi's
    *  static model catalog, plus the custom OpenAI endpoint's models from
    *  models.json. No running pi session required, so the same list backs the
-   *  chat model picker and the Settings → Cate Agent default-model dropdown. */
+   *  chat model picker and the Settings → openCate Agent default-model dropdown. */
   async listAvailableModels(): Promise<CodingModelDescriptor[]> {
     const statuses = await this.status()
     const connected = new Set(statuses.filter((s) => s.connected).map((s) => s.id))
@@ -294,7 +294,7 @@ export class AuthManager {
       }
     }
 
-    // Cate-managed custom providers live in models.json, not auth.json —
+    // openCate-managed custom providers live in models.json, not auth.json —
     // verification is presence-only.
     if (providerId === 'custom-openai' || providerId.startsWith('custom-openai-')) {
       const custom = (await readCustomOpenAIProviders()).find((provider) => provider.id === providerId)

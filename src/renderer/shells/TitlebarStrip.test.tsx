@@ -40,14 +40,14 @@ async function render() {
 
 describe('TitlebarStrip menu bar', () => {
   it('draws a button for each top-level application-menu label', async () => {
-    vi.mocked(window.electronAPI.getAppMenuBarItems).mockResolvedValue(['Cate', 'File', 'Edit', 'Help'])
+    vi.mocked(window.electronAPI.getAppMenuBarItems).mockResolvedValue(['openCate', 'File', 'Edit', 'Help'])
     const el = await render()
     const labels = Array.from(el.querySelectorAll('button')).map((b) => b.textContent)
-    expect(labels).toEqual(expect.arrayContaining(['Cate', 'File', 'Edit', 'Help']))
+    expect(labels).toEqual(expect.arrayContaining(['openCate', 'File', 'Edit', 'Help']))
   })
 
   it('pops the matching native submenu by index on click', async () => {
-    vi.mocked(window.electronAPI.getAppMenuBarItems).mockResolvedValue(['Cate', 'File', 'Help'])
+    vi.mocked(window.electronAPI.getAppMenuBarItems).mockResolvedValue(['openCate', 'File', 'Help'])
     const el = await render()
     const fileBtn = Array.from(el.querySelectorAll('button')).find((b) => b.textContent === 'File')!
     act(() => { fileBtn.dispatchEvent(new MouseEvent('click', { bubbles: true })) })

@@ -3,7 +3,7 @@
 //
 // A steerable surface (the agent panel) folds Stop into the send button: typing
 // while a turn runs means you intend to steer it, so Stop only appears with an
-// empty draft. A non-steerable surface (the Cate Agent sidebar, where a message
+// empty draft. A non-steerable surface (the openCate Agent sidebar, where a message
 // starts the next turn rather than redirecting the live one) must keep Stop as
 // its own control, otherwise a run with a half-typed message is unstoppable.
 
@@ -71,7 +71,7 @@ describe('ChatComposer send/stop', () => {
     })
   })
 
-  describe('non-steerable (Cate Agent sidebar)', () => {
+  describe('non-steerable (openCate Agent sidebar)', () => {
     it('keeps Stop alongside Send while running with a draft', () => {
       renderComposer({ running: true, draft: 'do the thing', canSteer: false })
       expect(button('Stop')).toBeTruthy()

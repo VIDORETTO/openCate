@@ -1,5 +1,5 @@
-// Opt-in orchestration instructions for Cate's direct agent. The orchestration
-// capability itself lives in the public `cate agent` CLI so Cate Agent and
+// Opt-in orchestration instructions for openCate's direct agent. The orchestration
+// capability itself lives in the public `cate agent` CLI so openCate Agent and
 // terminal-based agents use the same recursive workflow.
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent"

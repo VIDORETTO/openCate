@@ -14,7 +14,7 @@ vi.mock('../../main/logger', () => ({
 import { installSubagentExtension } from './installSubagent'
 
 describe('installSubagentExtension', () => {
-  it('installs the subagent tool and Cate-owned scout, planner, and worker', async () => {
+  it('installs the subagent tool and openCate-owned scout, planner, and worker', async () => {
     const runtime = {
       id: 'local',
       file: {
@@ -52,7 +52,7 @@ describe('installSubagentExtension', () => {
       .not.toContain('tools: subagent')
   })
 
-  it('removes the legacy Cate-managed extension before installing the renamed one', async () => {
+  it('removes the legacy openCate-managed extension before installing the renamed one', async () => {
     const legacyDir = '/host/.cate/cate-agent/extensions/subagent'
     const runtime = {
       id: 'legacy-local',
@@ -76,7 +76,7 @@ describe('installSubagentExtension', () => {
     )
   })
 
-  it('does not start a Cate Agent session without the required subagent runtime', async () => {
+  it('does not start a openCate Agent session without the required subagent runtime', async () => {
     const failure = new Error('remote write failed')
     const runtime = {
       id: 'broken-remote',

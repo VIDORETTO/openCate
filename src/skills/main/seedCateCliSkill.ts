@@ -10,8 +10,8 @@
 // last one is what makes remote workspaces behave like local ones, since their
 // runtime connects only after create/attach.
 //   - gated by the cliSkillInstallEnabled setting (Settings → CLI);
-//   - `cate-agent` is always seeded — it is Cate's own agent and `.cate/` is
-//     already Cate-managed;
+//   - `cate-agent` is always seeded — it is openCate's own agent and `.cate/` is
+//     already openCate-managed;
 //   - every other target (one per agent CLI that declares `skills` in
 //     src/shared/agents.ts — claude-code, codex, cursor, grok, opencode,
 //     pi-native) is seeded only when its tool dir (`.claude`, `.agents`, …)
@@ -131,7 +131,7 @@ export async function seedCateCliSkill(cwd: string): Promise<void> {
   }
 }
 
-/** Explicit settings action: replace Cate-managed copies with the current
+/** Explicit settings action: replace openCate-managed copies with the current
  * bundled skill. Unlike automatic seeding, this intentionally overwrites edits. */
 export async function reinstallCateCliSkill(cwd: string): Promise<number> {
   const { runtimeId, path: hostCwd } = parseLocator(cwd)

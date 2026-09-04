@@ -41,7 +41,7 @@ git switch --create "$branch"
 
     const git = simpleGit(root)
     await git.init()
-    await git.addConfig('user.name', 'Cate Test')
+    await git.addConfig('user.name', 'openCate Test')
     await git.addConfig('user.email', 'cate@example.test')
     await fs.writeFile(path.join(root, 'README.md'), 'initial\n')
     await git.add('README.md')
@@ -81,7 +81,7 @@ git switch --create "$branch"
     expect((await simpleGit(root).branchLocal()).all).toContain('feature')
   })
 
-  posixTest('chooses a fresh suffix when a previous Cate PR branch exists', async () => {
+  posixTest('chooses a fresh suffix when a previous openCate PR branch exists', async () => {
     await simpleGit(root).branch(['cate-pr-525'])
 
     const result = await vcs().worktreeAddFromPr(root, 525, target, undefined, access)

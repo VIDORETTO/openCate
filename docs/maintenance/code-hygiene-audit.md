@@ -34,7 +34,7 @@ The production matches are concentrated in:
 - lazy panel components in `panels/registry.ts`, whose extra props vary by
   panel type;
 - the generated Pi hook in `shared/agentHooks.ts`, which implements a
-  third-party callback contract outside Cate's type ownership.
+  third-party callback contract outside openCate's type ownership.
 
 The remaining broad matches are test-only provider fixtures or ordinary prose.
 Replacing these with `unknown` without local event schemas would either move

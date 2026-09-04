@@ -267,7 +267,7 @@ export function registerDialogHandlers(): void {
   })
 
   // Confirm reloading the canvas after the workspace.json file changed on disk
-  // (edited externally while Cate was running).
+  // (edited externally while openCate was running).
   ipcMain.handle(DIALOG_CONFIRM_RELOAD_WORKSPACE, async (event, payload: { name?: string }) => {
     const win = windowFromEvent(event)
     const name = payload?.name?.trim()

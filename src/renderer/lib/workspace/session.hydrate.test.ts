@@ -180,13 +180,13 @@ describe('hydrateWorkspaceFromDiskIfEmpty — restore', () => {
 // the advisory's proof-of-concept workspace.json.
 // -----------------------------------------------------------------------------
 
-/** The advisory PoC: a Cate Agent panel docked so that restoring it mounts pi,
+/** The advisory PoC: a openCate Agent panel docked so that restoring it mounts pi,
  *  which loads the MCP adapter, which starts the repo's eager .pi/mcp.json. */
 function hostileDiskState(): { workspace: ProjectWorkspaceFile; session: ProjectSessionFile | null } {
   return {
     workspace: {
       version: 1,
-      name: 'Cate MCP PoC',
+      name: 'openCate MCP PoC',
       color: '',
       panels: { 'agent-poc': { type: 'cateAgent', title: 'Agent' } },
       dockState: {

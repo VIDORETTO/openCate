@@ -1,4 +1,4 @@
-# Documentação do Cate
+# Documentação do openCate
 
 Este diretório concentra a documentação técnica e as decisões de arquitetura.
 
@@ -20,7 +20,7 @@ Este diretório concentra a documentação técnica e as decisões de arquitetur
 - [`../research/`](../research/) — análises comparativas e pesquisas técnicas.
 - [`../tasks/todo.md`](../tasks/todo.md) — backlog funcional e ponto de retomada da próxima sessão.
 - [`../tasks/lessons.md`](../tasks/lessons.md) — aprendizados operacionais e regras para evitar regressões no processo.
-- [`../plan.md`](../plan.md) — desenho separado para a futura camada Cate Cloud.
+- [`../plan.md`](../plan.md) — desenho separado para a futura camada openCate Cloud.
 
 ## Convenções
 

@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://cate.app/schemas/theme.schema.json",
-  "title": "Cate Unified Theme",
-  "description": "One theme styling the whole Cate IDE: app chrome, terminal palette, and Monaco editor.",
+  "title": "openCate Unified Theme",
+  "description": "One theme styling the whole openCate IDE: app chrome, terminal palette, and Monaco editor.",
   "type": "object",
   "required": ["version", "id", "name", "type", "terminal", "editor"],
   "additionalProperties": false,

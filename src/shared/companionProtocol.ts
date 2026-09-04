@@ -4,7 +4,7 @@
  * The companion surface is deliberately smaller than CATE_API: reads are
  * enumerated, terminal scrollback is not a read method, and writes require an
  * approval id minted by the desktop host. A relay only forwards opaque frames
- * and never needs a Cate account or workspace credentials.
+ * and never needs a openCate account or workspace credentials.
  */
 
 export const COMPANION_PROTOCOL_VERSION = 1

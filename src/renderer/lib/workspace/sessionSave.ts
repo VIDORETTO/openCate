@@ -33,7 +33,7 @@ import type {
 const lastSerializedByRoot = new Map<string, string>()
 // A read-only or broken mount must not trigger one failed `.cate` write every
 // autosave tick forever. Stop scheduling writes for the root after a small
-// consecutive-failure budget; relaunching Cate starts a fresh budget.
+// consecutive-failure budget; relaunching openCate starts a fresh budget.
 const MAX_PROJECT_STATE_SAVE_FAILURES = 3
 const projectStateSaveFailuresByRoot = new Map<string, number>()
 const projectStateSavesInFlight = new Set<string>()
