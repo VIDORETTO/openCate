@@ -2086,5 +2086,7 @@ essas validações continuam abertas sem marcar caixas por inferência.
 - Validações concluídas: typecheck, lint, suíte completa serializada,
   `verify:hygiene`, build desktop, build/test/package do companion, verificações
   de release/deployment/boundaries, bundle runtime e tarball Windows.
-- A renomeação ainda não foi commitada nem enviada ao GitHub; nenhum release foi
-  publicado.
+- A renomeação foi consolidada no commit `6a9f4c76d0a4c9ca23c193a43f9ec011a3c29ab7`
+  (`chore: rename product to openCate`) e enviada com sucesso para
+  `VIDORETTO/openCate` em `product/agent-canvas`; o SHA remoto foi confirmado.
+- Nenhuma release ou tag foi criada; o working tree ficou limpo após o push.
