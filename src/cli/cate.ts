@@ -6,9 +6,15 @@ import {
   isReadOnlyAgentBrowserCommand,
   validateAgentBrowserCommand,
 } from '../shared/agentBrowserCommand'
+import {
+  CateApiClient,
+  CateApiError,
+  CateApiTransportError,
+} from '../sdk/cateClient'
 
-export const CLI_VERSION = '11'
+export const CLI_VERSION = '12'
 export const DEFAULT_TIMEOUT_MS = 30_000
+const BROWSER_TIMEOUT_MS = 40_000
 export const SHORT_ID_LEN = 8
 
 export class UsageError extends Error {}
@@ -32,6 +38,7 @@ export interface Flags {
   foreground: boolean
   profile?: string
   waitTimeout?: string
+  data?: string
 }
 
 export interface Parsed {
@@ -75,6 +82,19 @@ export function parseFileTarget(target: string): Record<string, unknown> {
   }
 }
 
+function parseJsonObject(value: string, name: string): Record<string, unknown> {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    throw new UsageError(`invalid <${name}>: expected a JSON object`)
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new UsageError(`invalid <${name}>: expected a JSON object`)
+  }
+  return parsed as Record<string, unknown>
+}
+
 /** Extract only Cate's four global flags. Everything else remains byte-for-byte
  * native agent-browser argv after `cate browser`. */
 export function parseCli(argv: string[]): Parsed {
@@ -115,6 +135,9 @@ export function parseCli(argv: string[]): Parsed {
     } else if (agentCommand && part === '--wait-timeout') {
       flags.waitTimeout = need(argv[index + 1], 'wait-timeout')
       index += 1
+    } else if (argv[0] !== 'browser' && part === '--data') {
+      flags.data = need(argv[index + 1], 'data')
+      index += 1
     } else {
       positionals.push(part)
     }
@@ -126,6 +149,7 @@ function agentRequest(args: string[], flags: Flags): Request {
   const command = need(args[0], 'agent command')
   const rest = args.slice(1)
   if (flags.panel) throw new UsageError(`--panel is not valid for agent ${command}`)
+  if (flags.data) throw new UsageError(`--data is not valid for agent ${command}`)
   const hasCreateOptions = Boolean(
     flags.agentId || flags.title || flags.worktreeId || flags.newWorktree ||
       flags.baseRef || flags.foreground || flags.profile,
@@ -304,6 +328,116 @@ export function buildRequest(positionals: string[], flags: Flags): Request {
     if (flags.panel) throw new UsageError('--panel is not valid for version')
     return { method: 'cate.version', args: {} }
   }
+  if (group === 'project') {
+    if (flags.panel || flags.data) {
+      throw new UsageError(`${flags.panel ? '--panel' : '--data'} is not valid for project`)
+    }
+    if (need(args[0], 'project command') !== 'get') {
+      throw new UsageError(`unknown project command: ${args[0]}`)
+    }
+    exact(args.slice(1), 0)
+    return { method: 'cate.project.get', args: {} }
+  }
+  if (group === 'task') {
+    if (flags.panel) throw new UsageError('--panel is not valid for task commands')
+    const command = need(args[0], 'task command')
+    const rest = args.slice(1)
+    if (command === 'list') {
+      exact(rest, 0)
+      if (flags.data) throw new UsageError('--data is not valid for task list')
+      return { method: 'cate.tasks.list', args: {} }
+    }
+    if (command === 'get') {
+      if (flags.data) throw new UsageError('--data is not valid for task get')
+      return { method: 'cate.tasks.get', args: { taskId: need(exact(rest, 1)[0], 'taskId') } }
+    }
+    if (command === 'delete') {
+      if (flags.data) throw new UsageError('--data is not valid for task delete')
+      return { method: 'cate.tasks.delete', args: { taskId: need(exact(rest, 1)[0], 'taskId') } }
+    }
+    if (command === 'create') {
+      if (flags.data) {
+        exact(rest, 0)
+        return { method: 'cate.tasks.create', args: { draft: parseJsonObject(flags.data, 'data') } }
+      }
+      const objective = need(rest.join(' '), 'objective')
+      return {
+        method: 'cate.tasks.create',
+        args: {
+          draft: { objective, constraints: [], status: 'planned', logs: [], artifacts: [] },
+        },
+      }
+    }
+    if (command === 'update') {
+      const taskId = need(rest[0], 'taskId')
+      exact(rest.slice(1), 0)
+      if (!flags.data) throw new UsageError('task update requires --data <json>')
+      return { method: 'cate.tasks.update', args: { taskId, patch: parseJsonObject(flags.data, 'data') } }
+    }
+    throw new UsageError(`unknown task command: ${command}`)
+  }
+  if (group === 'context') {
+    if (flags.panel) throw new UsageError('--panel is not valid for context commands')
+    const command = need(args[0], 'context command')
+    const rest = args.slice(1)
+    if (command === 'list') {
+      exact(rest, 0)
+      if (flags.data) throw new UsageError('--data is not valid for context list')
+      return { method: 'cate.context.list', args: {} }
+    }
+    if (command === 'get') {
+      if (flags.data) throw new UsageError('--data is not valid for context get')
+      return { method: 'cate.context.get', args: { contextId: need(exact(rest, 1)[0], 'contextId') } }
+    }
+    if (command === 'delete') {
+      if (flags.data) throw new UsageError('--data is not valid for context delete')
+      return { method: 'cate.context.delete', args: { contextId: need(exact(rest, 1)[0], 'contextId') } }
+    }
+    if (command === 'create') {
+      if (flags.data) {
+        exact(rest, 0)
+        return { method: 'cate.context.create', args: { draft: parseJsonObject(flags.data, 'data') } }
+      }
+      const title = need(rest[0], 'title')
+      const content = need(rest.slice(1).join(' '), 'content')
+      return {
+        method: 'cate.context.create',
+        args: {
+          draft: {
+            scope: { kind: 'project' },
+            title,
+            content,
+            citations: [{ kind: 'manual', label: 'cate CLI', locator: 'cate-cli' }],
+          },
+        },
+      }
+    }
+    if (command === 'update') {
+      const contextId = need(rest[0], 'contextId')
+      exact(rest.slice(1), 0)
+      if (!flags.data) throw new UsageError('context update requires --data <json>')
+      return { method: 'cate.context.update', args: { contextId, patch: parseJsonObject(flags.data, 'data') } }
+    }
+    throw new UsageError(`unknown context command: ${command}`)
+  }
+  if (group === 'result') {
+    if (flags.panel || flags.data) {
+      throw new UsageError(`${flags.panel ? '--panel' : '--data'} is not valid for result`)
+    }
+    const command = need(args[0], 'result command')
+    const rest = args.slice(1)
+    if (command === 'list') {
+      if (rest.length > 1) throw new UsageError(`unexpected argument: ${rest[1]}`)
+      return {
+        method: 'cate.results.list',
+        args: rest[0] ? { taskId: rest[0] } : {},
+      }
+    }
+    if (command === 'get') {
+      return { method: 'cate.results.get', args: { resultId: need(exact(rest, 1)[0], 'resultId') } }
+    }
+    throw new UsageError(`unknown result command: ${command}`)
+  }
   if (group === 'editor') {
     if (need(args[0], 'editor command') !== 'open') throw new UsageError(`unknown editor command: ${args[0]}`)
     const target = need(exact(args.slice(1), 1)[0], 'path')
@@ -414,28 +548,23 @@ export async function send(
     ? { ...args, placementGroupId }
     : args
 
-  let response: Response
   try {
-    response = await deps.fetch(api, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        method,
-        args: requestArgs,
-        clientId,
-        callerPanelId: deps.env.CATE_PANEL_ID,
-        originCwd: deps.cwd,
-      }),
-      signal: AbortSignal.timeout(deps.timeout),
+    const client = new CateApiClient({
+      baseUrl: api,
+      token,
+      fetch: deps.fetch,
+      timeoutMs: deps.timeout,
+      clientId,
+      callerPanelId: deps.env.CATE_PANEL_ID,
+      originCwd: deps.cwd,
     })
+    return await client.invoke(method, requestArgs)
   } catch (error) {
+    if (error instanceof CateApiError) throw new ApiError(method, error.code)
+    if (error instanceof CateApiTransportError) {
+      throw new EnvError(`request to ${api} failed: ${error.message}`)
+    }
     throw new EnvError(`request to ${api} failed: ${error instanceof Error ? error.message : String(error)}`)
-  }
-  try {
-    return unwrap(method, response.status, await response.json())
-  } catch (error) {
-    if (error instanceof ApiError) throw error
-    throw new EnvError(`bad response from ${api} (HTTP ${response.status})`)
   }
 }
 
@@ -516,6 +645,22 @@ function renderAgentRuns(value: unknown): string {
   }).join('\n') || '(no agent runs)'
 }
 
+function renderProjectItems(value: unknown, kind: 'task' | 'context' | 'result'): string {
+  const items = asObject(value)?.items
+  if (!Array.isArray(items)) return renderGeneric(value)
+  return items.map((item) => {
+    const row = asObject(item)
+    if (!row) return String(item)
+    if (kind === 'task') {
+      return `${shortId(String(row.id ?? '?'))}\t${row.status ?? '?'}\t${row.objective ?? ''}`
+    }
+    if (kind === 'context') {
+      return `${shortId(String(row.id ?? '?'))}\t${row.title ?? ''}`
+    }
+    return `${shortId(String(row.taskId ?? row.id ?? '?'))}\t${row.status ?? '?'}\t${row.value ?? '(no validated result)'}`
+  }).join('\n') || `(no ${kind} records)`
+}
+
 function renderGeneric(value: unknown): string {
   if (value === undefined || value === null) return 'ok'
   if (typeof value === 'string') return value
@@ -529,6 +674,9 @@ export function formatHuman(method: string, value: unknown): string {
   if (method === 'cate.codingAgent.wait') {
     return renderAgentRuns(asObject(value)?.runs)
   }
+  if (method === 'cate.tasks.list') return renderProjectItems(value, 'task')
+  if (method === 'cate.context.list') return renderProjectItems(value, 'context')
+  if (method === 'cate.results.list') return renderProjectItems(value, 'result')
   if (method === 'cate.codingAgent.inspect' || method === 'cate.codingAgent.review') {
     return JSON.stringify(value, null, 2)
   }
@@ -576,13 +724,17 @@ const USAGE = `Usage:
   cate editor open <path[:line[:column]]>
   cate terminal read|type|press [args] [--panel <id>]
   cate agent list|create|send|wait|inspect|review|apply|keep|discard|stop [args]
+  cate project get
+  cate task list|get|create|update|delete [args] [--data <json>]
+  cate context list|get|create|update|delete [args] [--data <json>]
+  cate result list|get [task-or-result-id]
   cate version
 
 Browser page commands use native agent-browser syntax. Cate pins them to the
 selected built-in webview; browser/session startup, native tabs, batch commands,
 and arbitrary host file paths are not exposed.
 
-Global flags: --panel <id> --json -h|--help --version`
+Global flags: --panel <id> --data <json> --json -h|--help --version`
 
 const BROWSER_USAGE = `Usage: cate browser <command> [args] [--panel <id>]
 
@@ -631,6 +783,10 @@ function helpFor(positionals: string[]): string {
   if (positionals[0] === 'terminal') {
     return 'Usage: cate terminal read [--panel <id>] | type <text...> --panel <id> | press <key> --panel <id>'
   }
+  if (positionals[0] === 'project') return 'Usage: cate project get'
+  if (positionals[0] === 'task') return 'Usage: cate task list | get <id> | create <objective...> | update <id> --data <json> | delete <id>'
+  if (positionals[0] === 'context') return 'Usage: cate context list | get <id> | create <title> <content...> | update <id> --data <json> | delete <id>'
+  if (positionals[0] === 'result') return 'Usage: cate result list [task-id] | get <result-id>'
   return USAGE
 }
 
@@ -678,9 +834,14 @@ export async function run(argv: string[], deps: RunDeps): Promise<number> {
   const sendDeps: SendDeps = {
     fetch: deps.fetch,
     env: deps.env,
-    timeout: request.method === 'cate.codingAgent.wait'
-      ? Math.max(DEFAULT_TIMEOUT_MS, Number(request.args.timeoutSeconds ?? 10) * 1_000 + 5_000)
-      : DEFAULT_TIMEOUT_MS,
+    // Browser forwarding has a dedicated 35s host deadline because native
+    // agent-browser commands may spend up to 28s in their own bounded action
+    // timeout. Keep the CLI client outside that deadline as well.
+    timeout: request.method.startsWith('cate.browser.')
+      ? BROWSER_TIMEOUT_MS
+      : request.method === 'cate.codingAgent.wait'
+        ? Math.max(DEFAULT_TIMEOUT_MS, Number(request.args.timeoutSeconds ?? 10) * 1_000 + 5_000)
+        : DEFAULT_TIMEOUT_MS,
     cwd: deps.cwd,
   }
   try {

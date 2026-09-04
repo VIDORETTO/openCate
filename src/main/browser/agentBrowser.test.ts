@@ -8,7 +8,7 @@ vi.mock('electron', () => ({
 }))
 
 import { app } from 'electron'
-import { AgentBrowserService, enableAgentBrowserBackend } from './agentBrowser'
+import { AgentBrowserService, createAgentBrowserEnv, enableAgentBrowserBackend } from './agentBrowser'
 
 function fakeContents() {
   let marker = ''
@@ -20,6 +20,7 @@ function fakeContents() {
       executeJavaScript: vi.fn(async (code: string) => {
         const match = code.match(/value: ("[^"]+")/)
         if (match) marker = JSON.parse(match[1])
+        if (code.includes('KeyboardEvent')) return { ok: true }
       }),
       debugger: {
         isAttached: vi.fn(() => debuggerAttached),
@@ -47,6 +48,22 @@ function fakeContents() {
 
 describe('AgentBrowserService', () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it('strips ambient secrets from the native browser child environment', () => {
+    expect(createAgentBrowserEnv({
+      PATH: '/bin',
+      HOME: '/home/tester',
+      OPENAI_API_KEY: 'secret',
+      CATE_TOKEN: 'secret',
+      NODE_OPTIONS: '--require evil',
+      SSH_AUTH_SOCK: '/tmp/agent.sock',
+    }, '/tmp/cate-ab')).toEqual({
+      PATH: '/bin',
+      HOME: '/home/tester',
+      AGENT_BROWSER_SOCKET_DIR: '/tmp/cate-ab',
+      AGENT_BROWSER_IDLE_TIMEOUT_MS: '60000',
+    })
+  })
 
   it('connects automation through an explicit debugging port', async () => {
     const guest = fakeContents()
@@ -424,6 +441,38 @@ describe('AgentBrowserService', () => {
     await expect(service.execute(42, 'command', {
       command: ['tab', 'new'],
     })).resolves.toEqual({ error: 'unsupported-browser-command:tab' })
+  })
+
+  it('routes guest CSS actions and keyboard input to the embedded webview', async () => {
+    const guest = fakeContents()
+    let selected = ''
+    const commands: string[][] = []
+    const runner = vi.fn(async (args: string[]) => {
+      commands.push(args)
+      if (args[0] === 'tab' && args.length === 1) return { tabs: [{ tabId: 't1', type: 'webview' }] }
+      if (args[0] === 'tab') {
+        selected = args[1]
+        return {}
+      }
+      if (args[0] === 'eval') return { result: selected === 't1' ? guest.marker() : null }
+      if (args[0] === 'get' && args[1] === 'box') return { x: 1, y: 2, width: 10, height: 20 }
+      return {}
+    })
+    const service = new AgentBrowserService({ runner, endpoint: async () => '19333' })
+    await service.register(guest.contents, 'panel-1', 'tab-1')
+
+    await service.execute(42, 'command', { command: ['fill', '#name', 'background'] })
+    const pressed = await service.execute(42, 'command', { command: ['press', 'Enter'] })
+
+    expect(commands.some((command) => command[0] === 'eval'
+      && command[1].includes('querySelector("#name")')
+      && command[1].includes('background'))).toBe(true)
+    expect(pressed).toMatchObject({ result: { ok: true }, cursor: { kind: 'press' } })
+    expect(guest.contents.executeJavaScript).toHaveBeenCalledWith(
+      expect.stringContaining("new KeyboardEvent('keydown'"),
+      true,
+    )
+    expect(commands).not.toContainEqual(['press', 'Enter'])
   })
 
   it('routes revisioned refs through native agent-browser element actions', async () => {

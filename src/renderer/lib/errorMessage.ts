@@ -68,8 +68,9 @@ function rawMessage(err: unknown): string {
   if (err == null) return ''
   if (typeof err === 'string') return err
   if (err instanceof Error) return err.message
-  if (typeof err === 'object' && 'message' in err && typeof (err as any).message === 'string') {
-    return (err as any).message
+  if (typeof err === 'object' && 'message' in err) {
+    const message = (err as { message?: unknown }).message
+    if (typeof message === 'string') return message
   }
   return String(err)
 }

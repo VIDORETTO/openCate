@@ -52,6 +52,7 @@ describe('coding-agent wait policy', () => {
   it('keeps routine results free of repeated prompts and follow-up history', () => {
     const snapshot = {
       ...run('worker', 'working'),
+      taskId: 'task-1',
       prompt: 'A very long task the supervisor already sent',
       followUps: [{ prompt: 'Another long prompt', sentAt: 2 }],
       statusLine: 'Running tests',
@@ -68,6 +69,7 @@ describe('coding-agent wait policy', () => {
       durationMs: 999,
       followUpSupported: true,
       background: true,
+      taskId: 'task-1',
       statusLine: 'Running tests',
     })
   })

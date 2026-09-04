@@ -40,36 +40,15 @@ We would rather say "not yet" in a one paragraph issue than decline a polished P
 
 ## Development Setup
 
-### Prerequisites
+See the canonical [development and validation guide](docs/DEVELOPMENT.md) for
+prerequisites, Bun/npm policy, setup, scripts, smoke tests and E2E gates.
 
-- [Bun](https://bun.sh): package manager and script runner.
-- [Node.js](https://nodejs.org/) 20 or 22 LTS (see `.nvmrc`) on your PATH. The build scripts run under it; the runtime daemon bundles its own Node 22.
-- **Linux only:** `node-pty` ships prebuilt binaries for macOS and Windows, but not Linux, so it compiles from source there. Install Python 3 and a C++ toolchain:
-  - Debian/Ubuntu: `sudo apt install build-essential python3`
-  - Fedora/RHEL: `sudo dnf install @development-tools gcc-c++ make python3`
-  - Arch: `sudo pacman -S base-devel python`
+The shared [engineering guidelines](docs/ENGINEERING_GUIDELINES.md) define
+repository boundaries, change discipline, persistence rules, and validation
+expectations used by both contributors and coding agents.
 
-Fork and clone the repo, then one command installs dependencies and builds the local runtime daemon:
-
-```bash
-git clone https://github.com/<you>/cate.git
-cd cate
-bun run setup
-```
-
-### Scripts
-
-```bash
-bun run dev          # dev server with hot reload
-bun run typecheck
-bun run lint
-bun run test         # unit tests (vitest)
-bun run test:e2e     # Playwright integration tests
-bun run build        # production build
-bun run package      # package for distribution (:mac, :win, :linux)
-```
-
-Packaged binaries land in `release/`. The runtime daemon is rebuilt by `bun run runtime:tarball` (re-run it after changing anything under `src/runtime/`).
+For a fresh checkout, run `bun run setup` from the repository root. Packaged
+binaries land in `release/`.
 
 ## Making Changes
 
@@ -112,8 +91,8 @@ Packaged binaries land in `release/`. The runtime daemon is rebuilt by `bun run 
 
 See the [repository structure guide](docs/PROJECT_STRUCTURE.md) for module
 boundaries and the [architecture document](docs/ARCHITECTURE.md) for process,
-IPC, persistence and security details. `CLAUDE.md` remains the concise
-assistant-specific coding guidance.
+IPC, persistence and security details. `AGENTS.md` and `CLAUDE.md` are concise
+assistant-specific wrappers around the shared engineering guidance.
 
 ## Code Style
 
@@ -123,6 +102,9 @@ assistant-specific coding guidance.
 - Tailwind CSS for styling
 - Match the style of the surrounding code
 - No unnecessary abstractions, keep it simple
+
+For the full boundary and validation rules, use the shared [engineering
+guidelines](docs/ENGINEERING_GUIDELINES.md).
 
 ## Reporting Bugs
 

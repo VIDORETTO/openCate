@@ -327,4 +327,88 @@ describe('WorkspaceTab mission tree', () => {
     expect(document.body.querySelector('[data-testid="agent-worker-output"]')!.textContent).toContain('mission complete')
     unmountMissionPlacement(placement)
   })
+
+  it('shows selectable diff hunks and approves only the chosen hunk', async () => {
+    codingAgentDriver.handleCodingAgentMethod
+      .mockResolvedValueOnce({
+        ok: true,
+        result: {
+          review: {
+            branch: 'agent/api',
+            baseBranch: 'main',
+            canApply: true,
+            truncated: false,
+            hunks: [{
+              id: 'api.ts\0h1',
+              path: 'api.ts',
+              header: '@@ -1 +1 @@',
+              lines: ['-old', '+new'],
+              additions: 1,
+              deletions: 1,
+              oldStart: 1,
+              oldCount: 1,
+              newStart: 1,
+              newCount: 1,
+            }],
+          },
+        },
+      })
+      .mockResolvedValueOnce({ ok: true, result: {} })
+    ;(window.electronAPI as { showContextMenu: unknown }).showContextMenu = vi.fn(async () => 'review')
+    const wsId = useAppStore.getState().addWorkspace('Project Review', '/tmp/project-review', 'workspace-review')
+    const supervisorId = useAppStore.getState().createTerminal(wsId)
+    const workerId = useAppStore.getState().createTerminal(wsId)
+    useAppStore.getState().setPanelCodingAgentRun(wsId, workerId, {
+      id: 'run-review',
+      agentId: 'codex',
+      panelId: workerId,
+      title: 'Review worker',
+      ownerPanelId: supervisorId,
+      prompt: 'Review the patch',
+      createdAt: Date.now(),
+      endedAt: Date.now(),
+      exitCode: 0,
+      worktreeId: 'wt-1',
+    })
+    const placement = mountMissionPlacement(wsId, supervisorId, [supervisorId, workerId])
+    const workspace = useAppStore.getState().workspaces.find((ws) => ws.id === wsId)!
+    workspace.dockState = coldDockSnapshot(supervisorId, [workerId])
+    workspace.canvases = coldCanvasSnapshot(supervisorId, [supervisorId, workerId])
+    await act(async () => {
+      root.render(
+        <WorkspaceTab
+          workspace={workspace}
+          isSelected
+          isExpanded
+          onToggleExpand={() => {}}
+          onClick={() => {}}
+        />,
+      )
+    })
+    const worker = host.querySelector<HTMLElement>('[data-testid="agent-tree-worker"]')!
+    await act(async () => {
+      worker.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const hunk = document.body.querySelector<HTMLInputElement>('input[aria-label="Select hunk @@ -1 +1 @@ in api.ts"]')!
+    await act(async () => {
+      hunk.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    await act(async () => {
+      const approve = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+        .find((button) => button.textContent?.includes('Approve selected'))
+      approve?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(codingAgentDriver.handleCodingAgentMethod).toHaveBeenLastCalledWith(
+      wsId,
+      workerId,
+      'cate.codingAgent.applySelection',
+      { runId: 'run-review', hunkIds: ['api.ts\0h1'] },
+    )
+    unmountMissionPlacement(placement)
+  })
 })

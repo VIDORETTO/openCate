@@ -18,6 +18,40 @@ describe('resolvePanelSize', () => {
     expect(resolvePanelSize('terminal', { defaultPanelWidth: 999, defaultPanelHeight: 999 } as never))
       .toEqual({ width: 640, height: 400 })
   })
+
+  it('uses the most specific valid preference before falling back to the type', () => {
+    const settings = {
+      panelSizePreferences: {
+        'type:terminal': { width: 700, height: 450 },
+        'workspace:project%2Fone:terminal': { width: 800, height: 500 },
+        'worktree:wt-a:terminal': { width: 900, height: 550 },
+        'agent:codex:terminal': { width: 1000, height: 600 },
+      },
+    }
+
+    expect(resolvePanelSize('terminal', settings, {
+      workspaceId: 'project/one',
+      worktreeId: 'wt-a',
+      agentId: 'codex',
+    })).toEqual({ width: 1000, height: 600 })
+    expect(resolvePanelSize('terminal', settings, {
+      workspaceId: 'project/one',
+      worktreeId: 'wt-a',
+    })).toEqual({ width: 900, height: 550 })
+    expect(resolvePanelSize('terminal', settings, { workspaceId: 'project/one' }))
+      .toEqual({ width: 800, height: 500 })
+  })
+
+  it('rejects malformed or undersized preferences and returns a fresh default', () => {
+    const settings = {
+      panelSizePreferences: {
+        'type:terminal': { width: 1, height: Number.NaN },
+      },
+    }
+    const first = resolvePanelSize('terminal', settings)
+    first.width = 1
+    expect(resolvePanelSize('terminal', settings)).toEqual({ width: 640, height: 400 })
+  })
 })
 
 describe('keepsMountedWhenTabHidden', () => {

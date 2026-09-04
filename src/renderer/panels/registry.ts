@@ -108,6 +108,7 @@ export const PANEL_REGISTRY: Record<PanelType, RendererPanelDefinition> = {
     props: (panel, ctx) => ({
       ...baseProps(panel, ctx),
       codingAgentLaunch: panel.codingAgentLaunch,
+      terminalPersistence: panel.terminalPersistence,
     }),
   },
   browser: {

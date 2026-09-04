@@ -10,8 +10,9 @@
 //   2. /mnt FALLBACK — otherwise the client-side tarball
 //      (runtimeArtifacts.ensureLocalTarball) is copied in through /mnt.
 //
-// STATUS: implemented but NOT runtime-verified here (needs a Windows host with
-// WSL).
+// STATUS: runtime-verified on 2026-08-30 with Ubuntu WSL2 on Windows through
+// the IPC E2E (install, ensure/reconnect hold, and delete). External SSH hosts
+// and other distro/platform combinations remain separate validation targets.
 // =============================================================================
 
 import { spawn, execFile, type ChildProcess } from 'child_process'
@@ -146,7 +147,8 @@ export class WslTransport implements RuntimeTransport {
         buildExtractCommand(shq(marker), 'CATE_EXTRACT_OK'),
     )
     if (!extract.stdout.includes('CATE_EXTRACT_OK')) {
-      throw new Error(`WSL extract failed: ${extract.stderr || extract.stdout}`)
+      const detail = extract.stderr || extract.stdout || 'no diagnostic output'
+      throw new Error(`WSL extract failed (exit ${extract.code}): ${detail}`)
     }
   }
 

@@ -18,10 +18,6 @@
 
 import { createHash } from 'crypto'
 import type { AgentId } from './agents'
-import {
-  resolveAgentHookMode,
-  type AgentHookConfig,
-} from './agentHookModes'
 export {
   resolveAgentHookMode,
   type AgentHookConfig,

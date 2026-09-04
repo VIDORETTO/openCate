@@ -209,7 +209,7 @@ export async function bootstrapProdShared(version: string, D: string, deps: Boot
 }
 
 export interface RuntimeTransport {
-  readonly kind: 'local' | 'server' | 'wsl'
+  readonly kind: 'local' | 'server' | 'wsl' | 'container'
   /**
    * Probe whether the correct-version daemon bundle is already installed on the
    * host, WITHOUT installing anything. Connecting the transport happens here, so

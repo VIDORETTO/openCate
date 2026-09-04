@@ -42,6 +42,8 @@ vi.mock('./logger', () => ({
 vi.mock('chokidar', () => ({ watch: () => ({ on: vi.fn(), close: vi.fn() }) }))
 // ./menu pulls in the auto-updater graph; stub the one function store.ts uses.
 vi.mock('./menu', () => ({ setLayoutNames: vi.fn() }))
+const telemetryConsentChanged = vi.fn()
+vi.mock('./analytics', () => ({ handleTelemetryConsentChanged: telemetryConsentChanged }))
 
 const { registerHandlers, readBootSnapshot, writeBootSnapshot, flushBootSnapshotSync } = await import('./store')
 const { SETTINGS_SET, SETTINGS_RESET, SETTINGS_RELOADED } = await import('../shared/ipc-channels')
@@ -78,6 +80,14 @@ describe('SETTINGS_SET / SETTINGS_RESET broadcast', () => {
     expect(broadcastMock.mock.calls.some((c: unknown[]) => c[0] === SETTINGS_RELOADED)).toBe(false)
   })
 
+  test('telemetry opt-out purges the pending buffer through SETTINGS_SET', async () => {
+    telemetryConsentChanged.mockClear()
+    const setHandler = handlers.get(SETTINGS_SET)
+    await setHandler!({}, 'telemetryEnabled', true)
+    await setHandler!({}, 'telemetryEnabled', false)
+    expect(telemetryConsentChanged).toHaveBeenLastCalledWith(false)
+  })
+
   test('SETTINGS_RESET broadcasts the full settings as SETTINGS_RELOADED', async () => {
     broadcastMock.mockClear()
     const resetHandler = handlers.get(SETTINGS_RESET)
@@ -87,6 +97,15 @@ describe('SETTINGS_SET / SETTINGS_RESET broadcast', () => {
     const reloaded = broadcastMock.mock.calls.find((c: unknown[]) => c[0] === SETTINGS_RELOADED)
     expect(reloaded).toBeTruthy()
     expect((reloaded![1] as Record<string, unknown>).editorFontSize).toBe(DEFAULT_SETTINGS.editorFontSize)
+  })
+
+  test('global SETTINGS_RESET purges the buffer when it withdraws telemetry consent', async () => {
+    const setHandler = handlers.get(SETTINGS_SET)
+    const resetHandler = handlers.get(SETTINGS_RESET)
+    telemetryConsentChanged.mockClear()
+    await setHandler!({}, 'telemetryEnabled', true)
+    await resetHandler!({})
+    expect(telemetryConsentChanged).toHaveBeenLastCalledWith(false)
   })
 })
 

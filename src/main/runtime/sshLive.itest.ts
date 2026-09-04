@@ -44,8 +44,10 @@ function serverDaemonCount(): number {
   const out = execFileSync(
     'ssh',
     ['-i', KEY, '-o', 'IdentitiesOnly=yes', '-o', 'BatchMode=yes', `${USER}@${HOST}`,
-     // Bracket trick so pgrep doesn't match its own command line.
-     "pgrep -f 'runtime[.]cjs' | wc -l"],
+      // The client and server may share a process namespace (e.g. WSL). Count
+      // only the runtime's Node executable so the local ssh client command line
+      // containing runtime.cjs cannot look like a second server daemon.
+      "ps -Ao comm=,args= | awk '$1 == \"node\" && $0 ~ /runtime[.]cjs/ { count++ } END { print count + 0 }'"],
     { encoding: 'utf8' },
   )
   return parseInt(out.trim(), 10) || 0

@@ -1,0 +1,28 @@
+[Unit]
+Description=Cate companion relay
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=cate-relay
+Group=cate-relay
+WorkingDirectory=/opt/cate
+EnvironmentFile=/etc/cate/companion-relay.env
+ExecStart=/usr/bin/env bun run companion:relay
+Restart=on-failure
+RestartSec=2s
+KillSignal=SIGTERM
+TimeoutStopSec=10s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

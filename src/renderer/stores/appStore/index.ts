@@ -13,7 +13,7 @@ import { create } from 'zustand'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { shallow } from 'zustand/shallow'
 import { arrayEqualBy } from '../selectorUtils'
-import type { WorkspaceState, PanelState, RuntimePhase } from '../../../shared/types'
+import type { WorkspaceState, PanelState, RuntimePhase, RuntimeTelemetryEvent } from '../../../shared/types'
 import type { CanvasOperations } from '../../lib/canvas/canvasBridge'
 import { LOCAL_RUNTIME_ID } from '../../../shared/runtimeLocator'
 import { isRemoteRuntimeConnection } from '../../../shared/runtimeConnection'
@@ -57,7 +57,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
   workspaces: [],
   selectedWorkspaceId: '',
   localRuntimePhase: null,
+  runtimeTelemetry: [],
   reloadEpochs: {},
+
+  recordRuntimeTelemetry(event: RuntimeTelemetryEvent) {
+    set((state) => ({ runtimeTelemetry: [...(state.runtimeTelemetry ?? []), event].slice(-50) }))
+  },
 
   // --- Slices ---
   ...createWorkspaceSlice(set, get),
@@ -100,6 +105,9 @@ export function setupWorkspaceSync(): () => void {
     )
     if (target) store.setWorkspaceRuntimePhase(target.id, evt.phase, evt.message ?? null)
   })
+  const unsubscribeTelemetry = window.electronAPI.onRuntimeTelemetry?.((evt) => {
+    useAppStore.getState().recordRuntimeTelemetry(evt)
+  })
 
   // Seed the LOCAL phase once: the startup connect may have finished (or failed)
   // before this listener attached, so a live event alone could miss it. Subscribe
@@ -117,6 +125,7 @@ export function setupWorkspaceSync(): () => void {
   workspaceSyncCleanup = () => {
     unsubscribe()
     unsubscribeStatus()
+    unsubscribeTelemetry?.()
     workspaceSyncCleanup = null
   }
 

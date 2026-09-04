@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { useAppStore } from './index'
+import { useSettingsStore } from '../settingsStore'
 import { buildSessionFile, projectFilesToSnapshot } from '../../lib/workspace/sessionSerialize'
 
 const initialState = useAppStore.getState()
@@ -100,5 +101,16 @@ describe('terminal panel metadata', () => {
       accentColor: '#6bbf5c',
       stashed: true,
     })
+  })
+
+  it('stamps newly-created terminals with the configured persistence mode', () => {
+    const settings = useSettingsStore.getState()
+    try {
+      useSettingsStore.setState({ terminalPersistenceMode: 'tmux' })
+      const id = terminalId()
+      expect(panel(id).terminalPersistence).toBe('tmux')
+    } finally {
+      useSettingsStore.setState(settings, true)
+    }
   })
 })

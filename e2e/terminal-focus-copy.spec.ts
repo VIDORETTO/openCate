@@ -17,6 +17,7 @@ import {
   titleBarCentre,
   getNodeRect,
   dragMouse,
+  dragCanvasFrom,
   setZoom,
 } from './fixtures/electron-app'
 import type { ElectronApplication, Page } from 'playwright'
@@ -75,7 +76,7 @@ async function splitTerminalNode(p: Page): Promise<string> {
   const aGrab = await titleBarCentre(p, a)
   const bRect = (await getNodeRect(p, b))!
   const dropPoint = { x: bRect.x + 8, y: bRect.y + bRect.height / 2 }
-  await dragMouse(p, aGrab!, dropPoint, { steps: 25, pauseAtEnd: 50 })
+  await dragCanvasFrom(p, `[data-node-id="${a}"] [data-node-drag-spacer]`, aGrab!, dropPoint, 25)
 
   await p.waitForFunction(
     (id) => document.querySelectorAll(`[data-node-id="${id}"] .xterm`).length === 2,
@@ -166,8 +167,40 @@ async function nativeCopy(
   }
 }
 
-async function clickPane(p: Page, pane: Pane): Promise<void> {
-  await p.mouse.click(pane.rect.x + pane.rect.width / 2, pane.rect.y + pane.rect.height / 2)
+/**
+ * Click a terminal pane through the DOM. Electron keeps the E2E BrowserWindow
+ * hidden, so compositor-routed mouse clicks can occasionally miss even though
+ * the pane is present and its rect is stable. Dispatching the same bubbling
+ * mouse sequence still exercises CanvasNode's real capture/bubble handlers;
+ * the explicit focus mirrors the browser's trusted-mousedown default action.
+ */
+async function clickPane(p: Page, nodeId: string, pane: Pane): Promise<void> {
+  await p.evaluate(({ id, index, point }) => {
+    const terminal = [...document.querySelectorAll(`[data-node-id="${id}"] .xterm`)][index]
+    const target = terminal?.querySelector('.xterm-helper-textarea') as HTMLElement | null
+    if (!target) throw new Error(`No terminal focus target for pane ${index}`)
+    const init = (buttons: number): MouseEventInit => ({
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      buttons,
+      clientX: point.x,
+      clientY: point.y,
+      screenX: point.x,
+      screenY: point.y,
+    })
+    target.dispatchEvent(new MouseEvent('mousedown', init(1)))
+    target.dispatchEvent(new MouseEvent('mouseup', init(0)))
+    target.dispatchEvent(new MouseEvent('click', init(0)))
+    // React's click handler can synchronously focus the node during the
+    // synthetic sequence. Apply the browser's mousedown default after that
+    // handler so the clicked pane is the final owner of DOM focus.
+    target.focus({ preventScroll: true })
+  }, {
+    id: nodeId,
+    index: pane.index,
+    point: { x: pane.rect.x + pane.rect.width / 2, y: pane.rect.y + pane.rect.height / 2 },
+  })
 }
 
 test('clicking a split sibling leaves focus in the clicked pane', async () => {
@@ -176,9 +209,9 @@ test('clicking a split sibling leaves focus in the clicked pane', async () => {
   const dump = await traceFocus(page, nodeId)
 
   // Focus the left pane, then click the right one — "click terminal A, then B".
-  await clickPane(page, left)
+  await clickPane(page, nodeId, left)
   await page.waitForTimeout(800)
-  await clickPane(page, right)
+  await clickPane(page, nodeId, right)
   // Past the 500ms re-assert window in TerminalPanel's runFocus loop.
   await page.waitForTimeout(1000)
 
@@ -195,7 +228,7 @@ test('rearranging the node keeps copy on the pane holding the selection', async 
   const [left] = await panes(page, nodeId)
 
   // Select in the LEFT pane.
-  await clickPane(page, left)
+  await clickPane(page, nodeId, left)
   await page.waitForTimeout(900)
   await dragMouse(
     page,
@@ -239,9 +272,9 @@ test('copy takes the selection from the pane the user selected in', async () => 
   const [left, right] = await panes(page, nodeId)
 
   // Land in the left pane first, then click into the right one and select there.
-  await clickPane(page, left)
+  await clickPane(page, nodeId, left)
   await page.waitForTimeout(800)
-  await clickPane(page, right)
+  await clickPane(page, nodeId, right)
   await page.waitForTimeout(1000)
 
   // Drag-select the whole visible buffer of the RIGHT pane.
@@ -279,10 +312,10 @@ test('copy does not return a stale selection from the other pane', async () => {
 
   // The user selected in the RIGHT pane a while ago (stale selection lives on
   // in that terminal), then moved to the LEFT pane and selected there.
-  await clickPane(page, right)
+  await clickPane(page, nodeId, right)
   await page.waitForTimeout(900)
   await selectAll(right)
-  await clickPane(page, left)
+  await clickPane(page, nodeId, left)
   await page.waitForTimeout(900)
   await selectAll(left)
 

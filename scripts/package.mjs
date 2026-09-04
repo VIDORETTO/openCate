@@ -73,5 +73,6 @@ function stageHostRuntimeTarball() {
 
 await run(node, ['scripts/generate-icons.js'])
 await run(node, ['node_modules/electron-vite/bin/electron-vite.js', 'build'])
+await run(node, ['scripts/build-sdk.mjs'])
 stageHostRuntimeTarball()
 await run(node, ['node_modules/electron-builder/out/cli/cli.js', ...args])

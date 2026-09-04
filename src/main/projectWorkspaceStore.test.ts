@@ -66,6 +66,19 @@ function makeSession(): ProjectSessionFile {
   return { version: 1, panels: {} }
 }
 
+const legacyWorkspaceJson = `{
+  "version": 1,
+  "name": "Legacy Repo",
+  "color": "#224466"
+}
+`
+
+const legacySessionJson = `{
+  "version": 1,
+  "panels": {}
+}
+`
+
 /** Total canvas nodes across every canvas — what the #220 guard compares. */
 function nodeCount(ws: ProjectWorkspaceFile): number {
   return Object.values(ws.canvases ?? {}).reduce((n, c) => n + Object.keys(c.canvasNodes).length, 0)
@@ -85,6 +98,22 @@ async function readWorkspaceJson(rootPath: string): Promise<ProjectWorkspaceFile
   const raw = await fs.readFile(path.join(rootPath, '.cate', 'workspace.json'), 'utf-8')
   return JSON.parse(raw) as ProjectWorkspaceFile
 }
+
+describe('legacy project files', () => {
+  it('loads literal version-1 workspace and session files without rewriting them', async () => {
+    const cateDir = path.join(root, '.cate')
+    await fs.mkdir(cateDir, { recursive: true })
+    await fs.writeFile(path.join(cateDir, 'workspace.json'), legacyWorkspaceJson, 'utf-8')
+    await fs.writeFile(path.join(cateDir, 'session.json'), legacySessionJson, 'utf-8')
+
+    await expect(loadProjectState(root)).resolves.toEqual({
+      workspace: { version: 1, name: 'Legacy Repo', color: '#224466' },
+      session: { version: 1, panels: {} },
+    })
+    await expect(fs.readFile(path.join(cateDir, 'workspace.json'), 'utf-8')).resolves.toBe(legacyWorkspaceJson)
+    await expect(fs.readFile(path.join(cateDir, 'session.json'), 'utf-8')).resolves.toBe(legacySessionJson)
+  })
+})
 
 describe('saveProjectState — issue #220 empty-overwrite guard', () => {
   it('persists a non-empty canvas normally', async () => {

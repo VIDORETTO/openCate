@@ -66,6 +66,7 @@ export function useNodeResize(
   nodeId: string,
   panelType: PanelType,
   canvasStoreApi: StoreApi<CanvasStore>,
+  onResizeEnd?: (size: Size) => void,
 ): UseNodeResizeReturn {
   const resizeStateRef = useRef<ResizeState | null>(null)
   const isResizingRef = useRef(false)
@@ -458,6 +459,11 @@ export function useNodeResize(
           pendingResize.current = null
         }
 
+        if (moved) {
+          const finalSize = canvasStoreApi.getState().nodes[nodeId]?.size
+          if (finalSize) onResizeEnd?.({ ...finalSize })
+        }
+
         // Clean up
         sharedBordersRef.current = []
         neighborStartRef.current = []
@@ -489,7 +495,7 @@ export function useNodeResize(
       window.addEventListener('mouseup', handleMouseUp)
       window.addEventListener('blur', handleBlur)
     },
-    [nodeId, panelType, minSize.width, minSize.height],
+    [nodeId, minSize.width, minSize.height, canvasStoreApi, onResizeEnd],
   )
 
   return {

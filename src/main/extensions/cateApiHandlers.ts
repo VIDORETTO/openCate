@@ -77,6 +77,7 @@ import { parseLocator, LOCAL_RUNTIME_ID } from '../../shared/runtimeLocator'
 import { getAllSettings, getSetting } from '../settingsFile'
 import { resolveActiveTheme } from '../themeBootCache'
 import { showOsNotification } from '../ipc/notifications'
+import { dispatchCateProjectInvoke, isCateProjectMethod } from './cateProjectApi'
 import type { PanelType, WindowPanelInfo } from '../../shared/types'
 import type { CodingAgentRunStatus } from '../../shared/codingAgentRuns'
 
@@ -102,13 +103,19 @@ import type { CodingAgentRunStatus } from '../../shared/codingAgentRuns'
  *  editor.active (cate.panel.list is the single PANEL enumeration surface —
  *  browser panels carry `url`, the focused entry answers "what is the user
  *  looking at") and agent.run (compose open -> send -> dispose). */
-const CATE_API_VERSION = 7
+const CATE_API_VERSION = 8
 
 const FORWARD_TIMEOUT_MS = 10_000
+// Browser commands are backed by a native agent-browser process. Its default
+// action timeout is 25s and the Cate adapter allows a little startup/IPC
+// headroom, so a valid wait/navigation must not expire at the generic host
+// action deadline first.
+const BROWSER_FORWARD_TIMEOUT_MS = 35_000
 const CODING_AGENT_WAIT_FORWARD_TIMEOUT_MS = 65_000
 
 export function forwardTimeoutMs(method: string): number {
   if (method === 'cate.codingAgent.wait') return CODING_AGENT_WAIT_FORWARD_TIMEOUT_MS
+  if (method.startsWith('cate.browser.')) return BROWSER_FORWARD_TIMEOUT_MS
   return FORWARD_TIMEOUT_MS
 }
 
@@ -142,7 +149,7 @@ export interface InvokeScope {
   /** Who is calling. First-party (terminal/agent via the CLI/reverse endpoint)
    *  callers are trusted: they skip the extension-enabled gate and the browser
    *  consent prompt. Undefined is treated as 'extension'. */
-  caller?: 'extension' | 'first-party' | 'cate-agent'
+  caller?: 'extension' | 'first-party' | 'cate-agent' | 'companion'
   /** Scopes the caller was granted. For first-party callers this is supplied by
    *  the env-manager instead of a manifest; when absent the extension manifest's
    *  `cateApi` is used. */
@@ -489,6 +496,21 @@ export function requiredScopeFor(method: string): string | null | undefined {
       return null
     case 'cate.workspace.get':
       return 'workspace.read'
+    case 'cate.project.get':
+    case 'cate.tasks.list':
+    case 'cate.tasks.get':
+    case 'cate.context.list':
+    case 'cate.context.get':
+    case 'cate.results.list':
+    case 'cate.results.get':
+      return 'project.read'
+    case 'cate.tasks.create':
+    case 'cate.tasks.update':
+    case 'cate.tasks.delete':
+    case 'cate.context.create':
+    case 'cate.context.update':
+    case 'cate.context.delete':
+      return 'project.write'
     case 'cate.theme.get':
       return 'theme'
     case 'cate.ui.notify':
@@ -653,7 +675,7 @@ export function authorizeCateInvoke(
   args: unknown,
 ): InvokeResult | null {
   const { extensionId, panelId } = scope
-  const trustedCaller = scope.caller === 'first-party' || scope.caller === 'cate-agent'
+  const trustedCaller = scope.caller === 'first-party' || scope.caller === 'cate-agent' || scope.caller === 'companion'
 
   // Security: only enabled, known extensions may call the host. First-party
   // terminals and the embedded Cate Agent are trusted and skip this gate.
@@ -665,6 +687,13 @@ export function authorizeCateInvoke(
   // and the embedded Cate Agent. Third-party extensions cannot opt into it by
   // self-declaring the scope.
   if (method.startsWith('cate.codingAgent.') && !trustedCaller) {
+    return { error: 'first-party-only', method }
+  }
+
+  // Project records can contain source paths, task prompts and user-curated
+  // context. They are intentionally not an extension capability; only the
+  // authenticated first-party CLI and embedded Cate Agent may use them.
+  if (isCateProjectMethod(method) && !trustedCaller) {
     return { error: 'first-party-only', method }
   }
 
@@ -699,7 +728,7 @@ export function authorizeCateInvoke(
   // remains available for session lifecycle, but cannot use host capabilities
   // while the master switch or relevant cell is off. Extensions remain
   // governed by manifest scopes plus capability consent.
-  const usesCliPermissions = trustedCaller
+  const usesCliPermissions = scope.caller === 'first-party' || scope.caller === 'cate-agent'
   if (usesCliPermissions) {
     if (getSetting('cliEnabled') !== true) {
       return {
@@ -731,7 +760,7 @@ export async function dispatchCateInvoke(
   if (denied) return denied
 
   const { extensionId, workspaceId, panelId } = scope
-  const trustedCaller = scope.caller === 'first-party' || scope.caller === 'cate-agent'
+  const trustedCaller = scope.caller === 'first-party' || scope.caller === 'cate-agent' || scope.caller === 'companion'
 
   if (method.startsWith('cate.codingAgent.')) {
     const routedArgs: Record<string, unknown> = {
@@ -807,6 +836,10 @@ export async function dispatchCateInvoke(
         : { error: 'coding-agent-limit', method }
     }
     return forward()
+  }
+
+  if (isCateProjectMethod(method)) {
+    return dispatchCateProjectInvoke(workspaceId, method, args)
   }
 
   // Storage (handled in main, backed by storage.ts). Routed by prefix — mirrors

@@ -9,6 +9,7 @@
 // =============================================================================
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAgentAuditStore } from '../../stores/agentAuditStore'
 
 const WS = 'ws-1'
 
@@ -35,7 +36,11 @@ function makeEntry(lines: string[], opts: { alt?: boolean; ptyId?: string; alive
 }
 
 const h = vi.hoisted(() => ({
-  workspaces: [] as Array<{ id: string; panels: Record<string, { id: string; type: string; title: string }> }>,
+  workspaces: [] as Array<{
+    id: string
+    rootPath?: string
+    panels: Record<string, { id: string; type: string; title: string; codingAgentRun?: { id: string } }>
+  }>,
   activePanelId: null as string | null,
   entries: new Map<string, unknown>(),
   terminalWrite: vi.fn(async (_ptyId: string, _data: string) => {}),
@@ -61,6 +66,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   h.activePanelId = null
   h.entries = new Map()
+  useAgentAuditStore.setState({ eventsByRoot: {}, loadedRoots: {}, revisions: {} })
   h.workspaces = [
     {
       id: WS,
@@ -150,6 +156,42 @@ describe('type', () => {
     const out = await handleTerminalMethod(WS, M('type'), { panelId: 't1', text: 'ls -la' })
     expect(out).toEqual({ ok: true })
     expect(h.terminalWrite).toHaveBeenCalledWith('pty-1', 'ls -la')
+  })
+
+  it('attributes agent terminal input to the extension and target run', async () => {
+    h.workspaces[0].rootPath = '/repo'
+    h.workspaces[0].panels.t1.codingAgentRun = { id: 'run-terminal-1' }
+    h.entries.set('t1', makeEntry([]))
+
+    await expect(handleTerminalMethod(
+      WS,
+      M('type'),
+      { panelId: 't1', text: 'ls -la' },
+      {
+        kind: 'extension',
+        id: 'cate.kitchensink',
+        label: 'cate.kitchensink',
+        origin: 'terminal-api',
+        sourcePanelId: 'host-panel',
+      },
+    )).resolves.toEqual({ ok: true })
+
+    await vi.waitFor(() => {
+      expect(useAgentAuditStore.getState().getEvents('/repo')).toEqual([
+        expect.objectContaining({
+          kind: 'command',
+          outcome: 'sent',
+          actorKind: 'extension',
+          actorId: 'cate.kitchensink',
+          origin: 'terminal-api',
+          sourcePanelId: 'host-panel',
+          targetPanelId: 't1',
+          targetRunId: 'run-terminal-1',
+          commandName: 'type',
+          contentChars: 'ls -la'.length,
+        }),
+      ])
+    })
   })
 
   it('requires text', async () => {

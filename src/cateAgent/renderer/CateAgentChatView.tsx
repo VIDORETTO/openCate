@@ -92,7 +92,7 @@ const DirectCateChatView: React.FC<{
       setReadyTick((value) => value + 1)
     })
     return () => { cancelled = true }
-  }, [chat?.id, directCwd, rootPath, wsId])
+  }, [chat, directCwd, rootPath, wsId])
 
   const pickWorktree = React.useCallback(async (id: string) => {
     if (!chat) return

@@ -42,6 +42,7 @@ import { sendToWindow, windowFromEvent, onWindowClosed } from '../windowRegistry
 import { countTerminalData } from '../perf/perfMonitor'
 import { getSetting } from '../settingsFile'
 import { parseLocator, type RuntimeId } from '../../shared/runtimeLocator'
+import { tmuxSessionName, type TerminalPersistenceMode } from '../../shared/terminalDurability'
 import { runtimes } from '../runtime/runtimeManager'
 import type { Runtime } from '../runtime/types'
 import { createStringDispatcher } from './batchedDispatcher'
@@ -278,12 +279,24 @@ async function spawnTerminal(
     workspaceId?: string
     panelId?: string
     placementGroupId?: string
+    terminalPersistence?: TerminalPersistenceMode
     codingAgentLaunch?: CodingAgentLaunch
   },
   ownerWindowId: number,
 ): Promise<string> {
   const { runtimeId, path: cwdPath } = parseLocator(options.cwd ?? '')
   const runtime = runtimes.resolve(runtimeId)
+
+  let durability: { mode: 'tmux'; sessionName: string } | undefined
+  if (options.terminalPersistence === 'tmux') {
+    if (!options.panelId) {
+      throw new Error('tmux terminal durability requires a stable panel id')
+    }
+    durability = {
+      mode: 'tmux',
+      sessionName: tmuxSessionName(options.workspaceId ?? runtimeId, options.panelId),
+    }
+  }
 
   // No client-side validation: the authoritative allowed-root check runs on
   // the daemon inside process.create (a bad cwd rejects the create). An empty
@@ -441,6 +454,7 @@ async function spawnTerminal(
       agentHooks: true,
       agentHookConfig,
       workspaceBaseCwd: worktree?.base.path,
+      ...(durability ? { durability } : {}),
       // The workspace whose root this cwd lives under — the daemon validates
       // against this scope, so a project outside the daemon's own root still
       // gets a terminal.
@@ -514,6 +528,7 @@ export function registerHandlers(): void {
       workspaceId?: string
       panelId?: string
       placementGroupId?: string
+      terminalPersistence?: TerminalPersistenceMode
       codingAgentLaunch?: CodingAgentLaunch
     }): Promise<string> => {
       const win = windowFromEvent(event)
@@ -607,14 +622,16 @@ export function registerHandlers(): void {
  * runtime daemon subprocess, so disposing the runtime connections sends each
  * daemon SIGTERM and closes its stdin — its ProcessHost then group-kills its ptys
  * (reaping dev servers/watchers) and exits. Remote daemons are torn down the same
- * way. Fire-and-forget: quit must not block on a remote socket.
+ * way. The returned promise lets the lifecycle's bounded hard-exit path await
+ * local daemon teardown before Electron is allowed to terminate.
  */
-export function killAllTerminals(): void {
+export function killAllTerminals(): Promise<void> {
   shuttingDown = true
   disposeAllLoggers()
-  void runtimes.disposeAll()
+  const disposing = runtimes.disposeAll()
   terminalOwners.clear()
   terminalRuntime.clear()
+  return disposing
 }
 
 export { flushAllLoggers }

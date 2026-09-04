@@ -6,6 +6,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed
+
+- **Dock layout recovery**: detached-window restore prunes stale panel
+  references, and dock moves no longer duplicate or silently lose panels when
+  a source or target stack is stale.
+- **Dock tab bounds**: tab insertion and active indices are clamped to the
+  surviving stack.
+- **Dock active-tab stability**: removing or moving a tab before the active
+  tab, and inserting a background tab, preserve the user's active selection.
+- **Companion PWA delivery**: the web companion now ships an installable
+  manifest, Cate icon, and safe offline app-shell cache without caching relay
+  responses.
+- **Companion relay recovery**: responder polling no longer leaves rejected
+  tracking promises unhandled when a relay or proxy is restarted.
+  The live fixture also covers TLS, proxy-token rotation, restart, and
+  encrypted round-trips locally.
+- **Companion deployment hardening**: the example systemd unit runs the relay
+  as a dedicated loopback service, the Caddy route blocks public channel
+  creation, and a contract verifier guards CORS/routes/filesystem settings.
+- **tmux durability smoke**: POSIX CI now exercises a real PTY attach/detach,
+  session survival, and teardown on native macOS/Linux runners.
+- **Companion proxy verification**: an opt-in Caddy fixture covers authenticated
+  TLS, proxy-token rotation, restart, and encrypted round-trips locally.
+- **Packaged telemetry consent verification**: a loopback-only smoke proves
+  packaged Windows builds make zero analytics requests without opt-in, emit
+  `app_start` only after consent, and stop feature events after same-session
+  opt-out.
+- **Telemetry payload privacy**: promo/feature IPC signals now accept only
+  bounded labels, and Sentry scrubs URLs and local home paths throughout event
+  fields before sending.
+- **Dependency security**: pin the fixed LTS `@xmldom/xmldom` 0.8.15 release
+  for the Mammoth and plist dependency paths.
+- **Container smoke coverage**: Docker/Podman validation now asserts that an
+  absent image fails under `--pull never` before running the real runtime image.
+- **Repository boundary gate**: CI now rejects tracked credential/key files,
+  machine-local Cate state, and high-confidence secret signatures.
+- **Release workflow guard**: CI and release jobs now verify the platform matrix,
+  gate ordering, artifact checks and publish dependencies before packaging.
+- **Browser popup safety**: remote content can open only HTTP(S) or
+  `about:blank` popups.
+- **Server-backed extension teardown**: remote runtime server streams remain
+  registered until the daemon reports the child exit, so stopping an extension
+  server cannot leave stale lifecycle ownership.
+- **Native browser process isolation**: `agent-browser` no longer inherits
+  ambient credentials, runtime injection options, or SSH agent handles.
+
 ## [1.6.1-beta.2] - 2026-08-19
 
 This beta makes browser panels faster and more reliable across canvas, focus, and workspace changes.

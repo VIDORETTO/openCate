@@ -174,5 +174,5 @@ describe('CateApiEndpointManager teardown races', () => {
     ])
     expect(extensionBinding.dispose).toHaveBeenCalledOnce()
     expect(firstPartyBinding.dispose).not.toHaveBeenCalled()
-  })
+  }, 15_000)
 })

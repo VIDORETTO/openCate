@@ -30,12 +30,16 @@ import {
 import { Tooltip } from '../ui/Tooltip'
 import { CateLogo } from '../ui/CateLogo'
 import { CreateWorktreeForm } from '../sidebar/CreateWorktreeForm'
+import { WorktreeMissionForm, type WorktreeMissionDraft } from './WorktreeMissionForm'
+import { WorktreeCommitDialog } from './WorktreeCommitDialog'
 import { errorMessage } from '../lib/errorMessage'
 import { useWorktrees, type JoinedWorktree } from '../stores/useWorktrees'
 import { useGitStatusSnapshot, gitStatusStore } from '../stores/gitStatusStore'
 import { useUIStore } from '../stores/uiStore'
 import { useAppStore, getWorktreeColorPalette } from '../stores/appStore'
 import { useParallelWork, runWorktreeContextMenu, type CardCallbacks } from '../stores/useParallelWork'
+import { useMergeQueueStore } from '../stores/mergeQueueStore'
+import type { MergeQueueEntry } from '../../shared/mergeQueue'
 import { useWorktreeStatuses, humanStatus, type PrStatus } from '../stores/useWorktreeStatuses'
 import type { WorktreePanelType } from '../../shared/panels'
 import { useActiveChatWorktreeByPanel } from '../../cateAgent/renderer/cateAgentStore'
@@ -127,6 +131,8 @@ const WorktreeToolbarMenu: React.FC<WorktreeToolbarMenuProps> = ({
   )
 }
 
+const EMPTY_MERGE_QUEUE: MergeQueueEntry[] = []
+
 interface PopoverProps extends WorktreeToolbarMenuProps {
   pos: PopoverPos
   triggerRef: React.RefObject<HTMLButtonElement>
@@ -142,11 +148,12 @@ const WorktreeMenuPopover: React.FC<PopoverProps> = ({
   onClose,
 }) => {
   const rootRef = useRef<HTMLDivElement>(null)
-  const [creating, setCreating] = useState(false)
+  const [creating, setCreating] = useState<'worktree' | 'mission' | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Worktree id with a slow git op (publish / PR / update / merge / discard) in
   // flight — drives that row's inline spinner so the work is visible.
   const [busyId, setBusyId] = useState<string | null>(null)
+  const mergeQueueEntries = useMergeQueueStore((s) => s.entriesByRoot[rootPath] ?? EMPTY_MERGE_QUEUE)
 
   const snapshot = useGitStatusSnapshot(rootPath)
   const isRepo = rootPath ? snapshot.isRepo : false
@@ -183,7 +190,14 @@ const WorktreeMenuPopover: React.FC<PopoverProps> = ({
   }, [activeChatWorktreeByPanel, panels])
 
   const { statusByPath, prByPath, refreshPr } = useWorktreeStatuses(rootPath, live)
-  const { createWorktree, checkoutPr, launchInWorktree, handlePrune, makeCallbacks } = useParallelWork(
+  const {
+    createWorktree,
+    checkoutPr,
+    launchInWorktree,
+    startWorktreeMission,
+    handlePrune,
+    makeCallbacks,
+  } = useParallelWork(
     rootPath,
     workspaceId,
     primaryLabel,
@@ -232,10 +246,16 @@ const WorktreeMenuPopover: React.FC<PopoverProps> = ({
     }
   }, [rootPath, workspaceId])
 
+  const handleStartMission = useCallback(async (draft: WorktreeMissionDraft) => {
+    setError(null)
+    await startWorktreeMission({ ...draft, canvasPanelId })
+    onClose()
+  }, [canvasPanelId, onClose, startWorktreeMission])
+
   return (
     <div
       ref={rootRef}
-      className="fixed z-[1000] w-[256px] rounded-2xl border border-subtle shadow-xl py-1.5 text-xs"
+      className={`fixed z-[1000] ${creating === 'mission' ? 'w-[320px]' : 'w-[256px]'} rounded-2xl border border-subtle shadow-xl py-1.5 text-xs`}
       style={{
         left: pos.left,
         bottom: pos.bottom,
@@ -269,18 +289,24 @@ const WorktreeMenuPopover: React.FC<PopoverProps> = ({
             Initialize git repository
           </button>
         </div>
-      ) : creating ? (
+      ) : creating === 'worktree' ? (
         <div className="cate-fade-in">
           <CreateWorktreeForm
             defaultBaseBranch={primaryBranch}
             rootPath={rootPath}
             inlinePicker
             flat
-            onSubmit={async (name, baseRef) => { await createWorktree(name, baseRef); setCreating(false) }}
-            onCheckoutPr={async (pr) => { await checkoutPr(pr); setCreating(false) }}
-            onCancel={() => setCreating(false)}
+            onSubmit={async (name, baseRef) => { await createWorktree(name, baseRef); setCreating(null) }}
+            onCheckoutPr={async (pr) => { await checkoutPr(pr); setCreating(null) }}
+            onCancel={() => setCreating(null)}
           />
         </div>
+      ) : creating === 'mission' ? (
+        <WorktreeMissionForm
+          defaultBaseBranch={primaryBranch}
+          onSubmit={handleStartMission}
+          onCancel={() => setCreating(null)}
+        />
       ) : (
         <>
           <div className="px-2.5 pt-0.5 pb-1 text-[11px] font-medium text-muted select-none">
@@ -290,6 +316,7 @@ const WorktreeMenuPopover: React.FC<PopoverProps> = ({
             <WorktreeRow
               key={wt.id}
               wt={wt}
+              workspaceId={workspaceId}
               primaryLabel={primaryLabel}
               focused={focusedWorktreeId === wt.id}
               status={humanStatus(statusByPath[wt.path], primaryLabel)}
@@ -304,12 +331,54 @@ const WorktreeMenuPopover: React.FC<PopoverProps> = ({
           ))}
           <div className="my-1 h-px bg-surface-5 mx-2.5" />
           <button
-            onClick={() => setCreating(true)}
+            onClick={() => { setError(null); setCreating('mission') }}
+            className="mx-1 w-[calc(100%-0.5rem)] flex items-center gap-2 h-[26px] px-1.5 rounded-lg text-[12px] text-secondary hover:text-primary hover:bg-surface-4 transition-colors"
+          >
+            <ArrowsSplit size={13} className="flex-shrink-0" />
+            <span>Start task in new worktree…</span>
+          </button>
+          <button
+            onClick={() => { setError(null); setCreating('worktree') }}
             className="mx-1 w-[calc(100%-0.5rem)] flex items-center gap-2 h-[26px] px-1.5 rounded-lg text-[12px] text-secondary hover:text-primary hover:bg-surface-4 transition-colors"
           >
             <Plus size={13} className="flex-shrink-0" />
             <span>Create new worktree…</span>
           </button>
+
+          {mergeQueueEntries.length > 0 && (
+            <div className="mt-1 border-t border-subtle pt-1.5">
+              <div className="flex items-center gap-1.5 px-2.5 pb-1 text-[10px] text-muted">
+                <span className="flex-1">Merge queue</span>
+                {mergeQueueEntries.some((entry) => entry.status === 'completed' || entry.status === 'failed') && (
+                  <button
+                    type="button"
+                    onClick={() => useMergeQueueStore.getState().clearFinished(rootPath)}
+                    className="hover:text-primary"
+                  >
+                    Clear finished
+                  </button>
+                )}
+              </div>
+              <div className="space-y-0.5 px-1">
+                {mergeQueueEntries.slice(-5).map((entry) => (
+                  <div key={entry.id} className="rounded-lg px-1.5 py-1 text-[10px] text-secondary" title={entry.message}>
+                    <div className="flex items-center gap-1.5">
+                      {entry.status === 'running' && <CircleNotch size={11} className="animate-spin text-accent" />}
+                      {entry.status === 'queued' && <ArrowsSplit size={11} className="text-muted" />}
+                      {entry.status === 'completed' && <Check size={11} className="text-green-300" />}
+                      {entry.status === 'conflict' && <Warning size={11} className="text-amber-300" />}
+                      {entry.status === 'failed' && <X size={11} className="text-red-300" />}
+                      <span className="min-w-0 flex-1 truncate">{entry.sourceBranch} → {entry.targetBranch}</span>
+                      <span className="text-muted">{entry.status}</span>
+                    </div>
+                    {entry.message && entry.status !== 'completed' && (
+                      <div className="mt-0.5 truncate pl-[17px] text-red-300/80">{entry.message}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {orphans.length > 0 && (
             <div className="mt-1 pt-1 border-t border-subtle">
@@ -413,6 +482,7 @@ const SpawnButton: React.FC<{
 
 const WorktreeRow: React.FC<{
   wt: JoinedWorktree
+  workspaceId: string
   primaryLabel: string
   focused: boolean
   status: { text: string; tone: string } | null
@@ -423,7 +493,7 @@ const WorktreeRow: React.FC<{
   onFocus: () => void
   onHover: (on: boolean) => void
   onLaunch: (type: WorktreePanelType) => void
-}> = ({ wt, primaryLabel, focused, status, pr, panels, busy, cb, onFocus, onHover, onLaunch }) => {
+}> = ({ wt, workspaceId, primaryLabel, focused, status, pr, panels, busy, cb, onFocus, onHover, onLaunch }) => {
   const isPrimary = !!wt.isPrimary
   const label = wt.label || wt.branch || (isPrimary ? 'main' : '(detached)')
   const color = wt.color || 'var(--text-muted)'
@@ -432,6 +502,7 @@ const WorktreeRow: React.FC<{
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(label)
   const [recoloring, setRecoloring] = useState(false)
+  const [commitOpen, setCommitOpen] = useState(false)
 
   const commitRename = useCallback(() => {
     setRenaming(false)
@@ -449,12 +520,14 @@ const WorktreeRow: React.FC<{
         cb,
         beginRename: () => { setRenameValue(label); setRenaming(true) },
         beginRecolor: () => setRecoloring((v) => !v),
+        beginCommit: () => setCommitOpen(true),
       }),
     [isPrimary, pr, primaryLabel, cb, label, wt.prNumber],
   )
 
   return (
-    <div
+    <>
+      <div
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}
       onClick={(e) => {
@@ -463,7 +536,7 @@ const WorktreeRow: React.FC<{
         onFocus()
       }}
       onContextMenu={(e) => { e.preventDefault(); if (!busy) void openMenu() }}
-      title={busy ? 'Discarding…' : wt.path}
+      title={busy ? 'Working…' : wt.path}
       aria-busy={busy || undefined}
       className={`mx-1 px-1.5 py-1 rounded-lg transition-colors ${
         busy ? 'opacity-60 cursor-wait' : 'cursor-pointer hover:bg-surface-4'
@@ -587,7 +660,17 @@ const WorktreeRow: React.FC<{
           ))}
         </div>
       )}
-    </div>
+      </div>
+      {commitOpen && (
+        <WorktreeCommitDialog
+          worktreeLabel={label}
+          worktreePath={wt.path}
+          workspaceId={workspaceId}
+          onCommit={cb.onCommit}
+          onClose={() => setCommitOpen(false)}
+        />
+      )}
+    </>
   )
 }
 

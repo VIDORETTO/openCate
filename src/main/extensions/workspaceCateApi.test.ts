@@ -9,7 +9,7 @@ import type { ReverseSession } from './cateApiReverse'
 
 const settingsState = vi.hoisted(() => ({ cliEnabled: true as unknown }))
 const resolve = vi.hoisted(() => vi.fn())
-const listen = vi.fn(async (_name: string) => ({ port: 54321 }))
+const listen = vi.fn(async (_name: string, ..._callbacks: unknown[]) => ({ port: 54321 }))
 const stopListen = vi.fn()
 const ack = vi.fn()
 
@@ -30,14 +30,44 @@ vi.mock('electron', () => ({}))
 vi.mock('../runtime/runtimeManager', () => ({ runtimes: { resolve } }))
 vi.mock('../workspaceManager', () => ({ getWorkspaceInfo: () => ({ rootPath: '/ws' }) }))
 vi.mock('../settingsFile', () => ({ getSetting: (k: string) => (settingsState as Record<string, unknown>)[k] }))
-// Stub only createCateApiReverse (so nothing real is opened); keep the REAL
-// bindReverseTunnel so its tunnel wiring (the onConnection/onData/onClose trio
-// asserted below) actually runs against the fake runtime.
-vi.mock('./cateApiReverse', async (importActual) => ({
-  ...(await importActual<typeof import('./cateApiReverse')>()),
+// Keep the endpoint test independent from cateApiReverse's large dispatch
+// graph. This small mock preserves the reverse helper's listener/callback
+// contract while avoiding a lazy-import cycle through the real API handlers.
+vi.mock('./cateApiReverse', () => ({
   createCateApiReverse: (s: ReverseSession) => {
     reverseCalls.push(s)
     return { feedConnection, dispose: reverseDispose }
+  },
+  bindReverseTunnel: async (
+    runtime: typeof fakeRuntime,
+    reverse: { feedConnection: (connId: string) => { push: ReturnType<typeof vi.fn> } },
+    listenerId: string,
+  ) => {
+    const connections = new Map<string, { push: ReturnType<typeof vi.fn> }>()
+    const onConnection = (connId: string): void => {
+      connections.set(connId, reverse.feedConnection(connId))
+    }
+    const onData = (connId: string, b64: string): void => {
+      const duplex = connections.get(connId)
+      if (!duplex) return
+      const payload = Buffer.from(b64, 'base64')
+      duplex.push(payload)
+      runtime.tunnel.ack(connId, payload.length)
+    }
+    const onClose = (connId: string): void => {
+      const duplex = connections.get(connId)
+      connections.delete(connId)
+      duplex?.push(null)
+    }
+    const { port } = await runtime.tunnel.listen(listenerId, onConnection, onData, onClose)
+    return {
+      port,
+      dispose: () => {
+        runtime.tunnel.stopListen(listenerId)
+        reverseDispose()
+        connections.clear()
+      },
+    }
   },
 }))
 vi.mock('../logger', () => ({ default: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
@@ -52,8 +82,9 @@ beforeEach(() => {
   settingsState.cliEnabled = true
   resolve.mockReset()
   resolve.mockReturnValue(fakeRuntime)
+  listen.mockReset()
+  listen.mockImplementation(async (_name: string) => ({ port: 54321 }))
   reverseCalls.length = 0
-  listen.mockClear()
   stopListen.mockClear()
   reverseDispose.mockClear()
   feedConnection.mockClear()
@@ -66,9 +97,19 @@ describe('GRANTED_SCOPES contract', () => {
     expect(GRANTED_SCOPES).not.toContain('storage')
     expect(GRANTED_SCOPES).not.toContain('agent')
     expect(GRANTED_SCOPES).toContain('coding-agent')
-    // workspace.read/theme are extension-only: a terminal's cwd IS the
+    // workspace.read/theme remain extension-only: a terminal's cwd IS the
     // workspace root, so the CLI has no verbs (and thus no grants) for them.
-    expect([...GRANTED_SCOPES]).toEqual(['browser', 'ui', 'editor', 'canvas', 'panel', 'terminal', 'coding-agent'])
+    expect([...GRANTED_SCOPES]).toEqual([
+      'project.read',
+      'project.write',
+      'browser',
+      'ui',
+      'editor',
+      'canvas',
+      'panel',
+      'terminal',
+      'coding-agent',
+    ])
   })
 
   it('uses the same coding-agent scope for terminal and embedded callers', () => {

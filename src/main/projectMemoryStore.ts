@@ -9,12 +9,14 @@
 // =============================================================================
 
 import { ipcMain } from 'electron'
+import { randomUUID } from 'crypto'
 import fs from 'fs/promises'
 import path from 'path'
 import log from './logger'
 import { KeyedLock } from './keyedLock'
 import { PROJECT_MEMORY_LOAD, PROJECT_MEMORY_SAVE } from '../shared/ipc-channels'
 import {
+  normalizeProjectMemoryNote,
   normalizeProjectMemoryFile,
   type ProjectMemoryFile,
   type ProjectMemoryNote,
@@ -72,6 +74,16 @@ async function saveMemoryRemote(rootPath: string, notes: ProjectMemoryNote[]): P
   await runtime.file.writeFile(file, `${JSON.stringify(payload, null, 2)}\n`)
 }
 
+async function writeMemory(rootPath: string, notes: ProjectMemoryNote[]): Promise<void> {
+  if (!isLocalLocator(rootPath)) {
+    await saveMemoryRemote(rootPath, notes)
+    return
+  }
+  const payload = normalizeProjectMemoryFile({ version: 1, notes })
+  await ensureCateGitignore(cateDir(rootPath))
+  await writeJsonAtomic(memoryPath(rootPath), payload)
+}
+
 /** Read `.cate/memory.json` for a project. Missing or invalid notes degrade to
  * an empty list; locally malformed JSON is quarantined for recovery. */
 export async function loadMemory(rootPath: string): Promise<ProjectMemoryNote[]> {
@@ -94,14 +106,88 @@ export async function loadMemory(rootPath: string): Promise<ProjectMemoryNote[]>
 /** Persist the complete bounded note list atomically on the local filesystem
  * or through the runtime file API for a remote project. */
 export async function saveMemory(rootPath: string, notes: ProjectMemoryNote[]): Promise<void> {
-  await saveQueues.run(rootPath, async () => {
-    if (!isLocalLocator(rootPath)) {
-      await saveMemoryRemote(rootPath, notes)
-      return
+  await saveQueues.run(rootPath, () => writeMemory(rootPath, notes))
+}
+
+interface MemoryMutation<T> {
+  value: T
+  next?: ProjectMemoryNote[]
+}
+
+async function mutateMemory<T>(
+  rootPath: string,
+  mutate: (notes: ProjectMemoryNote[]) => MemoryMutation<T>,
+): Promise<T> {
+  return saveQueues.run(rootPath, async () => {
+    const current = await loadMemory(rootPath)
+    const result = mutate(current)
+    if (result.next) await writeMemory(rootPath, result.next)
+    return result.value
+  })
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
+
+/** Mutations used by the first-party project API. They share the renderer's
+ * normalizer and serialize complete-list writes with renderer persistence. */
+export async function createProjectMemoryNote(
+  rootPath: string,
+  draft: unknown,
+): Promise<ProjectMemoryNote | null> {
+  const value = recordValue(draft)
+  if (!value) return null
+  const now = Date.now()
+  const note = normalizeProjectMemoryNote({
+    ...value,
+    id: randomUUID(),
+    createdAt: now,
+    updatedAt: now,
+  })
+  if (!note) return null
+  return mutateMemory(rootPath, (notes) => ({
+    value: note,
+    next: [...notes, note],
+  }))
+}
+
+const MEMORY_PATCH_FIELDS = ['scope', 'title', 'content', 'citations'] as const
+
+export async function updateProjectMemoryNote(
+  rootPath: string,
+  noteId: string,
+  patch: unknown,
+): Promise<ProjectMemoryNote | null> {
+  const value = recordValue(patch)
+  if (!value || !noteId) return null
+  return mutateMemory(rootPath, (notes) => {
+    const existing = notes.find((note) => note.id === noteId)
+    if (!existing) return { value: null }
+    const candidate: Record<string, unknown> = { ...existing }
+    for (const field of MEMORY_PATCH_FIELDS) {
+      if (field in value) candidate[field] = value[field]
     }
-    const payload = normalizeProjectMemoryFile({ version: 1, notes })
-    await ensureCateGitignore(cateDir(rootPath))
-    await writeJsonAtomic(memoryPath(rootPath), payload)
+    candidate.updatedAt = Date.now()
+    const nextNote = normalizeProjectMemoryNote(candidate)
+    if (!nextNote) return { value: null }
+    return {
+      value: nextNote,
+      next: notes.map((note) => note.id === noteId ? nextNote : note),
+    }
+  })
+}
+
+export async function deleteProjectMemoryNote(rootPath: string, noteId: string): Promise<boolean> {
+  if (!noteId) return false
+  return mutateMemory(rootPath, (notes) => {
+    const next = notes.filter((note) => note.id !== noteId)
+    return {
+      value: next.length !== notes.length,
+      ...(next.length !== notes.length ? { next } : {}),
+    }
   })
 }
 

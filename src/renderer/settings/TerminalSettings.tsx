@@ -1,5 +1,5 @@
 import { useSettingsStore } from '../stores/settingsStore'
-import { SettingRow, TextInput, NumberInput, Toggle, Slider } from './SettingsComponents'
+import { SettingRow, TextInput, NumberInput, Toggle, Slider, Select } from './SettingsComponents'
 import { IS_MAC } from '../lib/platform'
 
 export function TerminalSettings() {
@@ -83,6 +83,22 @@ export function TerminalSettings() {
         <Toggle
           checked={store.autoSuspendIdleTerminals}
           onChange={(v) => store.setSetting('autoSuspendIdleTerminals', v)}
+        />
+      </SettingRow>
+      <SettingRow
+        label="Terminal process persistence"
+        description="Keep opted-in POSIX terminals in tmux across runtime restarts. Existing terminals keep their saved mode."
+      >
+        <Select
+          value={store.terminalPersistenceMode}
+          onChange={(value) => store.setSetting(
+            'terminalPersistenceMode',
+            value === 'tmux' ? 'tmux' : 'ephemeral',
+          )}
+          options={[
+            { value: 'ephemeral', label: 'Ephemeral (default)' },
+            { value: 'tmux', label: 'tmux (POSIX only)' },
+          ]}
         />
       </SettingRow>
     </div>

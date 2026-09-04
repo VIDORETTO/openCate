@@ -5,6 +5,7 @@ import type {
   CodingAgentUsage,
 } from '../../../shared/codingAgentRuns'
 import type { PanelState, WindowPanelInfo } from '../../../shared/types'
+import type { ProjectTask } from '../../../shared/projectTasks'
 
 /** Where the authoritative live state for this worker came from. */
 export type AgentTreeWorkerSource = 'local' | 'detached'
@@ -26,6 +27,11 @@ export interface AgentTreeWorker {
   lastToolCall?: CodingAgentToolCall
   filesTouchedCount?: number
   worktreeId?: string
+  taskId?: string
+  task?: ProjectTask
+  approvedHunkIds?: string[]
+  approvedAt?: number
+  approvedToBranch?: string
   source: AgentTreeWorkerSource
   /** Present only for workers hosted in another window. */
   detachedPanel?: WindowPanelInfo
@@ -48,6 +54,8 @@ export interface AgentTreeInput {
   localRuns: ReadonlyArray<CodingAgentRunSnapshot>
   /** Owner-window reports for workers living in another window. */
   detachedPanels?: ReadonlyArray<WindowPanelInfo>
+  /** Durable task contracts for this workspace, joined by taskId. */
+  tasks?: ReadonlyArray<ProjectTask>
 }
 
 function compareWorkers(left: AgentTreeWorker, right: AgentTreeWorker): number {
@@ -60,7 +68,11 @@ function compareWorkers(left: AgentTreeWorker, right: AgentTreeWorker): number {
   return left.runId.localeCompare(right.runId)
 }
 
-function workerFromLocalSnapshot(snapshot: CodingAgentRunSnapshot): AgentTreeWorker {
+function workerFromLocalSnapshot(
+  snapshot: CodingAgentRunSnapshot,
+  taskById: ReadonlyMap<string, ProjectTask>,
+): AgentTreeWorker {
+  const task = snapshot.taskId ? taskById.get(snapshot.taskId) : undefined
   return {
     runId: snapshot.id,
     panelId: snapshot.panelId,
@@ -77,11 +89,19 @@ function workerFromLocalSnapshot(snapshot: CodingAgentRunSnapshot): AgentTreeWor
     ...(snapshot.filesTouched !== undefined ? { filesTouchedCount: snapshot.filesTouched.length } : {}),
     ...(snapshot.failureReason ? { failureReason: snapshot.failureReason } : {}),
     ...(snapshot.worktreeId ? { worktreeId: snapshot.worktreeId } : {}),
+    ...(snapshot.taskId ? { taskId: snapshot.taskId } : {}),
+    ...(snapshot.approvedHunkIds ? { approvedHunkIds: snapshot.approvedHunkIds } : {}),
+    ...(snapshot.approvedAt !== undefined ? { approvedAt: snapshot.approvedAt } : {}),
+    ...(snapshot.approvedToBranch ? { approvedToBranch: snapshot.approvedToBranch } : {}),
+    ...(task ? { task } : {}),
     source: 'local',
   }
 }
 
-function workerFromDetachedReport(panel: WindowPanelInfo): AgentTreeWorker | null {
+function workerFromDetachedReport(
+  panel: WindowPanelInfo,
+  taskById: ReadonlyMap<string, ProjectTask>,
+): AgentTreeWorker | null {
   if (!panel.codingAgentRunId || !panel.codingAgentOwnerPanelId) return null
   return {
     runId: panel.codingAgentRunId,
@@ -95,6 +115,9 @@ function workerFromDetachedReport(panel: WindowPanelInfo): AgentTreeWorker | nul
     ...(panel.codingAgentFilesTouchedCount !== undefined
       ? { filesTouchedCount: panel.codingAgentFilesTouchedCount }
       : {}),
+    ...(panel.codingAgentTaskId ? { taskId: panel.codingAgentTaskId } : {}),
+    ...(panel.codingAgentTaskId && taskById.has(panel.codingAgentTaskId)
+      ? { task: taskById.get(panel.codingAgentTaskId) } : {}),
     source: 'detached',
     detachedPanel: panel,
   }
@@ -110,6 +133,7 @@ function workerFromDetachedReport(panel: WindowPanelInfo): AgentTreeWorker | nul
  */
 export function buildAgentTree(input: AgentTreeInput): AgentTree {
   const workersByOwner = new Map<string, Map<string, AgentTreeWorker>>()
+  const taskById = new Map((input.tasks ?? []).map((task) => [task.id, task] as const))
 
   const addWorker = (ownerPanelId: string, worker: AgentTreeWorker): void => {
     const byRunId = workersByOwner.get(ownerPanelId) ?? new Map<string, AgentTreeWorker>()
@@ -119,11 +143,11 @@ export function buildAgentTree(input: AgentTreeInput): AgentTree {
 
   for (const snapshot of input.localRuns) {
     if (!snapshot.ownerPanelId) continue
-    addWorker(snapshot.ownerPanelId, workerFromLocalSnapshot(snapshot))
+    addWorker(snapshot.ownerPanelId, workerFromLocalSnapshot(snapshot, taskById))
   }
 
   for (const panel of input.detachedPanels ?? []) {
-    const worker = workerFromDetachedReport(panel)
+    const worker = workerFromDetachedReport(panel, taskById)
     if (!worker) continue
     const existing = workersByOwner.get(panel.codingAgentOwnerPanelId!)?.get(worker.runId)
     if (existing) continue

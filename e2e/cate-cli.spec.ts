@@ -59,7 +59,13 @@ function startFixtureServer(): Promise<void> {
 }
 
 function shellQuote(value: string): string {
-  if (process.platform === 'win32') return `'${value.replace(/'/g, "''")}'`
+  if (process.platform === 'win32') {
+    // The real Windows PTY runs cmd.exe, where single quotes are literal
+    // characters rather than quoting syntax. Double-quote arguments that
+    // need it so paths/data URLs reach the bundled CLI without their quotes.
+    if (!/[\s"&|<>^()]/.test(value)) return value
+    return `"${value.replace(/(["^])/g, '^$1')}"`
+  }
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
@@ -72,13 +78,19 @@ let commandSequence = 0
 async function runInCateTerminal(
   nodeId: string,
   command: string,
-  timeout = 20_000,
+  // The CLI's browser adapter permits a 30s request and the native browser
+  // command itself can use most of that budget. Keep the PTY harness deadline
+  // outside the API deadline so it reports the real command error.
+  timeout = 50_000,
 ): Promise<{ code: number; output: string }> {
   const sequence = ++commandSequence
   const begin = `__CATE_BEGIN_${sequence}__`
   const end = `__CATE_END_${sequence}__`
   const wrapped = process.platform === 'win32'
-    ? `Write-Output ("__CATE_{0}_${sequence}__" -f "BEGIN"); ${command}; $cateStatus=$LASTEXITCODE; Write-Output ("__CATE_{0}_${sequence}__:{1}" -f "END",$cateStatus)\r`
+    // Send separate lines: cmd expands %ERRORLEVEL% when each line runs, so
+    // the marker records the CLI's actual exit code instead of the status
+    // from before the command was started.
+    ? `echo ${begin}\r${command}\r\necho ${end}:%ERRORLEVEL%\r`
     : `printf '\\n__CATE_%s_${sequence}__\\n' BEGIN; ${command}; cate_status=$?; printf '\\n__CATE_%s_${sequence}__:%s\\n' END "$cate_status"\r`
 
   const accepted = await page.evaluate(
@@ -98,9 +110,21 @@ async function runInCateTerminal(
   const endAt = screen!.lastIndexOf(endMatch![0])
   const beginAt = screen!.lastIndexOf(begin, endAt)
   expect(beginAt, screen ?? '').toBeGreaterThanOrEqual(0)
+  let output = screen!.slice(beginAt + begin.length, endAt).trim()
+  if (process.platform === 'win32') {
+    // cmd.exe echoes the prompt and every entered command. Keep only the
+    // bytes produced by Cate between the command echo and the end-marker
+    // echo; PowerShell's old single-line wrapper did not need this cleanup.
+    const lines = output.split(/\r?\n/)
+    const commandLine = lines.findIndex((line) => line.includes(`>${command}`))
+    const endEcho = lines.findIndex((line, index) => index > commandLine && line.includes(`>echo ${end}:`))
+    if (commandLine >= 0 && endEcho > commandLine) {
+      output = lines.slice(commandLine + 1, endEcho).join('\n').trim()
+    }
+  }
   return {
     code: Number(endMatch![1]),
-    output: screen!.slice(beginAt + begin.length, endAt).trim(),
+    output,
   }
 }
 
@@ -149,7 +173,7 @@ test.beforeEach(async () => {
 })
 
 test.afterEach(async () => {
-  await closeApp(app)
+  if (app) await closeApp(app)
   rmSync(workspace, { recursive: true, force: true })
 })
 
@@ -164,7 +188,7 @@ test('the core cate CLI workflow works from a real Cate terminal', async () => {
   // Process/transport basics.
   expect(await runCate(controlNode, '--version')).toMatch(/^cate cli \d+$/)
   expect(await runCate(controlNode, '--help')).toContain('cate browser <agent-browser-command>')
-  expect(await runCate(controlNode, 'version')).toBe('6')
+  expect(await runCate(controlNode, 'version')).toBe('8')
   expect(await runCate(controlNode, 'panel', 'list')).toContain('terminal')
 
   // Editor + panel verbs.
@@ -241,12 +265,14 @@ test('the core cate CLI workflow works from a real Cate terminal', async () => {
   ).not.toBeNull()
   const workerOutput = path.join(workspace, 'cli-worker.out')
   const workerCommand = process.platform === 'win32'
-    ? 'Set-Content -NoNewline cli-worker.out CLI_TARGET_OK; Get-Content cli-worker.out'
+    ? 'echo CLI_TARGET_OK>cli-worker.out & type cli-worker.out'
     : 'printf CLI_TARGET_OK > cli-worker.out; cat cli-worker.out'
   expect(await runCate(controlNode, 'terminal', 'type', workerCommand, '--panel', workerId)).toBe('ok')
   expect(await runCate(controlNode, 'terminal', 'press', 'enter', '--panel', workerId)).toBe('ok')
   await expect.poll(
-    () => existsSync(workerOutput) ? readFileSync(workerOutput, 'utf8') : '',
+    // cmd.exe's echo writes platform line endings; the assertion is about the
+    // payload produced by the real terminal, not the shell's newline policy.
+    () => existsSync(workerOutput) ? readFileSync(workerOutput, 'utf8').trim() : '',
     { timeout: 10_000 },
   ).toBe('CLI_TARGET_OK')
   expect(await runCate(controlNode, 'terminal', 'read', '--panel', workerId)).toContain('CLI_TARGET_OK')

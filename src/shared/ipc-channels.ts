@@ -65,6 +65,7 @@ export const GIT_WORKTREE_REMOVE = 'git:worktreeRemove'
 export const GIT_WORKTREE_PRUNE = 'git:worktreePrune'
 export const GIT_WORKTREE_STATUS = 'git:worktreeStatus'
 export const GIT_WORKTREE_REVIEW = 'git:worktreeReview'
+export const GIT_WORKTREE_APPLY_SELECTION = 'git:worktreeApplySelection'
 export const GIT_WORKTREE_MERGE_TO = 'git:worktreeMergeTo'
 export const GIT_WORKTREE_ADD_FROM_PR = 'git:worktreeAddFromPr'
 export const GIT_WORKTREE_UPDATE_FROM = 'git:worktreeUpdateFrom'
@@ -112,6 +113,13 @@ export const SETTINGS_OPEN_IN_EDITOR = 'settings:openInEditor'
 // file directly). Carries the full settings object so renderers merge live.
 export const SETTINGS_RELOADED = 'settings:reloaded' // main -> renderer (broadcast)
 
+// Companion pairing (main process keeps relay credentials, sessions and keys)
+export const COMPANION_PAIRING_BEGIN = 'companion:pairingBegin'
+export const COMPANION_PAIRING_COMPLETE = 'companion:pairingComplete'
+export const COMPANION_DEVICES_LIST = 'companion:devicesList'
+export const COMPANION_DEVICE_REVOKE = 'companion:deviceRevoke'
+export const COMPANION_APPROVAL_GRANT = 'companion:approvalGrant'
+
 // UI state — transient cosmetic UI placement (minimap position/size) persisted
 // to <userData>/ui-state.json. Kept out of settings.json so the user-facing
 // settings file stays focused on preferences.
@@ -140,6 +148,18 @@ export const PROJECT_CHATS_SAVE = 'project:chatsSave' // renderer -> main
 // like chats/session state: citations may point at local checkout paths.
 export const PROJECT_MEMORY_LOAD = 'project:memoryLoad' // renderer -> main
 export const PROJECT_MEMORY_SAVE = 'project:memorySave' // renderer -> main
+
+// Project task contracts (.cate/tasks.json). The file stores bounded intent,
+// validation, logs and artifact references; it never receives implicit PTY
+// scrollback.
+export const PROJECT_TASKS_LOAD = 'project:tasksLoad' // renderer -> main
+export const PROJECT_TASKS_SAVE = 'project:tasksSave' // renderer -> main
+
+// Local agent provenance (.cate/agent-audit.json). Events contain only bounded
+// actor/destination metadata and outcomes; prompt/context contents stay out of
+// the audit file.
+export const PROJECT_AGENT_AUDIT_LOAD = 'project:agentAuditLoad' // renderer -> main
+export const PROJECT_AGENT_AUDIT_SAVE = 'project:agentAuditSave' // renderer -> main
 
 // Boot snapshot — a tiny JSON file (geometry, theme, last workspace id, native
 // tabs flag) written by the renderer whenever the relevant settings change.
@@ -429,6 +449,7 @@ export const RUNTIME_SSH_HOSTS = 'runtime:ssh-hosts'   // renderer -> main (host
 export const RUNTIME_INSTALL = 'runtime:install'       // renderer -> main (explicit clean install + connect)
 export const RUNTIME_DELETE = 'runtime:delete'         // renderer -> main (rm -rf the host install, keep saved auth)
 export const RUNTIME_STATUS = 'runtime:status'         // main -> renderer (broadcast)
+export const RUNTIME_TELEMETRY = 'runtime:telemetry'   // main -> renderer (bounded lifecycle diagnostics)
 export const RUNTIME_LOCAL_STATUS = 'runtime:local-status' // renderer -> main (current LOCAL phase, seeds the loading blocker)
 export const RUNTIME_RETRY_LOCAL = 'runtime:retry-local' // renderer -> main (relaunch the built-in LOCAL daemon after a failed connect)
 export const RUNTIME_PICK_SSH_KEY = 'runtime:pick-ssh-key' // renderer -> main (native file picker for an SSH private key)

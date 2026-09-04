@@ -122,12 +122,14 @@ vi.mock('./terminalFileLinkProvider', () => ({
   resolveLinkRoot: () => undefined,
 }))
 const noteAgentInputSubmitted = vi.fn()
+const noteAgentCompletion = vi.fn(() => false)
 vi.mock('../agent/agentScreenDetector', () => ({
   noteAgentPresence: vi.fn(),
   noteAgentProcess: vi.fn(),
   noteAgentScreenSnapshot: vi.fn(),
   forgetAgentTracker: vi.fn(),
   noteAgentInputSubmitted,
+  noteAgentCompletion,
 }))
 vi.mock('../agent/agentScreenHeuristics', () => ({
   readVisibleTerminalText: vi.fn(() => ''),
@@ -232,6 +234,7 @@ beforeEach(() => {
   replayTerminalLog.mockClear()
   replayTerminalLog.mockImplementation(async () => {})
   noteAgentInputSubmitted.mockClear()
+  noteAgentCompletion.mockClear()
 })
 
 // ===========================================================================
@@ -279,6 +282,23 @@ describe('spawn → wire → dispose happy path', () => {
     expect(RS.panelIdForPty('pty-happy')).toBeNull()
     expect(fake.disposeCount).toBe(1)
     expect(dataDisposers[0]).toHaveBeenCalledTimes(1)
+  })
+
+  it('forwards persisted terminal durability when a runtime reconnects the panel', async () => {
+    terminalCreate.mockResolvedValueOnce('pty-durable')
+
+    await LC.getOrCreate('panel-durable', {
+      workspaceId: 'ws-1',
+      terminalPersistence: 'tmux',
+    })
+
+    expect(terminalCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        panelId: 'panel-durable',
+        terminalPersistence: 'tmux',
+      }),
+    )
+    LC.dispose('panel-durable')
   })
 
   it('reports a submitted terminal line to the agent status coordinator', async () => {

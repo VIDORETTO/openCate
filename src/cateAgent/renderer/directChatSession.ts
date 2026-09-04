@@ -6,6 +6,7 @@ import type {
 import { useChatsStore } from '../../renderer/stores/chatsStore'
 import { useCodingStore, type CodingMessage } from './codingStore'
 import { codingClient } from './codingClient'
+import { createAgentAuditCorrelationId, recordAgentAudit } from '../../renderer/lib/agent/recordAgentAudit'
 import { resolveSessionModel } from './codingModelPrefs'
 import log from '../../renderer/lib/logger'
 import type { ComposerPromptMode } from '../../renderer/chat/ChatComposer'
@@ -112,14 +113,58 @@ export async function promptDirectChat(
 
   try {
     await Promise.all(controlUpdates)
+    const correlationId = createAgentAuditCorrelationId()
+    const auditInput = (input: {
+      kind: 'prompt' | 'command'
+      text: string
+      commandName?: string
+      outcome: 'sent' | 'failed'
+    }): void => {
+      recordAgentAudit(rootPath, {
+        kind: input.kind,
+        outcome: input.outcome,
+        actorKind: 'human',
+        actorId: 'local-user',
+        actorLabel: 'Cate Agent chat',
+        origin: 'direct-chat',
+        ...(chat.hostPanelId ? { sourcePanelId: chat.hostPanelId } : {}),
+        targetPanelId: panelId,
+        correlationId,
+        contentChars: input.text.length,
+        ...(input.commandName ? { commandName: input.commandName } : {}),
+        ...(options.images && options.images.length > 0 ? { hasImages: true } : {}),
+      })
+    }
     if (options.promptMode) {
-      await codingClient.prompt(
-        panelId,
-        options.promptModeCommand?.trim() || `/${options.promptMode}`,
-      )
+      const command = options.promptModeCommand?.trim() || `/${options.promptMode}`
+      try {
+        await codingClient.prompt(panelId, command)
+        auditInput({ kind: 'command', text: command, commandName: options.promptMode, outcome: 'sent' })
+      } catch (error) {
+        auditInput({ kind: 'command', text: command, commandName: options.promptMode, outcome: 'failed' })
+        throw error
+      }
     }
     if (!appendedOptimistically) store.appendUser(panelId, text)
-    await codingClient.prompt(panelId, text, options.images)
+    const commandMatch = /^\s*\/([A-Za-z][A-Za-z0-9_-]*)/.exec(text)
+    const kind = commandMatch ? 'command' : 'prompt'
+    try {
+      await codingClient.prompt(panelId, text, options.images)
+      auditInput({
+        kind,
+        text,
+        ...(commandMatch ? { commandName: commandMatch[1].toLowerCase() } : {}),
+        outcome: 'sent',
+      })
+    } catch (error) {
+      auditInput({
+        kind,
+        text,
+        ...(commandMatch ? { commandName: commandMatch[1].toLowerCase() } : {}),
+        outcome: 'failed',
+      })
+      throw error
+    }
     return true
   } catch (error) {
     log.warn('[directChatSession] prompt failed for %s: %O', panelId, error)

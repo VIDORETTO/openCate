@@ -38,17 +38,26 @@ import { clearWebglDisabled, releaseWebglGrant } from './terminalDom'
 import { getActiveTheme } from '../themeManager'
 import { useStatusStore } from '../../stores/statusStore'
 import { awaitWorkspaceSync, useAppStore } from '../../stores/appStore'
+import { useProjectTaskStore } from '../../stores/projectTaskStore'
 import { replayTerminalLog } from '../workspace/session'
 import type { CodingAgentLaunch } from '../../../shared/codingAgentRuns'
-import { noteAgentInputSubmitted, noteAgentProcess, noteAgentScreenSnapshot } from '../agent/agentScreenDetector'
+import type { TerminalPersistenceMode } from '../../../shared/terminalDurability'
+import {
+  noteAgentCompletion,
+  noteAgentInputSubmitted,
+  noteAgentProcess,
+  noteAgentScreenSnapshot,
+} from '../agent/agentScreenDetector'
 import { readVisibleTerminalText } from '../agent/agentScreenHeuristics'
 import { clearActivityHistory, noteTerminalActivity } from './activityHistory'
+import { sendOsNotification } from '../notifications/osNotificationSend'
 
 interface CreateOpts {
   workspaceId: string
   cwd?: string
   initialInput?: string
   codingAgentLaunch?: CodingAgentLaunch
+  terminalPersistence?: TerminalPersistenceMode
   placementGroupId?: string
   /** Terminal session-restore: a full agent resume command (e.g.
    *  `claude --resume <id>`) typed into the fresh shell right after spawn, via
@@ -196,17 +205,45 @@ export function wireTerminalListeners(args: {
   // and the exit line is visible until the panel is disposed).
   const removeExitListener = electronAPI.onTerminalExit((id: string, exitCode: number) => {
     if (id === ptyId) {
-      noteAgentProcess(id, null)
+      const completionNotified = noteAgentCompletion(id, exitCode === 0 ? 'finished' : 'failed')
       const e = registry.get(panelId)
       if (e) e.alive = false
       const panel = useAppStore.getState().workspaces
         .find((workspace) => workspace.id === opts.workspaceId)?.panels[panelId]
+      if (!completionNotified && panel?.codingAgentRun && !panel.codingAgentRun.stoppedAt) {
+        const displayName = panel.title.trim() || 'Agent'
+        const outcome = exitCode === 0 ? 'finished' : 'failed'
+        sendOsNotification({
+          title: `${displayName} ${outcome}`,
+          body: outcome === 'failed'
+            ? `${displayName} failed with exit code ${exitCode}. Open the terminal to inspect the output.`
+            : `${displayName} finished.`,
+          action: { type: 'focusTerminal', workspaceId: opts.workspaceId, terminalId: id },
+        })
+      }
       if (panel?.codingAgentRun && !panel.codingAgentRun.stoppedAt) {
-        useAppStore.getState().setPanelCodingAgentRun(opts.workspaceId, panelId, {
+        const updatedRun = {
           ...panel.codingAgentRun,
           endedAt: Date.now(),
           exitCode,
+        }
+        useAppStore.getState().setPanelCodingAgentRun(opts.workspaceId, panelId, {
+          ...updatedRun,
         })
+        const taskRoot = useAppStore.getState().workspaces
+          .find((workspace) => workspace.id === opts.workspaceId)?.rootPath
+        if (updatedRun.taskId && taskRoot) {
+          useProjectTaskStore.getState().syncTaskWithRun(
+            taskRoot,
+            updatedRun,
+            exitCode === 0 ? 'completed' : 'failed',
+            {
+              timestamp: Date.now(),
+              level: exitCode === 0 ? 'success' : 'error',
+              message: `Mission process exited with code ${exitCode}.`,
+            },
+          )
+        }
       }
       terminal.write(
         `\r\n\x1b[90m[Process exited with code ${exitCode}]\x1b[0m\r\n`,
@@ -345,6 +382,7 @@ export async function getOrCreate(panelId: string, opts: CreateOpts): Promise<Re
       workspaceId: opts.workspaceId,
       panelId,
       placementGroupId: opts.placementGroupId,
+      terminalPersistence: opts.terminalPersistence,
       codingAgentLaunch: opts.codingAgentLaunch,
     })
 

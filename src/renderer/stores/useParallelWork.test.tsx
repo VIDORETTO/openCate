@@ -34,6 +34,7 @@ import {
   type UseParallelWork,
   type WorktreeStatus,
 } from './useParallelWork'
+import { useMergeQueueStore } from './mergeQueueStore'
 import type { JoinedWorktree } from './useWorktrees'
 
 const ROOT = '/repo'
@@ -103,9 +104,31 @@ beforeEach(() => {
     selectedWorkspaceId: WS,
   }, true)
   ;(window as unknown as { electronAPI: unknown }).electronAPI = {
+    gitStatus: vi.fn().mockResolvedValue({
+      files: [{ path: 'app.ts', index: ' ', working_dir: 'M' }],
+      current: 'feature',
+      tracking: null,
+      ahead: 0,
+      behind: 0,
+    }),
+    gitStage: vi.fn().mockResolvedValue(undefined),
+    gitCommit: vi.fn().mockResolvedValue(undefined),
     gitPush: vi.fn().mockResolvedValue(undefined),
     gitCreatePR: vi.fn(),
     gitWorktreeStatus: vi.fn().mockResolvedValue(status()),
+    gitWorktreeReview: vi.fn().mockResolvedValue({
+      branch: 'feature',
+      baseBranch: 'main',
+      dirty: false,
+      canApply: true,
+      commits: [{ hash: 'abc', message: 'Feature' }],
+      files: [{ status: 'M', path: 'app.ts' }],
+      workingFiles: [],
+      diff: '',
+      truncated: false,
+      hunks: [],
+    }),
+    gitWorktreeMergeTo: vi.fn().mockResolvedValue({ ok: true, result: {} }),
     gitWorktreeRemove: vi.fn().mockResolvedValue(undefined),
     gitBranchDelete: vi.fn().mockResolvedValue(undefined),
     gitWorktreePrune: vi.fn().mockResolvedValue({ output: '' }),
@@ -127,6 +150,102 @@ afterEach(() => {
   host.remove()
   useAppStore.setState(initialAppState, true)
   useSettingsStore.setState(initialSettingsState, true)
+})
+
+describe('useParallelWork merge queue', () => {
+  beforeEach(() => {
+    useMergeQueueStore.setState({ entriesByRoot: {} })
+  })
+
+  it('checks a fresh review before enqueueing and completes the merge', async () => {
+    await act(async () => {
+      await actions.handleMerge(worktree)
+      await vi.waitFor(() => expect(window.electronAPI.gitWorktreeMergeTo).toHaveBeenCalled())
+    })
+
+    expect(window.electronAPI.gitWorktreeReview).toHaveBeenCalledWith(worktree.path, 'main', WS)
+    expect(window.electronAPI.gitWorktreeMergeTo).toHaveBeenCalledWith(ROOT, 'feature', 'main', WS)
+    expect(useMergeQueueStore.getState().entriesByRoot[ROOT]?.[0]).toMatchObject({
+      sourceBranch: 'feature',
+      status: 'completed',
+    })
+  })
+
+  it('blocks a merge when the fresh review reports uncommitted work', async () => {
+    vi.mocked(window.electronAPI.gitWorktreeReview).mockResolvedValueOnce({
+      branch: 'feature',
+      baseBranch: 'main',
+      dirty: true,
+      canApply: false,
+      commits: [],
+      files: [],
+      workingFiles: ['app.ts'],
+      diff: '',
+      truncated: false,
+      message: 'Commit or discard the worker changes first.',
+    })
+
+    await act(async () => { await actions.handleMerge(worktree) })
+
+    expect(window.confirm).not.toHaveBeenCalled()
+    expect(window.electronAPI.gitWorktreeMergeTo).not.toHaveBeenCalled()
+    expect(setError).toHaveBeenCalledWith(
+      'Merge feature → main: Commit or discard the worker changes first.',
+    )
+  })
+
+  it('halts the root queue on a conflict and exposes the resolution message', async () => {
+    vi.mocked(window.electronAPI.gitWorktreeMergeTo).mockResolvedValueOnce({
+      ok: false,
+      conflict: true,
+      message: 'conflict',
+    })
+
+    await act(async () => {
+      await actions.handleMerge(worktree)
+      await vi.waitFor(() => expect(useMergeQueueStore.getState().entriesByRoot[ROOT]?.[0]?.status).toBe('conflict'))
+    })
+
+    expect(setError).toHaveBeenCalledWith(
+      'Merge feature → main is conflicted. Resolve it before continuing the queue.',
+    )
+  })
+})
+
+describe('useParallelWork handleCommit', () => {
+  const checklist = {
+    diffReviewed: true,
+    checksConsidered: true,
+    secretsChecked: true,
+  }
+
+  it('re-reads, stages every current file, and commits the edited message', async () => {
+    let committed = false
+    await act(async () => { committed = await actions.handleCommit(worktree, 'Fix the worker flow', checklist) })
+
+    expect(committed).toBe(true)
+    expect(window.electronAPI.gitStatus).toHaveBeenCalledWith(worktree.path, WS)
+    expect(window.electronAPI.gitStage).toHaveBeenCalledWith(worktree.path, 'app.ts', WS)
+    expect(window.electronAPI.gitCommit).toHaveBeenCalledWith(worktree.path, 'Fix the worker flow', WS)
+    expect(h.refresh).toHaveBeenCalledWith(ROOT)
+    expect(setBusy.mock.calls).toEqual([[worktree.id], [null]])
+  })
+
+  it('refuses a commit without the review checklist', async () => {
+    let committed = false
+    await act(async () => {
+      committed = await actions.handleCommit(worktree, 'Fix it', {
+        diffReviewed: true,
+        checksConsidered: false,
+        secretsChecked: true,
+      })
+    })
+
+    expect(committed).toBe(false)
+    expect(window.electronAPI.gitStage).not.toHaveBeenCalled()
+    expect(window.electronAPI.gitCommit).not.toHaveBeenCalled()
+    expect(setError).toHaveBeenCalledWith('Complete the review checklist before committing.')
+  })
 })
 
 describe('useParallelWork handleDelete', () => {
@@ -270,6 +389,7 @@ describe('useParallelWork failure handling', () => {
       cb: callbacks,
       beginRename: vi.fn(),
       beginRecolor: vi.fn(),
+      beginCommit: vi.fn(),
     })
 
     expect(setError).toHaveBeenCalledWith('Couldn’t open worktree actions: menu unavailable')

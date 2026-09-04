@@ -1,0 +1,24 @@
+{
+  "name": "Cate Companion",
+  "short_name": "Cate",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "description": "Secure, host-approved workspace companion for Cate.",
+  "lang": "en",
+  "dir": "ltr",
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#2563eb",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "./cate-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

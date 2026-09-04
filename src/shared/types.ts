@@ -7,12 +7,61 @@ import type { Theme } from './theme'
 export type { Theme } from './theme'
 import type { AgentId } from './agents'
 import type { AgentHookMode } from './agentHooks'
+import type { TerminalPersistenceMode } from './terminalDurability'
+import type { CateAgentModelRef } from './codingTypes'
 import type {
   AgentCommandOverrides,
   CodingAgentLaunch,
   CodingAgentRun,
   CodingAgentRunStatus,
 } from './codingAgentRuns'
+export type {
+  AuthProviderKind,
+  AuthProviderDescriptor,
+  AuthProviderStatus,
+  ProviderHealth,
+  ProviderVerification,
+  CustomOpenAIProvider,
+  CateAgentModelRef,
+  CodingModelDescriptor,
+  CodingSlashCommand,
+  CodingCreateOptions,
+  CodingEventEnvelope,
+  CodingThinkingLevel,
+  CodingImageAttachment,
+  CodingSessionStats,
+  CodingRpcState,
+  CodingExtensionUIRequest,
+  CodingExtensionUIResponse,
+  CodingSessionListEntry,
+  OAuthFlowEvent,
+} from './codingTypes'
+export type { PerfProcSample, PerfSnapshot } from './perfTypes'
+export type {
+  ProjectTaskApproval,
+  ProjectTaskApprovalStatus,
+  ProjectTaskAttempt,
+  ProjectTaskAttemptOutcome,
+  ProjectTask,
+  ProjectTaskArtifact,
+  ProjectTaskArtifactKind,
+  ProjectTaskDraft,
+  ProjectTaskExecutionPolicy,
+  ProjectTaskLog,
+  ProjectTaskLogLevel,
+  ProjectTaskStatus,
+  ProjectTasksFile,
+} from './projectTasks'
+export type {
+  AgentAuditActor,
+  AgentAuditActorKind,
+  AgentAuditEvent,
+  AgentAuditEventDraft,
+  AgentAuditFile,
+  AgentAuditKind,
+  AgentAuditOrigin,
+  AgentAuditOutcome,
+} from './agentAudit'
 
 // -----------------------------------------------------------------------------
 // Geometry primitives
@@ -27,6 +76,12 @@ export interface Size {
   width: number
   height: number
 }
+
+/** User-resized panel dimensions keyed by the scope encoded in
+ * `panelSizePreferenceKey` (`type:*`, `workspace:*`, `worktree:*`, or
+ * `agent:*`). Kept as a flat JSON object so it remains hand-editable and
+ * backwards-compatible with settings files from older builds. */
+export type PanelSizePreferences = Record<string, Size>
 
 export interface Rect {
   origin: Point
@@ -61,6 +116,62 @@ export interface CanvasNodeState {
    *  the main dock zones. */
   dockLayout: DockLayoutNode
   animationState?: 'entering' | 'exiting' | 'idle'
+}
+
+export interface CanvasWaypoint {
+  id: string
+  name: string
+  point: Point
+  createdAt: number
+}
+
+export interface CanvasNoteDecoration {
+  id: string
+  type: 'note'
+  origin: Point
+  size: Size
+  text: string
+  color?: string
+}
+
+export interface CanvasArrowDecoration {
+  id: string
+  type: 'arrow'
+  from: Point
+  to: Point
+  label?: string
+  color?: string
+}
+
+export interface CanvasGroupDecoration {
+  id: string
+  type: 'group'
+  origin: Point
+  size: Size
+  label: string
+  color?: string
+  /** The node ids selected when the group was created. The rectangle remains
+   * editable-by-recreation even if a node later moves or is deleted. */
+  nodeIds?: CanvasNodeId[]
+}
+
+export type CanvasDecoration = CanvasNoteDecoration | CanvasArrowDecoration | CanvasGroupDecoration
+
+/** Bounded, named layout checkpoints. Unlike the short undo stack, these are
+ * explicit user milestones that survive a session restart. */
+export interface CanvasLayoutHistoryEntry {
+  id: string
+  name: string
+  createdAt: number
+  nodes: Record<CanvasNodeId, CanvasNodeState>
+  zoomLevel: number
+  viewportOffset: Point
+}
+
+export interface CanvasMemorySnapshot {
+  waypoints?: CanvasWaypoint[]
+  decorations?: CanvasDecoration[]
+  layoutHistory?: CanvasLayoutHistoryEntry[]
 }
 
 /** Computed helper — mirrors the Swift `isMaximized` computed property. */
@@ -147,6 +258,9 @@ export interface PanelState {
    *  registry entry is disposed and `TerminalPanel`'s create effect re-runs at
    *  the new `cwd`. */
   ptyEpoch?: number
+  /** Terminal panels only: when set, reattach to a stable tmux session on
+   *  POSIX runtime restart. Omitted/ephemeral terminals remain transient. */
+  terminalPersistence?: TerminalPersistenceMode
   /** Terminal panels only: the coding-agent session running in this terminal
    *  at save time (pushed by the agent's own hook events and cleared after an
    *  observed exit).
@@ -225,6 +339,18 @@ export type RuntimeConnection =
       /** Runtime-absolute root inside the distro. */
       distroPath: string
     }
+  | {
+      kind: 'container'
+      runtimeId: string
+      engine: 'docker' | 'podman'
+      image: string
+      /** Host path explicitly mounted into the container. */
+      hostPath: string
+      /** Runtime-absolute workspace root inside the container. */
+      containerPath: string
+      workspaceReadOnly: boolean
+      networkMode: 'none' | 'bridge'
+    }
 
 export interface WorkspaceInfo {
   id: string
@@ -250,6 +376,15 @@ export type RemoteConnectSpec =
       auth?: { keyPath?: string; passphrase?: string; useAgent?: boolean }
     }
   | { kind: 'wsl'; distro: string; distroPath: string }
+  | {
+      kind: 'container'
+      image: string
+      hostPath: string
+      containerPath: string
+      engine?: 'docker' | 'podman'
+      workspaceReadOnly?: boolean
+      networkMode?: 'none' | 'bridge'
+    }
 
 export type RuntimeConnectResult =
   | { ok: true; runtimeId: string; rootPath: string; connection: RuntimeConnection }
@@ -291,6 +426,35 @@ export type RuntimePhase =
 export interface RuntimeStatusEvent {
   runtimeId: string
   phase: RuntimePhase
+  message?: string
+}
+
+/** Transport kind used by the runtime lifecycle telemetry stream. */
+export type RuntimeTransportKind = 'local' | 'server' | 'wsl' | 'container'
+
+/** Operational lifecycle event emitted by the main process. The event contains
+ * only bounded, transport-level facts; detailed connection errors remain in
+ * the main-process log so host paths and credentials never enter renderer
+ * telemetry. */
+export type RuntimeTelemetryKind =
+  | 'connect-start'
+  | 'connect-success'
+  | 'connect-failure'
+  | 'disconnect'
+  | 'reconnect-scheduled'
+  | 'reconnect-give-up'
+
+export interface RuntimeTelemetryEvent {
+  runtimeId: string
+  transport: RuntimeTransportKind
+  kind: RuntimeTelemetryKind
+  timestamp: number
+  /** 1-based only for automatic reconnect attempts. */
+  attempt?: number
+  delayMs?: number
+  durationMs?: number
+  code?: number | null
+  /** Stable, redacted lifecycle label; detailed errors stay in main.log. */
   message?: string
 }
 
@@ -367,6 +531,7 @@ export interface WindowPanelReport {
    * Cate-owned worker after cross-window terminal transfer. */
   codingAgentRunId?: string
   codingAgentOwnerPanelId?: string
+  codingAgentTaskId?: string
   codingAgentStatus?: CodingAgentRunStatus
   /** Compact activity facts for detached mission rows. Only the label and a
    * bounded path count cross IPC; full paths stay with the owning window. */
@@ -409,7 +574,7 @@ export interface DockWindowInitPayload {
 }
 
 /** A single detached canvas panel's persisted layout (nodes + viewport). */
-export interface CanvasLayoutSnapshot {
+export interface CanvasLayoutSnapshot extends CanvasMemorySnapshot {
   nodes: Record<CanvasNodeId, CanvasNodeState>
   viewportOffset: Point
   zoomLevel: number
@@ -535,7 +700,7 @@ export type DockDropTarget =
 // Canvas state snapshot — used for multi-canvas support (Phase 2+)
 // -----------------------------------------------------------------------------
 
-export interface CanvasSnapshot {
+export interface CanvasSnapshot extends CanvasMemorySnapshot {
   id: string
   canvasNodes: Record<CanvasNodeId, CanvasNodeState>
   zoomLevel: number
@@ -1219,8 +1384,9 @@ export interface SidebarLayout {
 
 /** Version of the telemetry/privacy notice. Bump when the privacy policy
  *  materially changes so every user sees the informational notice once more.
- *  v1 = the old opt-in consent dialog era; v2 = always-on telemetry notice. */
-export const TELEMETRY_NOTICE_VERSION = 2
+ *  v1 = the old opt-in consent dialog era; v2 = always-on notice; v3 =
+ *  explicit opt-in for usage and crash telemetry. */
+export const TELEMETRY_NOTICE_VERSION = 3
 
 export interface AppSettings {
   // General
@@ -1287,6 +1453,9 @@ export interface AppSettings {
   /** Paint the soft per-worktree "territory" backgrounds behind panels when a
    *  workspace has multiple git worktrees. Off hides the visualization. */
   showWorktreeTerritory: boolean
+  /** Last user-selected canvas size for each panel type and optional
+   *  workspace/worktree/agent scope. More specific scopes win at creation. */
+  panelSizePreferences: PanelSizePreferences
 
   // Terminal
   terminalFontFamily: string
@@ -1316,6 +1485,8 @@ export interface AppSettings {
    *  output for 2 minutes. SIGCONT is sent on focus/interaction. POSIX-only;
    *  no effect on Windows. */
   autoSuspendIdleTerminals: boolean
+  /** Default persistence for newly created terminal panels. */
+  terminalPersistenceMode: TerminalPersistenceMode
   /** Enable the `cate` command-line control endpoint. When on, terminals and the
    *  pi agent get a per-workspace CATE_API loopback endpoint + bearer token in
    *  their env so the `cate` CLI can drive Cate (browser, panels, editor, canvas).
@@ -1367,6 +1538,12 @@ export interface AppSettings {
   cliEditorReadEnabled: boolean
   /** `cate editor open` — open a file in an editor/document panel. On by default. */
   cliEditorControlEnabled: boolean
+  /** Read project metadata, durable tasks, curated context and task results
+   * through the first-party `cate` API. On by default. */
+  cliProjectReadEnabled: boolean
+  /** Create, update and delete durable project tasks and context notes. On by
+   * default; this is separate from the read half because it changes state. */
+  cliProjectControlEnabled: boolean
   /** `cate notify` — post a desktop notification. On by default. */
   cliNotifyEnabled: boolean
   /** Read half of `cate agent *` — list, wait for, inspect, and review workers.
@@ -1407,11 +1584,12 @@ export interface AppSettings {
   notifyOnlyWhenUnfocused: boolean
 
   // Privacy
+  /** Whether anonymous usage and crash telemetry may leave this device. */
+  telemetryEnabled: boolean
   /** Highest TELEMETRY_NOTICE_VERSION the user has dismissed the telemetry
    *  notice (WelcomeDialog) for. The notice shows whenever this is below the
    *  current TELEMETRY_NOTICE_VERSION — on first install, and again for every
-   *  existing user when the constant is bumped. Informational only — telemetry
-   *  does not depend on it. */
+   *  existing user when the constant is bumped. */
   telemetryNoticeAcknowledgedVersion: number
 
   // Onboarding
@@ -1495,6 +1673,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   snapToGrid: false,
   placementPicker: true,
   showWorktreeTerritory: true,
+  panelSizePreferences: {},
 
   // Terminal
   terminalFontFamily: '',
@@ -1505,6 +1684,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   terminalCursorBlink: false,
   terminalOptionIsMeta: true,
   autoSuspendIdleTerminals: true,
+  terminalPersistenceMode: 'ephemeral',
   cliEnabled: true,
   cliSkillInstallEnabled: true,
   cliBrowserReadEnabled: true,
@@ -1515,6 +1695,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   cliPanelControlEnabled: true,
   cliEditorReadEnabled: true,
   cliEditorControlEnabled: true,
+  cliProjectReadEnabled: true,
+  cliProjectControlEnabled: true,
   cliNotifyEnabled: true,
   cliAgentReadEnabled: true,
   cliAgentControlEnabled: true,
@@ -1539,7 +1721,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   notificationsEnabled: true,
   notifyOnlyWhenUnfocused: true,
 
-  // Privacy notice. Telemetry is always on in packaged builds.
+  // Privacy. Explicit opt-in; no usage or crash telemetry leaves a new install
+  // until the user enables it in the notice or Settings.
+  telemetryEnabled: false,
   telemetryNoticeAcknowledgedVersion: 0,
 
   // Onboarding
@@ -1634,245 +1818,3 @@ export const PANEL_CANVAS_DROP_SIZES: Record<PanelType, Size> = {
 export const ZOOM_MIN = 0.3
 export const ZOOM_MAX = 3.0
 export const ZOOM_DEFAULT = 1.0
-
-// =============================================================================
-// Pi agent + auth shared types
-// =============================================================================
-
-/** Provider category — drives which form the auth UI shows. */
-export type AuthProviderKind = 'oauth' | 'apiKey'
-
-export interface AuthProviderDescriptor {
-  /** Stable pi-ai provider id (e.g. 'anthropic', 'openai', 'google'). */
-  id: string
-  /** Display name. */
-  name: string
-  kind: AuthProviderKind
-  /** Hint shown under the input (e.g. where to get a key). */
-  helpUrl?: string
-  /** For OAuth providers: whether a local callback server is needed. */
-  usesCallbackServer?: boolean
-}
-
-export interface AuthProviderStatus {
-  id: string
-  connected: boolean
-  /** Last connect time as ISO string, if known. */
-  connectedAt?: string
-  /** Where the credential lives. */
-  source?: 'oauth' | 'env' | 'config'
-}
-
-/** Result of actively verifying that a provider's credential works.
- *  - `ok`         — the credential authenticated (OAuth token minted/refreshed, or a
- *                   live model request succeeded).
- *  - `needsReauth`— an OAuth token could not be refreshed; the user must sign in again.
- *  - `error`      — a live request failed (bad/expired API key, endpoint unreachable, …). */
-export type ProviderHealth = 'ok' | 'needsReauth' | 'error'
-
-export interface ProviderVerification {
-  id: string
-  health: ProviderHealth
-  /** Human-readable failure detail for `needsReauth` / `error`. */
-  error?: string
-}
-
-/** A Cate-managed OpenAI-compatible endpoint (Ollama, LM Studio, vLLM, a
- *  proxy, ...), written to pi's models.json. */
-export interface CustomOpenAIProvider {
-  /** Stable pi provider id. `custom-openai` is retained for legacy configs. */
-  id: string
-  /** Friendly name shown in provider settings. */
-  name: string
-  baseUrl: string
-  /** Empty for local servers that ignore auth; pi gets a placeholder. */
-  apiKey: string
-  /** Model ids exposed by the endpoint, e.g. ['llama3.1:8b']. */
-  models: string[]
-}
-
-export interface CateAgentModelRef {
-  provider: string
-  model: string
-}
-
-/** A selectable model, derived session-independently from the connected
- *  providers in auth.json (plus the custom OpenAI endpoint in models.json). */
-export interface CodingModelDescriptor {
-  provider: string
-  /** Model id passed to pi (e.g. `claude-sonnet-4-6`). */
-  id: string
-  /** Human label for the picker (pi's model name, falling back to the id). */
-  label: string
-  contextWindow: number
-  reasoning: boolean
-}
-
-/** Slash command exposed by pi — a skill, prompt template, or extension cmd. */
-export interface CodingSlashCommand {
-  name: string
-  description?: string
-  source: 'extension' | 'prompt' | 'skill'
-  /** Absolute path to the file that defines this command (if any). */
-  path?: string
-  /** Where it lives — user-installed vs. shipped with a package. */
-  scope?: 'user' | 'project' | 'temporary'
-  /** Whether the file is editable/deletable by the user (true for files under
-   *  ~/.pi/agent, false for things shipped inside packages). */
-  editable?: boolean
-}
-
-export interface CodingCreateOptions {
-  panelId: string
-  workspaceId: string
-  cwd: string
-  model?: CateAgentModelRef
-  systemPrompt?: string
-  /** Resume an existing pi session file (jsonl). When set, pi will load it
-   *  on start instead of creating a fresh session. */
-  sessionFile?: string
-  /** Locator of the WORKSPACE this session belongs to, which may differ from
-   *  `cwd` when the panel is pinned to a worktree. Main resolves the workspace's
-   *  trust state from this to decide whether project MCP config (`.mcp.json` /
-   *  `.pi/mcp.json`) may be honoured — those files are repo-controlled and can
-   *  start local commands (GHSA-8769-jp52-985f). Absent ⇒ treated as untrusted. */
-  workspaceRoot?: string
-}
-
-/** Pi agent events forwarded from main to renderer. We keep the shape loose
- *  since pi's event union is large and may evolve — renderer narrows by `type`. */
-export interface CodingEventEnvelope {
-  panelId: string
-  event: {
-    type: string
-    [key: string]: unknown
-  }
-}
-
-/** Pi's reasoning levels (mirrors `ThinkingLevel` from pi-agent-core). */
-export type CodingThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
-
-/** Image attachment sent alongside a prompt/steer/followUp. Data is raw base64
- *  (no `data:` prefix) so pi can forward it verbatim as `ImageContent`. */
-export interface CodingImageAttachment {
-  data: string
-  mimeType: string
-  /** Optional filename, kept around so the renderer can display a chip. */
-  fileName?: string
-}
-
-/** Snapshot of pi's session stats — fed from `get_session_stats`. */
-export interface CodingSessionStats {
-  sessionFile?: string
-  sessionId?: string
-  userMessages: number
-  assistantMessages: number
-  toolCalls: number
-  toolResults: number
-  totalMessages: number
-  tokens: {
-    input: number
-    output: number
-    cacheRead: number
-    cacheWrite: number
-    total: number
-  }
-  cost: number
-  contextUsage?: {
-    tokens: number | null
-    contextWindow: number
-    percent: number | null
-  }
-}
-
-/** Pi RPC session state snapshot. */
-export interface CodingRpcState {
-  model: { id: string; provider: string; name?: string; contextWindow?: number; reasoning?: boolean } | null
-  thinkingLevel: CodingThinkingLevel
-  isStreaming: boolean
-  isCompacting: boolean
-  steeringMode: 'all' | 'one-at-a-time'
-  followUpMode: 'all' | 'one-at-a-time'
-  sessionFile?: string
-  sessionId?: string
-  sessionName?: string
-  autoCompactionEnabled: boolean
-  messageCount: number
-  pendingMessageCount: number
-}
-
-/** Pi extension UI request — forwarded verbatim through agent:event so the
- *  renderer can render an in-panel dialog. Dialog methods expect a reply via
- *  CODING_UI_RESPONSE; fire-and-forget methods don't. */
-export interface CodingExtensionUIRequest {
-  id: string
-  method: 'select' | 'confirm' | 'input' | 'editor' | 'notify' | 'setStatus' | 'setWidget' | 'setTitle' | 'set_editor_text'
-  [key: string]: unknown
-}
-
-export interface CodingExtensionUIResponse {
-  id: string
-  value?: string
-  confirmed?: boolean
-  cancelled?: boolean
-}
-
-/** A pi session file on disk, parsed enough to populate the chat sidebar. */
-export interface CodingSessionListEntry {
-  /** Absolute path to the .jsonl file. */
-  path: string
-  /** Pi session id (UUID from header). */
-  id: string
-  /** Display title — explicit session_info.sessionName when set, otherwise
-   *  derived from the first user message. */
-  title: string
-  /** True iff title came from `set_session_name`. */
-  named: boolean
-  /** Cwd recorded in the header (so we can filter by workspace). */
-  cwd: string
-  /** Header timestamp (ISO). */
-  createdAt: string
-  /** File mtime (ISO). */
-  updatedAt: string
-  /** Best-effort count of pi `message` entries. */
-  messageCount: number
-  /** Last `model_change` entry recorded in the session, if any. Used to
-   *  restore the chat's prior model selection on resume. */
-  lastModel?: { provider: string; model: string }
-}
-
-/** OAuth UI events forwarded to renderer during a login flow. */
-export type OAuthFlowEvent =
-  | { type: 'auth'; url: string; instructions?: string }
-  | { type: 'deviceCode'; userCode: string; verificationUri: string; intervalSeconds?: number; expiresInSeconds?: number }
-  | { type: 'progress'; message: string }
-  | { type: 'prompt'; promptId: string; message: string; placeholder?: string; allowEmpty?: boolean }
-  | { type: 'select'; promptId: string; message: string; options: Array<{ id: string; label: string }> }
-  | { type: 'manualCode'; promptId: string }
-  | { type: 'done' }
-  | { type: 'error'; message: string }
-
-// -----------------------------------------------------------------------------
-// Performance profiler (CATE_PERF=1) — shared between main sampler and the
-// renderer HUD.
-// -----------------------------------------------------------------------------
-
-export interface PerfProcSample {
-  type: string
-  pid: number
-  /** percentCPUUsage since last sample (relative to one core; may exceed 100). */
-  cpu: number
-  /** working-set memory in MB. */
-  memMB: number
-}
-
-export interface PerfSnapshot {
-  /** Sampling window in ms; all rates below are per-second. */
-  windowMs: number
-  focused: boolean
-  totalCpu: number
-  procs: PerfProcSample[]
-  spawnsPerSec: Record<string, number>
-  ipc: Array<{ channel: string; kbPerSec: number; callsPerSec: number }>
-  terminal: { kbPerSec: number; chunksPerSec: number }
-}

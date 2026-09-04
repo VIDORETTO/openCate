@@ -319,6 +319,7 @@ export function DockTabBar(props: DockTabBarProps) {
       {placeholderNode && placeholderInsertAt >= remainingPanelIds.length && placeholderNode}
       {/* Draggable spacer that fills the rest of the row. */}
       <div
+        data-node-drag-spacer
         className="flex-1 min-w-[20px] self-stretch"
         style={
           onTabBarMouseDown

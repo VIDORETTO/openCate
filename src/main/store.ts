@@ -104,13 +104,21 @@ async function pushLayoutNamesToMenu(names: string[]): Promise<void> {
  * Apply the main-process side effects of a single settings change. Shared by
  * the renderer-driven SETTINGS_SET path and the external-file-edit watcher so a
  * value changed by hand-editing settings.json behaves exactly like one changed
- * through the UI (live file-exclusion refresh, Sentry toggle, etc.).
+ * through the UI (live file-exclusion refresh, telemetry-buffer purge, etc.).
  *
  * The settingsStore projection is handled separately by `broadcastSettingsReloaded`
  * (the single SETTINGS_RELOADED funnel); this function only runs the per-key
  * native/daemon side effects.
  */
 async function applySettingSideEffect(key: keyof AppSettings, value: unknown): Promise<void> {
+  if (key === 'telemetryEnabled' && value === false) {
+    try {
+      const { handleTelemetryConsentChanged } = await import('./analytics')
+      handleTelemetryConsentChanged(false)
+    } catch (err) {
+      log.warn('Telemetry buffer purge failed: %O', err)
+    }
+  }
   if (key === 'customShortcuts') {
     try {
       const { rebuildApplicationMenu } = await import('./menu')
@@ -322,6 +330,9 @@ export function registerHandlers(): void {
       await applySettingSideEffect(key, getSettingFromFile(key))
     } else {
       resetAllSettings()
+      // Resetting all settings also withdraws telemetry consent (the default
+      // is false), so run the same local-retention side effect as a key reset.
+      await applySettingSideEffect('telemetryEnabled', getSettingFromFile('telemetryEnabled'))
     }
     broadcastSettingsReloaded()
   })

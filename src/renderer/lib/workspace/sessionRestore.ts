@@ -31,6 +31,26 @@ import type {
   ProjectSessionFile,
 } from '../../../shared/types'
 
+// Restores can be requested by more than one lifecycle path at once (for
+// example, a workspace open and an external-file reload). Serialize them per
+// workspace so teardown, panel records, canvas state, and terminal hints are
+// applied as one transaction instead of interleaving. A rejected operation is
+// kept out of the queue so a later restore can still proceed.
+const restoreTails = new Map<string, Promise<void>>()
+
+function enqueueWorkspaceRestore<T>(workspaceId: string, task: () => T | Promise<T>): Promise<T> {
+  const previous = restoreTails.get(workspaceId) ?? Promise.resolve()
+  const next = previous.then(task, task)
+  const tail = next.then(() => undefined, () => undefined)
+  restoreTails.set(workspaceId, tail)
+
+  const cleanup = (): void => {
+    if (restoreTails.get(workspaceId) === tail) restoreTails.delete(workspaceId)
+  }
+  void tail.then(cleanup, cleanup)
+  return next
+}
+
 /** Recreate every placed panel's record (dock-zone panels AND every canvas's
  *  child panels) into the workspace, preserving panel ids. The dock layout and
  *  canvas geometry below reference these by id; the panels themselves are
@@ -87,7 +107,11 @@ export async function reloadActiveWorkspaceFromDisk(): Promise<void> {
 }
 
 /** Same rebuild, for a specific workspace. */
-export async function reloadWorkspaceFromDisk(wsId: string): Promise<void> {
+export function reloadWorkspaceFromDisk(wsId: string): Promise<void> {
+  return enqueueWorkspaceRestore(wsId, () => reloadWorkspaceFromDiskUnlocked(wsId))
+}
+
+async function reloadWorkspaceFromDiskUnlocked(wsId: string): Promise<void> {
   const appStore = useAppStore.getState()
   const ws = appStore.workspaces.find((w) => w.id === wsId)
   if (!ws?.rootPath) return
@@ -115,7 +139,7 @@ export async function reloadWorkspaceFromDisk(wsId: string): Promise<void> {
   // Discard the live layout, then rebuild from the file via the launch path.
   // remount bumps the reload epoch so the main shell remounts and respawns
   // terminals cleanly; detached windows are rebuilt afterwards.
-  await restoreWorkspaceLayout(snapshot, wsId, { teardown: true, remount: true })
+  await restoreWorkspaceLayoutUnlocked(snapshot, wsId, { teardown: true, remount: true })
   // sessionStartup imports from this module, so break the cycle with a dynamic
   // import (matches the deferred-restore handler injection at module load).
   const { restoreWorkspaceDetachedWindows } = await import('./sessionStartup')
@@ -164,7 +188,11 @@ export function isWorkspaceEffectivelyEmpty(wsId: string): boolean {
  * clobbers an active layout and is idempotent across the several open paths that
  * call it.
  */
-export async function hydrateWorkspaceFromDiskIfEmpty(wsId: string): Promise<void> {
+export function hydrateWorkspaceFromDiskIfEmpty(wsId: string): Promise<void> {
+  return enqueueWorkspaceRestore(wsId, () => hydrateWorkspaceFromDiskIfEmptyUnlocked(wsId))
+}
+
+async function hydrateWorkspaceFromDiskIfEmptyUnlocked(wsId: string): Promise<void> {
   const appStore = useAppStore.getState()
   const ws = appStore.workspaces.find((w) => w.id === wsId)
   if (!ws?.rootPath) return
@@ -197,7 +225,7 @@ export async function hydrateWorkspaceFromDiskIfEmpty(wsId: string): Promise<voi
     appStore.setWorkspaceColor(wsId, projectState.workspace.color)
   }
 
-  await restoreWorkspaceLayout(snapshot, wsId, { teardown: true, remount: true })
+  await restoreWorkspaceLayoutUnlocked(snapshot, wsId, { teardown: true, remount: true })
   const { restoreWorkspaceDetachedWindows } = await import('./sessionStartup')
   await restoreWorkspaceDetachedWindows(
     wsId,
@@ -219,7 +247,15 @@ export async function hydrateWorkspaceFromDiskIfEmpty(wsId: string): Promise<voi
  *   • remount — bump the reload epoch so the main shell remounts and respawns
  *     terminals cleanly (used by the from-disk rebuilds, not the launch path).
  */
-export async function restoreWorkspaceLayout(
+export function restoreWorkspaceLayout(
+  snapshot: SessionSnapshot,
+  wsId: string,
+  opts: { teardown: boolean; remount: boolean },
+): Promise<void> {
+  return enqueueWorkspaceRestore(wsId, () => restoreWorkspaceLayoutUnlocked(snapshot, wsId, opts))
+}
+
+async function restoreWorkspaceLayoutUnlocked(
   snapshot: SessionSnapshot,
   wsId: string,
   opts: { teardown: boolean; remount: boolean },
@@ -229,14 +265,18 @@ export async function restoreWorkspaceLayout(
   const endQuiescence = beginRestoreQuiescence()
   try {
     if (opts.teardown) useAppStore.getState().closeAllPanels(wsId)
-    await restoreSession(snapshot, wsId)
+    await restoreSessionHydrate(snapshot, wsId)
     if (opts.remount) useAppStore.getState().bumpReloadEpoch(wsId)
   } finally {
     endQuiescence()
   }
 }
 
-export async function restoreSession(snapshot: SessionSnapshot, workspaceId: string): Promise<void> {
+export function restoreSession(snapshot: SessionSnapshot, workspaceId: string): Promise<void> {
+  return enqueueWorkspaceRestore(workspaceId, () => restoreSessionUnlocked(snapshot, workspaceId))
+}
+
+async function restoreSessionUnlocked(snapshot: SessionSnapshot, workspaceId: string): Promise<void> {
   // Suppress autosave while the stores hydrate: between restorePanelRecords and
   // loadWorkspaceCanvas the workspace is observably half-built (records without
   // canvas nodes), and a save scheduled from those store changes would persist
@@ -300,7 +340,11 @@ async function restoreSessionHydrate(snapshot: SessionSnapshot, workspaceId: str
     for (const [cpId, canvas] of Object.entries(snapshot.canvases)) {
       getOrCreateCanvasStoreForPanel(cpId)
         .getState()
-        .loadWorkspaceCanvas(canvas.canvasNodes, canvas.viewportOffset, canvas.zoomLevel)
+        .loadWorkspaceCanvas(canvas.canvasNodes, canvas.viewportOffset, canvas.zoomLevel, {
+          waypoints: canvas.waypoints,
+          decorations: canvas.decorations,
+          layoutHistory: canvas.layoutHistory,
+        })
     }
   }
 

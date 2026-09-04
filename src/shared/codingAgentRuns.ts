@@ -21,6 +21,8 @@ export interface CodingAgentRun {
   /** Follow-up prompts sent after the initial task. Kept with panel state so
    *  mission context survives a Cate restart. */
   followUps?: Array<{ prompt: string; sentAt: number }>
+  /** Optional durable task contract associated with this Cate-owned mission. */
+  taskId?: string
   /** Latest structured usage observation from the CLI hook stream. Optional
    *  because several CLIs expose lifecycle hooks but no usage payload. */
   usage?: CodingAgentUsage
@@ -33,6 +35,11 @@ export interface CodingAgentRun {
   stoppedAt?: number
   appliedAt?: number
   appliedToBranch?: string
+  /** Hunk-level approvals staged into the base checkout. Unlike `appliedToBranch`,
+   *  this is additive: later reviews may approve more hunks. */
+  approvedHunkIds?: string[]
+  approvedAt?: number
+  approvedToBranch?: string
   /** User explicitly chose to retain the isolated branch for later. */
   keptAt?: number
 }
@@ -46,6 +53,8 @@ export interface CodingAgentLaunch {
   title?: string
   prompt: string
   ownerPanelId: string
+  /** Optional durable task contract associated with this mission. */
+  taskId?: string
   ownsWorktree?: boolean
   background?: boolean
 }

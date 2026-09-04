@@ -10,7 +10,7 @@
 // `canvas-interacting` hold just happened and the message names the owner.
 // =============================================================================
 import { test, expect } from '@playwright/test'
-import { launchApp, closeApp, seedTerminal, getNodeRect } from './fixtures/electron-app'
+import { launchApp, closeApp, seedTerminal, getNodeRect, resetViewport } from './fixtures/electron-app'
 import type { ElectronApplication, Page } from 'playwright'
 
 let app: ElectronApplication
@@ -30,17 +30,49 @@ test.afterEach(async () => closeApp(app))
 const lockHeld = (p: Page) =>
   p.evaluate(() => document.body.classList.contains('canvas-interacting'))
 
+/** Dispatch through the page's DOM event path. Native Electron wheel injection
+ * waits on the hidden test window's compositor after very large xterm
+ * scrollbacks; the DOM path exercises the same xterm/canvas handlers without
+ * making this gesture-lock stress test depend on that compositor round-trip. */
+async function dispatchWheel(
+  p: Page,
+  point: { x: number; y: number },
+  deltaY: number,
+): Promise<void> {
+  await p.evaluate(({ x, y, deltaY: dy }) => {
+    // The native helper intentionally clicks just beyond the panel in the
+    // window chrome to defocus it; that coordinate can be outside the DOM
+    // viewport even though Electron accepts the native click. Route that case
+    // through the canvas container so the canvas handler still receives the
+    // same bubbling event.
+    const target = document.elementFromPoint(x, y)
+      ?? document.querySelector('[data-canvas-container]')
+    if (!target) throw new Error(`wheel target missing at ${x},${y}`)
+    target.dispatchEvent(new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      clientX: x,
+      clientY: y,
+      deltaY: dy,
+      deltaMode: WheelEvent.DOM_DELTA_PIXEL,
+    }))
+  }, { ...point, deltaY })
+}
+
 /** Fill the terminal's scrollback with a lot of lines. */
 async function flood(p: Page, nodeId: string, lines: number) {
   // Run a real command so the output flows through the PTY at full rate — a
   // direct write() is swallowed by the shell's line discipline.
+  const command = process.platform === 'win32'
+    ? `for /L %i in (1,1,${lines}) do @echo line %i ${'y'.repeat(150)}\r`
+    : `for i in $(seq 1 ${lines}); do printf 'line %s ${'y'.repeat(150)}\\n' "$i"; done\r`
   const ok = await p.evaluate(
     ({ id, n }) =>
       window.__cateE2E!.writeTerminal(
         id,
-        `for i in $(seq 1 ${n}); do printf 'line %s ${'y'.repeat(150)}\\n' "$i"; done\r`,
+        n,
       ),
-    { id: nodeId, n: lines },
+    { id: nodeId, n: command },
   )
   // Wait for the buffer to stop growing.
   let last = -1
@@ -68,29 +100,45 @@ test('scrolling a terminal with a huge scrollback does not strand the gesture lo
   // --- focused terminal: wheel should scroll the panel, not touch the lock ---
   await page.mouse.click(cx, cy)
   await page.waitForTimeout(300)
-  for (let i = 0; i < 60; i++) await page.mouse.wheel(0, -240)
+  const focusedPoint = { x: cx, y: cy }
+  for (let i = 0; i < 60; i++) await dispatchWheel(page, focusedPoint, -240)
   await page.waitForTimeout(200)
   console.log('after focused up-scroll   | lock:', await lockHeld(page))
-  for (let i = 0; i < 60; i++) await page.mouse.wheel(0, 240)
+  for (let i = 0; i < 60; i++) await dispatchWheel(page, focusedPoint, 240)
   await page.waitForTimeout(200)
   console.log('after focused down-scroll | lock:', await lockHeld(page))
 
   // --- unfocused terminal: wheel drives the canvas wheel-pan (which DOES take
   //     the lock, with a 150ms quiet-timer release) ---
-  await page.mouse.click(1100, 800) // defocus
+  const unfocusedPoint = { x: 1100, y: 800 }
+  await page.mouse.click(unfocusedPoint.x, unfocusedPoint.y) // defocus
   await page.waitForTimeout(300)
-  for (let i = 0; i < 60; i++) await page.mouse.wheel(0, 200)
+  for (let i = 0; i < 60; i++) await dispatchWheel(page, unfocusedPoint, 200)
   await page.waitForTimeout(600)
   console.log('after unfocused scroll    | lock:', await lockHeld(page))
+  // The trackpad-shaped synthetic events intentionally stress canvas panning;
+  // restore the viewport before the next phase so its drag target remains
+  // addressable after the large pan.
+  await resetViewport(page)
 
   // --- rapid alternation: scroll, then immediately grab the panel ---
+  let pointer = unfocusedPoint
   for (let round = 0; round < 5; round++) {
-    for (let i = 0; i < 20; i++) await page.mouse.wheel(0, -200)
+    pointer = unfocusedPoint
+    for (let i = 0; i < 20; i++) await dispatchWheel(page, pointer, -200)
+    // Keep the next drag target addressable. These synthetic events are
+    // intentionally trackpad-shaped, so each sweep pans the canvas by 4,000
+    // px; the lock assertion does not require retaining that accumulated pan.
+    await page.waitForTimeout(100)
+    await resetViewport(page)
+    await expect.poll(() => getNodeRect(page, nodeId), { timeout: 2_000 }).not.toBeNull()
     const rect = (await getNodeRect(page, nodeId))!
-    await page.mouse.move(rect.x + rect.width / 2, rect.y + 6)
+    const dragStart = { x: rect.x + rect.width / 2, y: rect.y + 6 }
+    await page.mouse.move(dragStart.x, dragStart.y)
     await page.mouse.down()
-    await page.mouse.move(rect.x + rect.width / 2 + 30, rect.y + 20, { steps: 3 })
-    await page.mouse.wheel(0, 200) // wheel DURING the drag
+    pointer = { x: dragStart.x + 30, y: rect.y + 20 }
+    await page.mouse.move(pointer.x, pointer.y, { steps: 3 })
+    await dispatchWheel(page, pointer, 200) // wheel DURING the drag
     await page.mouse.up()
     await page.waitForTimeout(150)
   }
@@ -99,7 +147,7 @@ test('scrolling a terminal with a huge scrollback does not strand the gesture lo
 
   // --- scroll, then switch workspace mid-flight ---
   const wsB = await page.evaluate(() => window.__cateE2E!.addWorkspace('B'))
-  for (let i = 0; i < 20; i++) await page.mouse.wheel(0, -200)
+  for (let i = 0; i < 20; i++) await dispatchWheel(page, pointer, -200)
   await page.evaluate((id) => window.__cateE2E!.selectWorkspace(id), wsB)
   await page.waitForTimeout(1500)
   console.log('after scroll+ws switch    | lock:', await lockHeld(page))

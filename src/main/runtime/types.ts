@@ -17,6 +17,8 @@
 import type { FileTreeNode, FileSearchResult, FileSearchOptions, SearchOptions, SearchFileResult, SearchStats, TerminalActivity } from '../../shared/types'
 import type { AgentHookAgentState, AgentHookConfig, AgentHookEvent } from '../../shared/agentHooks'
 import type { RuntimeId } from '../../shared/runtimeLocator'
+import type { TerminalDurability } from '../../shared/terminalDurability'
+import type { GitDiffHunk } from '../../shared/gitDiff'
 
 // ---------------------------------------------------------------------------
 // Process host (terminals / node-pty)
@@ -62,6 +64,8 @@ export interface PtyCreateOptions {
    *  Runtime features may read it as shared workspace context, but writes stay
    *  scoped to `cwd`. The daemon validates it against `scopeId` before spawn. */
   workspaceBaseCwd?: string
+  /** Optional host-managed durability for a terminal session. */
+  durability?: TerminalDurability
 }
 
 export interface PtyHandle {
@@ -73,6 +77,8 @@ export interface PtyHandle {
    *  Carried back purely for diagnostics — e.g. logging which shell a terminal
    *  that exited immediately was running (#401). */
   shell?: string
+  /** Durable session metadata, when the host attached this pty to tmux. */
+  durability?: TerminalDurability
 }
 
 /** Per-pty activity for the shell process monitor. `activity` mirrors what
@@ -396,6 +402,8 @@ export interface WorktreeReviewResult {
   workingFiles: string[]
   diff: string
   truncated: boolean
+  /** Review tokens for safe file/hunk-level approval. */
+  hunks?: GitDiffHunk[]
   message?: string
 }
 
@@ -485,6 +493,16 @@ export interface VcsHost {
   worktreePrune(repoCwd: string, access?: FileAccessContext): Promise<{ output: string }>
   worktreeStatus(worktreePath: string, access?: FileAccessContext): Promise<WorktreeStatusResult | null>
   worktreeReview(worktreePath: string, baseBranch: string, access?: FileAccessContext): Promise<WorktreeReviewResult>
+  /** Stage only the reviewed hunks from a clean worker branch into the current
+   *  base checkout. The runtime recomputes the diff from branch refs before
+   *  applying the bounded selection. */
+  worktreeApplySelection(
+    repoCwd: string,
+    sourceBranch: string,
+    baseBranch: string,
+    hunkIds: string[],
+    access?: FileAccessContext,
+  ): Promise<MergeResult>
   worktreeMergeTo(repoCwd: string, fromBranch: string, toBranch: string, access?: FileAccessContext): Promise<MergeResult>
   worktreeUpdateFrom(worktreePath: string, fromBranch: string, access?: FileAccessContext): Promise<MergeResult>
   createPr(worktreePath: string, branch: string, access?: FileAccessContext): Promise<CreatePrResult>

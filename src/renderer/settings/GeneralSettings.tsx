@@ -13,8 +13,14 @@ export function GeneralSettings() {
         <Toggle checked={store.warnBeforeQuit} onChange={(v) => store.setSetting('warnBeforeQuit', v)} />
       </SettingRow>
       <SettingRow
+        label="Anonymous telemetry"
+        description="Share anonymous usage data and crash reports. Off by default; no file contents or paths are sent."
+      >
+        <Toggle checked={store.telemetryEnabled} onChange={(v) => store.setSetting('telemetryEnabled', v)} />
+      </SettingRow>
+      <SettingRow
         label="Privacy"
-        description="Cate collects anonymous usage data and crash reports to improve the app. No file paths, project names, or personal data."
+        description="Review what Cate collects and how to change your privacy choices."
       >
         <button
           type="button"

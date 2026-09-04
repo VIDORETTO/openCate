@@ -127,6 +127,8 @@ describe('browser popup policy', () => {
       outlivesOpener: false,
     })
     expect(handler({ url: 'javascript:alert(1)' })).toEqual({ action: 'deny' })
+    expect(handler({ url: 'file:///tmp/local.html' })).toEqual({ action: 'deny' })
+    expect(handler({ url: 'data:text/html,%3Ch1%3ELocal%3C%2Fh1%3E' })).toEqual({ action: 'deny' })
   })
 
   it('does not grant browser popups to extension webviews', () => {

@@ -82,6 +82,9 @@ export async function saveSession(): Promise<void> {
         canvasNodes: snap.nodes,
         zoomLevel: snap.zoomLevel,
         viewportOffset: snap.viewportOffset,
+        waypoints: snap.waypoints,
+        decorations: snap.decorations,
+        layoutHistory: snap.layoutHistory,
       }
     }
 
@@ -185,7 +188,7 @@ export async function saveSession(): Promise<void> {
   // Remote (cate-runtime://) workspaces can't use the local .cate/ files —
   // their tree lives on a runtime. Collect their full snapshots + reconnect
   // info into the electron-store remoteProjects list so restart can rebuild and
-  // reconnect them (Findings 2/3/4). TODO: route remote project-state through
+  // reconnect them (Findings 2/3/4). Project state is routed through
   // runtime.file so .cate/ lives next to the remote repo instead of here.
   const remoteEntries: RemoteProjectEntry[] = []
   for (const snapshot of snapshots) {

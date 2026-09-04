@@ -7,7 +7,7 @@ import {
   setZoom,
   titleBarCentre,
   getNodeRect,
-  dragMouse,
+  dragCanvasFrom,
 } from './fixtures/electron-app'
 import type { ElectronApplication, Page } from 'playwright'
 
@@ -26,10 +26,11 @@ test.beforeEach(async () => {
 test.afterEach(async () => closeApp(app))
 
 async function seedTwoTerminals(p: Page): Promise<{ a: string; b: string }> {
-  // Seed past the 260px sidebar so both nodes are fully visible in the canvas
-  // viewport — A on the left, B on the right with clear separation.
-  const a = await seedTerminal(p, { x: 300, y: 100 })
-  const b = await seedTerminal(p, { x: 1000, y: 100 })
+  // Keep the source grab and every target probe inside the hidden E2E window.
+  // Stacking the nodes vertically avoids assuming that two 640px nodes fit
+  // side-by-side in the host's current Electron viewport.
+  const a = await seedTerminal(p, { x: 40, y: 500 })
+  const b = await seedTerminal(p, { x: 400, y: 100 })
   await p.evaluate(() => window.__cateE2E!.resetViewport())
   await p.waitForTimeout(200)
   return { a, b }
@@ -41,11 +42,10 @@ test('drop on target tab-bar tabs the source into target stack', async () => {
   const bRect = await getNodeRect(page, b)
   // Aim at top 20px of target = tab-bar zone (resolveDropEdge returns 'center').
   const dropPoint = { x: bRect!.x + bRect!.width / 2, y: bRect!.y + 10 }
-  await dragMouse(page, aGrab!, dropPoint, { steps: 25, pauseAtEnd: 50 })
-  await page.waitForTimeout(150)
+  await dragCanvasFrom(page, `[data-node-id="${a}"] [data-node-drag-spacer]`, aGrab!, dropPoint, 25)
   // Source canvas-node a should be removed (it became a tab inside b's stack).
-  const aStill = await page.$(`[data-node-id="${a}"]`)
-  expect(aStill).toBeNull()
+  await expect.poll(() => page.$(`[data-node-id="${a}"]`)).toBeNull()
+  await expect.poll(() => page.locator(`[data-node-id="${b}"] [data-tab-panel-id]`).count()).toBe(2)
 })
 
 test('drop on target left edge splits horizontally', async () => {
@@ -54,7 +54,7 @@ test('drop on target left edge splits horizontally', async () => {
   const bRect = await getNodeRect(page, b)
   // Left ~12% strip — below the tab-bar height.
   const dropPoint = { x: bRect!.x + 12, y: bRect!.y + bRect!.height / 2 }
-  await dragMouse(page, aGrab!, dropPoint, { steps: 25, pauseAtEnd: 50 })
+  await dragCanvasFrom(page, `[data-node-id="${a}"] [data-node-drag-spacer]`, aGrab!, dropPoint, 25)
   await page.waitForTimeout(150)
   const aStill = await page.$(`[data-node-id="${a}"]`)
   expect(aStill).toBeNull()
@@ -75,10 +75,9 @@ test('drop on target top edge splits vertically', async () => {
   // typical 400px tall node, the top strip is ~48px. So aim at y=44ish (just
   // past the tab bar but still in the top split zone).
   const dropPoint = { x: bRect!.x + bRect!.width / 2, y: bRect!.y + 44 }
-  await dragMouse(page, aGrab!, dropPoint, { steps: 25, pauseAtEnd: 50 })
-  await page.waitForTimeout(150)
-  const aStill = await page.$(`[data-node-id="${a}"]`)
-  expect(aStill).toBeNull()
+  await dragCanvasFrom(page, `[data-node-id="${a}"] [data-node-drag-spacer]`, aGrab!, dropPoint, 25)
+  await expect.poll(() => page.$(`[data-node-id="${a}"]`)).toBeNull()
+  await expect.poll(() => page.locator(`[data-node-id="${b}"] .dock-tab-bar`).count()).toBeGreaterThanOrEqual(2)
 })
 
 test('drop on target body centre (safe zone) does not commit', async () => {
@@ -94,7 +93,7 @@ test('drop on target body centre (safe zone) does not commit', async () => {
   const bRect = await getNodeRect(page, b)
   // Mid-body — outside the 12% edge strips AND below the tab-bar.
   const dropPoint = { x: bRect!.x + bRect!.width / 2, y: bRect!.y + bRect!.height / 2 }
-  await dragMouse(page, aGrab!, dropPoint, { steps: 25, pauseAtEnd: 50 })
+  await dragCanvasFrom(page, `[data-node-id="${a}"] [data-node-drag-spacer]`, aGrab!, dropPoint, 25)
   await page.waitForTimeout(150)
   // Source node should STILL exist (it repositioned, not docked).
   const aStill = await page.$(`[data-node-id="${a}"]`)

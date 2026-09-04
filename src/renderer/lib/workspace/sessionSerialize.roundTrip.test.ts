@@ -22,6 +22,8 @@ import type {
   PanelState,
   DetachedDockWindowSnapshot,
   CanvasSnapshot,
+  ProjectWorkspaceFile,
+  ProjectSessionFile,
 } from '../../../shared/types'
 
 const ROOT = '/Users/dev/my-repo'
@@ -138,6 +140,50 @@ describe('workspace.json + session.json round-trip', () => {
     ])
   })
 
+  it('restores a version-1 snapshot written before optional panel metadata', () => {
+    const legacyWorkspace = throughDisk({
+      version: 1,
+      name: 'Legacy Repo',
+      color: '#224466',
+      panels: {
+        'canvas-legacy': { type: 'canvas', title: 'Canvas' },
+        'editor-legacy': { type: 'editor', title: 'README.md', filePath: 'README.md' },
+      },
+      canvases: {
+        'canvas-legacy': {
+          id: 'canvas-legacy',
+          canvasNodes: {
+            'node-legacy': {
+              id: 'node-legacy',
+              dockLayout: {
+                type: 'tabs',
+                id: 'legacy-stack',
+                panelIds: ['editor-legacy'],
+                activeIndex: 0,
+              },
+              origin: { x: 24, y: 32 },
+              size: { width: 480, height: 320 },
+              zOrder: 0,
+              creationIndex: 0,
+            },
+          },
+          zoomLevel: 1,
+          viewportOffset: { x: 0, y: 0 },
+        },
+      },
+    } as ProjectWorkspaceFile)
+    const legacySession = throughDisk({ version: 1, panels: {} } as ProjectSessionFile)
+    const restored = projectFilesToSnapshot(legacyWorkspace, legacySession, ROOT)
+
+    expect(restored.workspaceName).toBe('Legacy Repo')
+    expect(restored.panels!['editor-legacy'].filePath).toBe(`${ROOT}/README.md`)
+    expect(restored.canvases!['canvas-legacy'].canvasNodes['node-legacy']).toBeDefined()
+    expect(restored.panels!['editor-legacy'].starred).toBeUndefined()
+    expect(restored.panels!['editor-legacy'].tags).toBeUndefined()
+    expect(restored.panels!['editor-legacy'].accentColor).toBeUndefined()
+    expect(restored.panels!['editor-legacy'].stashed).toBeUndefined()
+  })
+
   it('keeps machine-local facts OUT of the committed workspace.json', () => {
     const { snapshot } = buildSnapshot()
 
@@ -223,6 +269,7 @@ describe('workspace.json + session.json round-trip', () => {
       prompt: 'Implement the parser',
       createdAt: 123,
       worktreeId: 'wt-1',
+      taskId: 'task-1',
       followUps: [{ prompt: 'Add the edge-case test', sentAt: 456 }],
       lastToolCall: { name: 'Edit', detail: '/repo/src/app.ts', observedAt: 789 },
       filesTouched: [
@@ -248,6 +295,7 @@ describe('workspace.json + session.json round-trip', () => {
     expect(restored.panels!['term-1'].codingAgentRun).toEqual(codingAgentRun)
     expect(restored.panels!['term-1'].codingAgentLaunch).toBeUndefined()
     expect(restored.panels!['term-1'].codingAgentRun?.filesTouched).toHaveLength(2)
+    expect(restored.panels!['term-1'].codingAgentRun?.taskId).toBe('task-1')
     expect(JSON.stringify(wsFile)).not.toContain('Implement the parser')
   })
 

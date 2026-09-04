@@ -1,6 +1,6 @@
 # Arquitetura — Modelo de Processos, IPC, Persistência e Segurança
 
-> Documento técnico para desenvolvedores. Descreve como o Cate funciona internamente, baseado na leitura do código-fonte (não no README). Última atualização: 2026-08-27 — memória por projeto/worktree e organização documental.
+> Documento técnico para desenvolvedores. Descreve como o Cate funciona internamente, baseado na leitura do código-fonte (não no README). Última atualização: 2026-08-29 — CLI/SDK, reconexão bounded, restore serializado e diagnóstico de runtime.
 
 ## Visão geral dos processos
 
@@ -61,6 +61,7 @@ Canares declarados em `src/shared/ipc-channels.ts`. O preload expõe via `contex
 | Runtime | `RUNTIME_CONNECT/STATUS/INSTALL/DELETE` | invoke + broadcast |
 | Window panels | cross-window panel union | broadcast |
 | Agent history | `AGENT_SESSION_HISTORY_LIST/LOAD` | invoke |
+| Agent audit | `PROJECT_AGENT_AUDIT_LOAD/SAVE` | invoke |
 
 ### Handlers registrados UMA vez no boot
 
@@ -68,7 +69,10 @@ Canares declarados em `src/shared/ipc-channels.ts`. O preload expõe via `contex
 
 ### Preload bridge
 
-`src/preload/index.ts` monta um objeto grande com métodos `makeInvoker<T>(CHANNEL)` — wrappers type-safe de `ipcRenderer.invoke`. Eventos push (PTY data, runtime status) usam `ipcRenderer.on` com cleanup automático.
+`src/preload/index.ts` monta a superfície pública e usa as fábricas tipadas de
+`src/preload/ipcBridge.ts` para os wrappers de `ipcRenderer.invoke` e listeners.
+Eventos push (PTY data, runtime status) usam `ipcRenderer.on` com cleanup
+automático.
 
 **Segurança**: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true` (desativável só para dev com flag). Ver `src/main/windows/windowFactory.ts`.
 
@@ -89,6 +93,27 @@ Cada nota exige uma citação estruturada de origem; o sistema não captura nem
 compartilha scrollback de terminal implicitamente. A persistência é atômica no
 host local e usa a API de arquivos do runtime para projetos remotos.
 
+### `.cate/tasks.json` (machine-local, gitignored)
+
+Contém a lista bounded de contratos de trabalho: objetivo, restrições, pré-requisitos
+(`dependsOn`), estado, resultado validado, logs curtos e referências de artefatos.
+`projectTaskGraph.ts` deriva referências ausentes, ciclos, tarefas prontas e um
+subconjunto seguro para paralelização: no máximo uma tarefa sem worktree e uma por
+`worktreeId`. O `taskId` opcional em `CodingAgentRun` liga a missão operacional a
+esse documento sem duplicar seu estado; caminhos tocados por hooks podem virar
+referências de arquivo, mas o scrollback do terminal nunca é copiado implicitamente.
+
+### `.cate/agent-audit.json` (machine-local, gitignored)
+
+Mantém uma trilha local e bounded de proveniência para contexto, prompts e
+comandos enviados a agentes. Cada evento registra apenas metadados — ator,
+origem, painel/execução de destino, tipo, correlação, resultado e quantidade de
+caracteres — sem texto de prompt, comando, contexto selecionado ou scrollback.
+Composer global, chat direto, sidebar/orquestrador e API de terminal usam o mesmo
+contrato; a persistência passa pelo main/IPC/preload e usa escrita atômica tanto
+para raízes locais quanto remotas. A auditoria é best-effort para não transformar
+uma falha de persistência em falha do envio.
+
 ### Ciclo de gravação
 
 1. **Autosave** (`sessionAutosave.ts`): debounce ~30s + trailing. Qualquer mudança relevante marca dirty e agenda save.
@@ -99,6 +124,12 @@ host local e usa a API de arquivos do runtime para projetos remotos.
    - Guarda lastSavedProjectStates para detectar external edits;
    - `atomicWriteWithBak(sessionPath, ...)` sempre (machine-local, nunca hand-edited);
    - Para workspace.json: checa external edit → prompt reload; checa empty-overwrite (issue #220 guard) antes de escrever.
+
+Restores, reloads e hydrates são enfileirados por `workspaceId` em
+`sessionRestore.ts`. Isso inclui o teardown e a reconstrução do layout, evitando
+que duas origens de lifecycle intercalem painéis, canvases ou hints de terminal;
+um hydrate concorrente também não repete a leitura do snapshot antes de o
+primeiro terminar.
 
 ### Backup e recuperação
 
@@ -190,14 +221,25 @@ Documentados honestamente (não são bugs, são tradeoffs):
 3. **Scrollback**: serializado por terminal em session.json; limites de memória dependem da setting do usuário (padrão 1000 linhas).
 4. **Multi-canvas perf**: cada canvas tem store próprio; muitos canvases simultâneos = muitas subscrições reativas (mitigado por virtualização DOM, mas ainda é custo linear).
 5. **Daemon restart**: PTYs morrem com o daemon. Reconexão restaura scrollback mas não revive processos interativos (limitação fundamental de PTY-over-pipe).
-6. **Histórico cross-CLI**: a primeira versão indexa sessões observadas pelos
+6. **Canvas nesting**: um canvas dentro de outro é recusado no store; canvases
+   adicionais são painéis independentes. O benchmark de performance não trata
+   nesting como uma superfície suportada.
+7. **Histórico cross-CLI**: a primeira versão indexa sessões observadas pelos
    hooks; ela não varre retroativamente todos os diretórios globais dos CLIs.
    Transcripts remotos fora do workspace aguardam uma capacidade de leitura
    específica no runtime, em vez de ampliar silenciosamente o escopo de
    filesystem.
-7. **Broadcast global**: a primeira versão só alcança missões criadas pelo
+8. **Broadcast global**: a primeira versão só alcança missões criadas pelo
    Cate com follow-up declarado; sessões de CLI abertas manualmente em
    terminais não são alvos até existir um protocolo de estado e envio seguro.
+9. **Durabilidade e expansão remota**: tmux, containers, companion e relay não
+   são inferidos a partir do transporte SSH/WSL. Seus contratos de identidade,
+   montagem, secrets, autenticação e aprovação estão registrados em
+   [ADR 0002](adr/0002-runtime-durability-and-remote-boundaries.md). O companion
+   já tem SDK, crypto, pairing host-side, UI/QR desktop, companion web,
+   identidade IndexedDB/Web Crypto e E2E HTTP local; wrappers mobile nativos,
+   proxy TLS e validação cross-platform continuam fora da superfície de
+   produção.
 
 ## Referências rápidas
 
@@ -208,6 +250,7 @@ Documentados honestamente (não são bugs, são tradeoffs):
 | Preload bridge | `src/preload/index.ts` |
 | IPC channels | `src/shared/ipc-channels.ts` |
 | Runtime manager | `src/main/runtime/runtimeManager.ts` |
+| Runtime diagnostics | `src/renderer/ui/RuntimeLockOverlay.tsx` + `src/renderer/dialogs/RuntimeDiagnosticsDialog.tsx` |
 | Local transport | `src/main/runtime/transports/localTransport.ts` |
 | Daemon entry | `src/runtime/index.ts` |
 | Capabilities | `src/runtime/capabilities/` |

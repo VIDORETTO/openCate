@@ -29,6 +29,8 @@ export type CliPermissionKey = Extract<
   | 'cliPanelControlEnabled'
   | 'cliEditorReadEnabled'
   | 'cliEditorControlEnabled'
+  | 'cliProjectReadEnabled'
+  | 'cliProjectControlEnabled'
   | 'cliNotifyEnabled'
   | 'cliAgentReadEnabled'
   | 'cliAgentControlEnabled'
@@ -153,6 +155,33 @@ export const CLI_PERMISSIONS: CliPermissionSurface[] = [
       access: 'Control',
       code: 'notify-disabled',
       detail: '`cate notify <message>` — post a desktop notification from a terminal.',
+    },
+  },
+  {
+    label: 'Project data',
+    prefixes: ['cate.project.', 'cate.tasks.', 'cate.context.', 'cate.results.'],
+    readMethods: [
+      'cate.project.get',
+      'cate.tasks.list',
+      'cate.tasks.get',
+      'cate.context.list',
+      'cate.context.get',
+      'cate.results.list',
+      'cate.results.get',
+    ],
+    read: {
+      key: 'cliProjectReadEnabled',
+      access: 'Read',
+      code: 'project-read-disabled',
+      detail:
+        '`cate project get`, `cate task list/get`, `cate context list/get` e `cate result list/get` — ler metadados de projeto, tarefas, contexto curado e resultados validados.',
+    },
+    control: {
+      key: 'cliProjectControlEnabled',
+      access: 'Control',
+      code: 'project-control-disabled',
+      detail:
+        '`cate task create/update/delete` e `cate context create/update/delete` — alterar dados persistidos do projeto.',
     },
   },
   {

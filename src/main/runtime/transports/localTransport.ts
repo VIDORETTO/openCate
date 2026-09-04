@@ -71,6 +71,7 @@ async function discard(dir: string): Promise<void> {
 export class LocalSubprocessTransport implements RuntimeTransport {
   readonly kind = 'local'
   private child: ChildProcess | null = null
+  private stopPromise: Promise<void> | null = null
   private tarballHashPromise: Promise<string> | null = null
 
   constructor(private readonly opts: LocalSubprocessOptions) {}
@@ -218,14 +219,34 @@ export class LocalSubprocessTransport implements RuntimeTransport {
       // POSIX child.kill() (SIGTERM) already runs that handler; on Windows
       // child.kill() terminates hard and would orphan pty grandchildren, so the
       // stdin-close path is what saves us there.
-      kill: () => { void gracefulStop(child) },
+      kill: () => { void this.stopChild(child) },
     }
   }
 
   async dispose(): Promise<void> {
     const child = this.child
-    this.child = null
-    if (child) await gracefulStop(child)
+    if (child) await this.stopChild(child)
+  }
+
+  /** `RuntimeManager` calls channel.kill() and then transport.dispose(). Keep
+   * both paths on the same promise so Windows never has two shutdown races
+   * against the bundled node.exe, and do not release the install until the
+   * child's close event has actually fired. */
+  private stopChild(child: ChildProcess): Promise<void> {
+    if (this.stopPromise) return this.stopPromise
+    const stopping = gracefulStop(child)
+    this.stopPromise = stopping
+    void stopping.then(
+      () => {
+        if (this.child === child) this.child = null
+        if (this.stopPromise === stopping) this.stopPromise = null
+      },
+      () => {
+        if (this.child === child) this.child = null
+        if (this.stopPromise === stopping) this.stopPromise = null
+      },
+    )
+    return stopping
   }
 }
 
@@ -250,10 +271,12 @@ function gracefulStop(child: ChildProcess, graceMs = 1500): Promise<void> {
   if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve()
   return new Promise<void>((resolve) => {
     let settled = false
+    let forceTimer: ReturnType<typeof setTimeout> | null = null
     const done = (): void => {
       if (settled) return
       settled = true
       clearTimeout(timer)
+      if (forceTimer) clearTimeout(forceTimer)
       resolve()
     }
     child.once('close', done)
@@ -263,7 +286,11 @@ function gracefulStop(child: ChildProcess, graceMs = 1500): Promise<void> {
       // Force-kill the laggard. SIGKILL on POSIX can't be trapped/ignored; on
       // Windows the signal arg is ignored and child.kill() terminates hard.
       try { child.kill('SIGKILL') } catch { /* already gone */ }
-      done()
+      // The close event is what releases the executable and stdio handles. A
+      // final bounded fallback prevents a pathological child from wedging app
+      // shutdown forever, while normal kills still wait for close first.
+      forceTimer = setTimeout(done, graceMs)
+      if (forceTimer.unref) forceTimer.unref()
     }, graceMs)
     if (timer.unref) timer.unref()
   })

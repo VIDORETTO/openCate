@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CodingAgentRunSnapshot } from '../../../shared/codingAgentRuns'
 import type { PanelState, WindowPanelInfo } from '../../../shared/types'
+import type { ProjectTask } from '../../../shared/projectTasks'
 import { codingAgentSnapshot } from './codingAgentDriver'
 import { buildAgentTree, type AgentTree } from './agentTree'
 
@@ -10,6 +11,7 @@ export interface UseAgentTreeInput {
   localPanels: ReadonlyArray<PanelState>
   /** Owner-window reports for workers living in another window. */
   detachedPanels?: ReadonlyArray<WindowPanelInfo>
+  tasks?: ReadonlyArray<ProjectTask>
   /** Milliseconds between live local-status re-derivations. Defaults to 1s. */
   refreshIntervalMs?: number
 }
@@ -18,7 +20,7 @@ export interface UseAgentTreeInput {
  *  already cover mission add/remove; a bounded clock covers terminal lifecycle,
  *  agent hooks, activity timestamps and stalled derivation. */
 export function useAgentTree(input: UseAgentTreeInput): AgentTree {
-  const { workspaceId, localPanels, detachedPanels, refreshIntervalMs } = input
+  const { workspaceId, localPanels, detachedPanels, tasks, refreshIntervalMs } = input
   const [, setTick] = useState(0)
   // The clock intentionally re-derives snapshots even when store object
   // identities have not changed. It does not need to participate in the memo.
@@ -34,6 +36,6 @@ export function useAgentTree(input: UseAgentTreeInput): AgentTree {
       const run = panel.codingAgentRun
       return run ? codingAgentSnapshot(workspaceId, run.ownerPanelId, run.id) : null
     }).filter((snapshot): snapshot is CodingAgentRunSnapshot => snapshot !== null)
-    return buildAgentTree({ localPanels, localRuns, detachedPanels })
-  }, [workspaceId, localPanels, detachedPanels])
+    return buildAgentTree({ localPanels, localRuns, detachedPanels, tasks })
+  }, [workspaceId, localPanels, detachedPanels, tasks])
 }

@@ -1,0 +1,41 @@
+# Public companion + relay example.
+#
+# Replace the site name and document root before deployment. Keep the relay
+# process bound to 127.0.0.1 and run it with:
+#   CATE_RELAY_CORS_ORIGIN=https://companion.example.com
+#   CATE_RELAY_PORT=8787
+#
+# The CompanionClient sends the relay's short-lived per-channel bearer in
+# Authorization. Do not add a static proxy secret here unless the client and
+# invitation contract are deliberately extended to carry it.
+
+companion.example.com {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		Referrer-Policy "no-referrer"
+		X-Content-Type-Options "nosniff"
+	}
+
+	# The relay remains private on the host; Caddy terminates HTTPS and
+	# forwards health plus operations on already-issued channel IDs. Channel
+	# creation stays local to the paired desktop; relay bearer auth is checked
+	# for every forwarded channel operation.
+	@channel-create path /v1/channels
+	handle @channel-create {
+		respond "not-found" 404
+	}
+	@relay path /health /v1/channels/*
+	handle @relay {
+		reverse_proxy 127.0.0.1:8787
+	}
+
+	# Serve the versioned `npm run package:companion` output. `try_files`
+	# keeps client-side routes inside the app shell without touching /v1/channels/*.
+	handle {
+		root * /srv/cate-companion
+		try_files {path} /index.html
+		file_server
+	}
+}

@@ -1,8 +1,8 @@
 // =============================================================================
 // PerfHud — live resource overlay, mounted only under CATE_PERF=1.
 //
-// Pulls the main-process snapshot (per-process CPU/mem, subprocess spawns, IPC
-// bytes, terminal throughput) once a second and combines it with the renderer's
+// Pulls the main-process snapshot (per-process CPU/mem, subprocess spawns,
+// process-monitor work, IPC and terminal throughput) once a second and combines it with the renderer's
 // own counters (FPS, long tasks, renders/sec). Toggle with Cmd/Ctrl+Alt+P.
 //
 // Read this while you pan, zoom, and watch an agent stream — the numbers tell
@@ -137,6 +137,17 @@ export default function PerfHud(): JSX.Element | null {
             <>
               <div className="text-zinc-400 mt-1.5">subprocess spawns/s</div>
               {Object.entries(snap.spawnsPerSec).map(([k, v]) => (
+                <div key={k} className="flex justify-between text-zinc-300">
+                  <span>{k}</span><span className={v > 2 ? 'text-amber-300' : 'text-zinc-400'}>{v}</span>
+                </div>
+              ))}
+            </>
+          )}
+
+          {Object.keys(snap.monitorWorkPerSec).length > 0 && (
+            <>
+              <div className="text-zinc-400 mt-1.5">process monitor work/s</div>
+              {Object.entries(snap.monitorWorkPerSec).map(([k, v]) => (
                 <div key={k} className="flex justify-between text-zinc-300">
                   <span>{k}</span><span className={v > 2 ? 'text-amber-300' : 'text-zinc-400'}>{v}</span>
                 </div>

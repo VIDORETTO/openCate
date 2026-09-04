@@ -242,4 +242,29 @@ describe('cate CLI — real binary over a real socket', () => {
     expect(lastRequest?.method).toBe('cate.browser.readCommand')
     expect(lastRequest?.args).toEqual({ command: ['screenshot'] })
   }, 20_000)
+
+  it('8. project/task/context/result commands use the public resource methods', async () => {
+    nextResponse = { status: 200, body: { result: { id: 'ws-1', rootPath: '/repo', branch: null, worktree: null } } }
+    const project = await runCli(['project', 'get', '--json'], connectedEnv())
+    expect(project.code).toBe(0)
+    expect(JSON.parse(project.stdout)).toEqual({ id: 'ws-1', rootPath: '/repo', branch: null, worktree: null })
+    expect(lastRequest?.method).toBe('cate.project.get')
+
+    nextResponse = { status: 200, body: { result: { items: [], total: 0 } } }
+    const tasks = await runCli(['task', 'list'], connectedEnv())
+    expect(tasks.code).toBe(0)
+    expect(lastRequest?.method).toBe('cate.tasks.list')
+
+    nextResponse = { status: 200, body: { result: { id: 'task-1', objective: 'Ship', status: 'planned' } } }
+    const created = await runCli(['task', 'create', '--data', '{"objective":"Ship"}'], connectedEnv())
+    expect(created.code).toBe(0)
+    expect(lastRequest?.method).toBe('cate.tasks.create')
+    expect(lastRequest?.args).toEqual({ draft: { objective: 'Ship' } })
+
+    nextResponse = { status: 200, body: { result: { items: [], total: 0 } } }
+    const results = await runCli(['result', 'list', 'task-1', '--json'], connectedEnv())
+    expect(results.code).toBe(0)
+    expect(lastRequest?.method).toBe('cate.results.list')
+    expect(lastRequest?.args).toEqual({ taskId: 'task-1' })
+  }, 20_000)
 })

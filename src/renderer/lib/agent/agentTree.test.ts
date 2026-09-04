@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CodingAgentRunSnapshot } from '../../../shared/codingAgentRuns'
 import type { PanelState, WindowPanelInfo } from '../../../shared/types'
+import type { ProjectTask } from '../../../shared/projectTasks'
 import { buildAgentTree } from './agentTree'
 
 function snapshot(
@@ -131,5 +132,27 @@ describe('buildAgentTree', () => {
         detachedPanel: expect.objectContaining({ panelId: 'lost-worker' }),
       }],
     }])
+  })
+
+  it('joins the durable task contract for local and detached workers by task id', () => {
+    const task: ProjectTask = {
+      id: 'task-1',
+      objective: 'Validate the delivered artifact',
+      constraints: [],
+      status: 'in-progress',
+      logs: [],
+      artifacts: [{ id: 'artifact-1', kind: 'file', label: 'result', locator: 'result.txt', createdAt: 2 }],
+      createdAt: 1,
+      updatedAt: 2,
+    }
+    const tree = buildAgentTree({
+      localPanels: [panel('orchestrator', 'Orchestrator')],
+      localRuns: [snapshot({ id: 'local-run', panelId: 'local-worker', ownerPanelId: 'orchestrator', taskId: task.id })],
+      detachedPanels: [detached('remote-worker', 'remote-run', 'orchestrator', { codingAgentTaskId: task.id })],
+      tasks: [task],
+    })
+
+    expect(tree.supervisors[0].workers.map((worker) => worker.taskId)).toEqual(['local-run', 'remote-run'].map(() => task.id))
+    expect(tree.supervisors[0].workers.every((worker) => worker.task === task)).toBe(true)
   })
 })

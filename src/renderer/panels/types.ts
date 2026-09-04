@@ -4,6 +4,7 @@
 
 import type { BrowserTab } from '../../shared/types'
 import type { CodingAgentLaunch } from '../../shared/codingAgentRuns'
+import type { TerminalPersistenceMode } from '../../shared/terminalDurability'
 
 // -----------------------------------------------------------------------------
 // Base panel props
@@ -22,6 +23,7 @@ export interface PanelProps {
 export interface TerminalPanelProps extends PanelProps {
   initialInput?: string
   codingAgentLaunch?: CodingAgentLaunch
+  terminalPersistence?: TerminalPersistenceMode
 }
 
 export interface EditorPanelProps extends PanelProps {

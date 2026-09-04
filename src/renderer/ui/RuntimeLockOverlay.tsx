@@ -3,6 +3,7 @@ import { CloudWarning, CloudArrowDown, CircleNotch, PlugsConnected } from '@phos
 import { useAppStore, useSelectedWorkspace } from '../stores/appStore'
 import { workspaceRuntime } from '../lib/workspace/workspaceRuntime'
 import { RemoteConnectDialog } from '../dialogs/RemoteConnectDialog'
+import { RuntimeDiagnosticsDialog } from '../dialogs/RuntimeDiagnosticsDialog'
 import { BACKDROP, CARD_SURFACE, btn } from './Modal'
 import type { RuntimeConnection, RemoteConnectSpec } from '../../shared/types'
 import {
@@ -25,6 +26,17 @@ function connectionInitial(connection: RuntimeConnection | undefined) {
   if (connection.kind === 'wsl') {
     return { kind: 'wsl' as const, distro: connection.distro, distroPath: connection.distroPath }
   }
+  if (connection.kind === 'container') {
+    return {
+      kind: 'container' as const,
+      image: connection.image,
+      hostPath: connection.hostPath,
+      containerPath: connection.containerPath,
+      engine: connection.engine,
+      workspaceReadOnly: connection.workspaceReadOnly,
+      networkMode: connection.networkMode,
+    }
+  }
   return {
     kind: 'server' as const,
     host: connection.host,
@@ -41,9 +53,11 @@ export function RuntimeLockOverlay(): JSX.Element | null {
   const deleteRuntime = useAppStore((s) => s.deleteRuntime)
   const connectRemoteWorkspace = useAppStore((s) => s.connectRemoteWorkspace)
   const localRuntimePhase = useAppStore((s) => s.localRuntimePhase)
+  const runtimeTelemetry = useAppStore((s) => s.runtimeTelemetry ?? [])
 
   const [editing, setEditing] = useState(false)
   const [editPending, setEditPending] = useState(false)
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
 
   const wsId = workspace?.id
   const runtime = workspaceRuntime(workspace)
@@ -84,6 +98,9 @@ export function RuntimeLockOverlay(): JSX.Element | null {
 
   const connection = workspace.connection
   const label = isRemoteRuntimeConnection(connection) ? runtimeConnectionLabel(connection) : null
+  const runtimeId = isRemoteRuntimeConnection(connection) ? connection.runtimeId : 'local'
+  const transport = isRemoteRuntimeConnection(connection) ? connection.kind : 'local'
+  const telemetry = runtimeTelemetry.filter((event) => event.runtimeId === runtimeId).slice(-20)
   const isBusy = runtime.status === 'installing' || runtime.status === 'connecting'
 
   // Per-phase title + actions. The phase is whatever main's probe reported; the
@@ -107,6 +124,14 @@ export function RuntimeLockOverlay(): JSX.Element | null {
           del: true,
         }
       case 'missing':
+        if (transport === 'container') {
+          return {
+            icon: 'warn' as const,
+            title: 'Container runtime unavailable',
+            primary: { label: 'Retry', onClick: onRetry, icon: 'plug' as const },
+            edit: true,
+          }
+        }
         return {
           icon: 'install' as const,
           title: 'Runtime not installed',
@@ -171,6 +196,9 @@ export function RuntimeLockOverlay(): JSX.Element | null {
                   Delete
                 </button>
               )}
+              <button className={btn.secondary} onClick={() => setDiagnosticsOpen(true)}>
+                Diagnostics
+              </button>
             </div>
           )}
         </div>
@@ -183,6 +211,17 @@ export function RuntimeLockOverlay(): JSX.Element | null {
           onClose={() => setEditing(false)}
           pending={editPending}
           error={editPending ? null : runtime.error}
+        />
+      )}
+      {diagnosticsOpen && (
+        <RuntimeDiagnosticsDialog
+          runtimeId={runtimeId}
+          transport={transport}
+          label={label}
+          status={runtime.status}
+          error={runtime.error}
+          events={telemetry}
+          onClose={() => setDiagnosticsOpen(false)}
         />
       )}
     </>

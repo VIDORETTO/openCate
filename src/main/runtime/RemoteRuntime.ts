@@ -175,8 +175,15 @@ export class RemoteRuntime implements Runtime {
         }
       },
       stop: (id) => {
-        void this.rpc.call(Methods.serverStop, [id]).catch(() => {})
-        this.rpc.unregisterStream(id)
+        // Keep the stream registered until the daemon reports the child exit.
+        // `server.stop` is asynchronous at the host: unregistering here would
+        // discard the lifecycle callback before the SIGTERM/SIGKILL path can
+        // deliver it, leaving ExtensionServerManager with stale ownership.
+        void this.rpc.call(Methods.serverStop, [id]).catch(() => {
+          // If the RPC itself fails (for example, the daemon already dropped),
+          // no exit event can arrive through this stream.
+          this.rpc.unregisterStream(id)
+        })
       },
     }
 
@@ -347,6 +354,8 @@ export class RemoteRuntime implements Runtime {
       worktreePrune: (repoCwd, access) => call<{ output: string }>(Methods.vcsWorktreePrune, [repoCwd, scoped(access)]),
       worktreeStatus: (worktreePath, access) => call<WorktreeStatusResult | null>(Methods.vcsWorktreeStatus, [worktreePath, scoped(access)]),
       worktreeReview: (worktreePath, base, access) => call<WorktreeReviewResult>(Methods.vcsWorktreeReview, [worktreePath, base, scoped(access)]),
+      worktreeApplySelection: (repoCwd, sourceBranch, baseBranch, hunkIds, access) =>
+        call<MergeResult>(Methods.vcsWorktreeApplySelection, [repoCwd, sourceBranch, baseBranch, hunkIds, scoped(access)]),
       worktreeMergeTo: (repoCwd, from, to, access) => call<MergeResult>(Methods.vcsWorktreeMergeTo, [repoCwd, from, to, scoped(access)]),
       worktreeUpdateFrom: (worktreePath, from, access) => call<MergeResult>(Methods.vcsWorktreeUpdateFrom, [worktreePath, from, scoped(access)]),
       createPr: (worktreePath, branch, access) => longCall<CreatePrResult>(Methods.vcsCreatePr, [worktreePath, branch, scoped(access)]),

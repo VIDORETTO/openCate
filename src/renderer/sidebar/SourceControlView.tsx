@@ -251,7 +251,7 @@ const BranchPicker: React.FC<{
       await window.electronAPI.gitCheckout(rootPath, branchName, workspaceIdForRoot(rootPath))
       setIsOpen(false)
       onSwitch()
-    } catch (err: any) {
+    } catch (err) {
       setError(errorMessage(err, 'Checkout failed'))
     }
   }, [rootPath, onSwitch])
@@ -263,7 +263,7 @@ const BranchPicker: React.FC<{
       await window.electronAPI.gitBranchCreate(rootPath, newBranchName.trim(), undefined, workspaceIdForRoot(rootPath))
       setIsOpen(false)
       onSwitch()
-    } catch (err: any) {
+    } catch (err) {
       setError(errorMessage(err, 'Create failed'))
     }
   }, [rootPath, newBranchName, onSwitch])
@@ -275,7 +275,7 @@ const BranchPicker: React.FC<{
     try {
       await window.electronAPI.gitBranchDelete(rootPath, name, undefined, workspaceIdForRoot(rootPath))
       loadBranches()
-    } catch (err: any) {
+    } catch (err) {
       setError(errorMessage(err, 'Delete failed'))
     }
   }, [rootPath, currentBranch, loadBranches])
@@ -497,7 +497,7 @@ const RepoSourceControl: React.FC<RepoSourceControlProps> = ({ rootPath, nested 
     try {
       await window.electronAPI.gitDiscardFile(rootPath, filePath, workspaceIdForRoot(rootPath))
       refresh()
-    } catch (err: any) {
+    } catch (err) {
       setActionError(errorMessage(err, 'Discard failed'))
     }
   }, [rootPath, refresh])
@@ -524,7 +524,7 @@ const RepoSourceControl: React.FC<RepoSourceControlProps> = ({ rootPath, nested 
       await window.electronAPI.gitCommit(rootPath, commitMessage.trim(), workspaceIdForRoot(rootPath))
       setCommitMessage('')
       refresh()
-    } catch (err: any) {
+    } catch (err) {
       setActionError(errorMessage(err, 'Commit failed'))
     } finally {
       setCommitting(false)
@@ -538,7 +538,7 @@ const RepoSourceControl: React.FC<RepoSourceControlProps> = ({ rootPath, nested 
     try {
       await window.electronAPI.gitPush(rootPath, undefined, undefined, workspaceIdForRoot(rootPath))
       refresh()
-    } catch (err: any) {
+    } catch (err) {
       setActionError(errorMessage(err, 'Push failed'))
     } finally {
       setPushing(false)
@@ -552,7 +552,7 @@ const RepoSourceControl: React.FC<RepoSourceControlProps> = ({ rootPath, nested 
     try {
       await window.electronAPI.gitPull(rootPath, undefined, undefined, workspaceIdForRoot(rootPath))
       refresh()
-    } catch (err: any) {
+    } catch (err) {
       setActionError(errorMessage(err, 'Pull failed'))
     } finally {
       setPulling(false)
@@ -566,7 +566,7 @@ const RepoSourceControl: React.FC<RepoSourceControlProps> = ({ rootPath, nested 
     try {
       await window.electronAPI.gitFetch(rootPath, undefined, workspaceIdForRoot(rootPath))
       refresh()
-    } catch (err: any) {
+    } catch (err) {
       setActionError(errorMessage(err, 'Fetch failed'))
     } finally {
       setFetching(false)
@@ -578,7 +578,7 @@ const RepoSourceControl: React.FC<RepoSourceControlProps> = ({ rootPath, nested 
     try {
       await window.electronAPI.gitStash(rootPath, undefined, workspaceIdForRoot(rootPath))
       refresh()
-    } catch (err: any) {
+    } catch (err) {
       setActionError(errorMessage(err, 'Stash failed'))
     }
   }, [rootPath, refresh])
@@ -588,7 +588,7 @@ const RepoSourceControl: React.FC<RepoSourceControlProps> = ({ rootPath, nested 
     try {
       await window.electronAPI.gitStashPop(rootPath, workspaceIdForRoot(rootPath))
       refresh()
-    } catch (err: any) {
+    } catch (err) {
       setActionError(errorMessage(err, 'Stash pop failed'))
     }
   }, [rootPath, refresh])

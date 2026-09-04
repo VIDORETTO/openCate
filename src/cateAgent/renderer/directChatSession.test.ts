@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Chat } from '../../shared/types'
 import { useCodingStore } from './codingStore'
+import { useAgentAuditStore } from '../../renderer/stores/agentAuditStore'
 import {
   directAgentKey,
   disposeDirectChatSession,
@@ -18,6 +19,7 @@ const chat: Chat = {
 beforeEach(() => {
   vi.clearAllMocks()
   useCodingStore.setState({ panels: {} })
+  useAgentAuditStore.setState({ eventsByRoot: {}, loadedRoots: {}, revisions: {} })
   ;(globalThis as unknown as { window: unknown }).window = {
     electronAPI: {
       agentCreate: vi.fn(async () => ({ ok: true })),
@@ -53,6 +55,25 @@ describe('promptDirectChat', () => {
       '/canvas inspect',
       undefined,
     )
+  })
+
+  it('records the direct-chat actor and target without storing message content', async () => {
+    await promptDirectChat(chat, 'workspace-1', '/repo', 'Inspect this canvas')
+
+    await vi.waitFor(() => {
+      expect(useAgentAuditStore.getState().getEvents('/repo')).toEqual([
+        expect.objectContaining({
+          kind: 'prompt',
+          outcome: 'sent',
+          actorKind: 'human',
+          actorId: 'local-user',
+          origin: 'direct-chat',
+          targetPanelId: directAgentKey(chat.id),
+          contentChars: 'Inspect this canvas'.length,
+        }),
+      ])
+    })
+    expect(useAgentAuditStore.getState().getEvents('/repo')[0]).not.toHaveProperty('content')
   })
 
   it('revalidates an existing renderer session before sending', async () => {

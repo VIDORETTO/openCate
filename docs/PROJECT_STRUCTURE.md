@@ -21,9 +21,12 @@
 ## Arquivos de entrada importantes
 
 - `src/main/index.ts` — bootstrap do processo principal e registro dos handlers.
-- `src/preload/index.ts` — superfície pública do bridge.
+- `src/preload/index.ts` — agregador da superfície pública do bridge.
+- `src/preload/ipcBridge.ts` — fábricas tipadas para listeners e invocadores IPC.
 - `src/renderer/App.tsx` — composição principal do renderer.
-- `src/shared/types.ts` — tipos de estado e contratos transversais existentes.
+- `src/shared/types.ts` — tipos de estado transversais e reexports de contratos.
+- `src/shared/codingTypes.ts` — contratos de agentes, modelos, autenticação e OAuth.
+- `src/shared/perfTypes.ts` — contratos do profiler compartilhado entre main/renderer.
 - `src/shared/ipc-channels.ts` — nomes canônicos dos canais IPC.
 - `src/runtime/index.ts` — entrada do daemon independente.
 - `package.json` — scripts e dependências.
@@ -33,6 +36,11 @@
 - `<projeto>/.cate/workspace.json` — layout compartilhável do workspace.
 - `<projeto>/.cate/session.json` — estado local da máquina, sessões e preferências de painéis.
 - `<projeto>/.cate/memory.json` — notas curadas por projeto/worktree, com citações explícitas.
+- `<projeto>/.cate/tasks.json` — contratos de tarefa bounded, com objetivo,
+  restrições, dependências explícitas, resultado validado, logs explícitos e
+  referências de artefatos.
+- `<projeto>/.cate/agent-audit.json` — trilha local bounded de autoria e destino
+  de contexto, prompts e comandos, somente com metadados e sem conteúdo enviado.
 - `dist/`, `dist-runtime/`, `release/` e `build/` — saídas de build/empacotamento.
 - `test-results/`, `cate-daemon-build-*`, `cate-daemon-ws-*` e `cate-exte2e-*` — resíduos ou saídas temporárias de testes.
 - `tasks/todo.md` e `tasks/lessons.md` — controle de continuidade do produto, versionado junto ao código.
@@ -49,3 +57,13 @@ validar que nenhum processo ainda os mantém abertos.
 4. Coloque testes unitários junto ao módulo e adicione teste de conformance quando houver IPC.
 5. Evite arquivos genéricos como `utils.ts`; dê ao helper um nome que expresse seu domínio.
 6. Não divida arquivos grandes apenas por estética: primeiro identifique uma fronteira de responsabilidade e cubra-a com teste.
+
+## Fatias de responsabilidade já extraídas
+
+- `src/renderer/sidebar/WorkspaceTab.tsx` — composição, estado e menus da
+  workspace; `WorkspaceTabRows.tsx` concentra linhas/renomeação e
+  `WorkspaceTabMissions.tsx` concentra apresentação e regras de disponibilidade
+  das missões.
+- `src/preload/index.ts` — mantém o agregador e a superfície `electronAPI`;
+  `ipcBridge.ts` contém as fábricas reutilizáveis, deixando o contrato público
+  em um único ponto.

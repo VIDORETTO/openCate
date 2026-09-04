@@ -369,6 +369,21 @@ describe('undockPanel', () => {
     expectTreeInvariants(store.getState().zones)
   })
 
+  it('keeps the active tab selected when a preceding tab is removed', () => {
+    const store = createDockStore()
+    store.getState().dockPanel('a', 'bottom')
+    store.getState().dockPanel('b', 'bottom')
+    store.getState().dockPanel('c', 'bottom')
+    const stack = rootStack(store, 'bottom')
+    store.getState().setActiveTab(stack.id, 1)
+
+    store.getState().undockPanel('a')
+
+    const updated = rootStack(store, 'bottom')
+    expect(updated.panelIds).toEqual(['b', 'c'])
+    expect(updated.activeIndex).toBe(0)
+  })
+
   it('is a no-op for a panel that is not docked anywhere', () => {
     const store = createDockStore()
     store.getState().dockPanel('a', 'bottom')
@@ -452,6 +467,21 @@ describe('moveTab', () => {
     expect(rootStack(store, 'bottom').panelIds).toEqual(['b', 'c', 'a'])
     expectTreeInvariants(store.getState().zones)
   })
+
+  it('keeps the source active tab selected when an earlier tab moves away', () => {
+    const store = createDockStore()
+    store.getState().dockPanel('a', 'bottom')
+    store.getState().dockPanel('b', 'bottom')
+    store.getState().dockPanel('target', 'left')
+    const from = rootStack(store, 'bottom')
+    const to = rootStack(store, 'left')
+    store.getState().setActiveTab(from.id, 1)
+
+    store.getState().moveTab('a', from.id, to.id)
+
+    expect(rootStack(store, 'bottom').panelIds).toEqual(['b'])
+    expect(rootStack(store, 'bottom').activeIndex).toBe(0)
+  })
 })
 
 describe('setActiveTab', () => {
@@ -468,6 +498,22 @@ describe('setActiveTab', () => {
     expect(rootStack(store, 'bottom').activeIndex).toBe(0)
     store.getState().setActiveTab(stack.id, -1)
     expect(rootStack(store, 'bottom').activeIndex).toBe(0)
+  })
+})
+
+describe('background tab insertion', () => {
+  it('keeps the active tab selected when inserting before it without activation', () => {
+    const store = createDockStore()
+    store.getState().dockPanel('a', 'bottom')
+    store.getState().dockPanel('b', 'bottom')
+    const stack = rootStack(store, 'bottom')
+    store.getState().setActiveTab(stack.id, 1)
+
+    store.getState().dockPanel('background', 'bottom', { type: 'tab', stackId: stack.id, index: 0 }, false)
+
+    const updated = rootStack(store, 'bottom')
+    expect(updated.panelIds).toEqual(['background', 'a', 'b'])
+    expect(updated.activeIndex).toBe(2)
   })
 })
 
@@ -647,27 +693,20 @@ describe('cross-zone moves', () => {
   })
 })
 
-// Each test below asserts the DESIRED behavior and is marked `.fails` because
-// the current implementation silently loses or corrupts state instead. When the
-// underlying hole is fixed, the test starts passing and vitest flags it —
-// remove the `.fails` marker then.
-describe('known holes (documented as expected failures)', () => {
-  it.fails('dockPanel into a different zone must not duplicate the panel across zones', () => {
+// Regression coverage for stale targets and cross-zone docking operations.
+describe('degenerate cross-zone operations', () => {
+  it('dockPanel into a different zone must not duplicate the panel across zones', () => {
     const store = createDockStore()
     store.getState().dockPanel('a', 'left')
 
-    // The duplicate guard in dockPanel only cleans the TARGET zone's tree.
-    // Docking a panel that lives in another zone leaves it in both. Today the
-    // drag commit always undocks first, but any caller that skips that (or a
-    // refactor that reorders it) corrupts the layout silently.
     store.getState().dockPanel('a', 'bottom')
 
-    expectTreeInvariants(store.getState().zones) // 'a' appears twice today
+    expectTreeInvariants(store.getState().zones)
     expect(store.getState().getPanelLocation('a')).toMatchObject({ zone: 'bottom' })
     expect(collectStacks(zoneLayout(store, 'left')).some((s) => s.panelIds.includes('a'))).toBe(false)
   })
 
-  it.fails('a split target whose stack is gone falls back to zone append instead of dropping the panel', () => {
+  it('a split target whose stack is gone falls back to zone append instead of dropping the panel', () => {
     const store = createDockStore()
     store.getState().dockPanel('a', 'bottom')
 
@@ -678,7 +717,7 @@ describe('known holes (documented as expected failures)', () => {
     expect(store.getState().getPanelLocation('b')).toBeDefined()
   })
 
-  it.fails('moveTab to a stack that no longer exists does not lose the panel', () => {
+  it('moveTab to a stack that no longer exists does not lose the panel', () => {
     const store = createDockStore()
     store.getState().dockPanel('a', 'bottom')
     store.getState().dockPanel('b', 'bottom')
@@ -689,7 +728,7 @@ describe('known holes (documented as expected failures)', () => {
     expect(store.getState().getPanelLocation('a')).toBeDefined()
   })
 
-  it.fails('a tab insert index beyond the stack length keeps activeIndex in range', () => {
+  it('a tab insert index beyond the stack length keeps activeIndex in range', () => {
     const store = createDockStore()
     store.getState().dockPanel('a', 'bottom')
     const stack = rootStack(store, 'bottom')

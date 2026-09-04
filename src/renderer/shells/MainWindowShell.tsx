@@ -146,7 +146,7 @@ export default function MainWindowShell({
       const sign = position === 'left' ? 1 : -1
       setZoneSize(position, zone.size + delta * sign)
     },
-    [setZoneSize],
+    [dockStoreApi, setZoneSize],
   )
 
   // Edge drop indicators — shown when the matching side dock zone is hidden.

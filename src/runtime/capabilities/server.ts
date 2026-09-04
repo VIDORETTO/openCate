@@ -91,6 +91,31 @@ export interface ServerCapability extends ServerHost {
 const READY_PROBE_INTERVAL_MS = 150
 const OUTPUT_TAIL_LIMIT = 8192
 
+// Server-backed extensions are third-party code. They need normal process
+// plumbing (PATH, temp directories, locale, and the Windows launcher vars),
+// but they must not inherit arbitrary secrets from the daemon's environment
+// such as API keys, proxy credentials, NODE_OPTIONS, or SSH agent handles.
+// Extension-specific values (CATE_TOKEN, WORKSPACE_ROOT, CATE_API, HOST, and
+// the selected port) are supplied explicitly through ServerStartOptions.env.
+const SAFE_SERVER_ENV_KEYS = new Set([
+  'PATH', 'PATHEXT', 'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'OS',
+  'HOME', 'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH', 'TMP', 'TEMP', 'TMPDIR',
+  'LANG', 'TERM', 'COLORTERM', 'TZ', 'USER', 'LOGNAME',
+  'PROCESSOR_ARCHITECTURE', 'PROCESSOR_ARCHITEW6432', 'NUMBER_OF_PROCESSORS',
+  'PROGRAMFILES', 'PROGRAMFILES(X86)', 'PROGRAMW6432', 'APPDATA', 'LOCALAPPDATA',
+  'XDG_RUNTIME_DIR',
+])
+
+/** Keep only non-secret OS/runtime plumbing for an extension child process. */
+export function sanitizeServerEnv(input: NodeJS.ProcessEnv): Record<string, string> {
+  const output: Record<string, string> = {}
+  for (const [key, value] of Object.entries(input)) {
+    if (value === undefined || !SAFE_SERVER_ENV_KEYS.has(key.toUpperCase())) continue
+    output[key] = value
+  }
+  return output
+}
+
 /** Allocate a free TCP port on 127.0.0.1 by binding an ephemeral listener, then
  *  closing it and returning the port the OS chose. There is a small TOCTOU
  *  window between close and the child re-binding — another process could grab
@@ -136,7 +161,7 @@ export function createServerCapability(deps: ServerDeps = {}): ServerCapability 
 
       const child = spawn(opts.command[0], opts.command.slice(1), {
         cwd: opts.cwd,
-        env: { ...baseEnv(), ...opts.env, [opts.portEnv]: String(port) } as NodeJS.ProcessEnv,
+        env: { ...sanitizeServerEnv(baseEnv()), ...opts.env, [opts.portEnv]: String(port) } as NodeJS.ProcessEnv,
         stdio: ['ignore', 'pipe', 'pipe'],
       })
       children.set(opts.id, child)

@@ -38,6 +38,8 @@ import { isWorktreePanelType, PANEL_DEFINITIONS } from '../../shared/panels'
 import { captureRendererException } from '../lib/sentry'
 import { useCateAgentStore } from '../../cateAgent/renderer/cateAgentStore'
 import { useChatsStore } from '../stores/chatsStore'
+import { rememberPanelSize } from '../lib/panelSizePreferences'
+import type { PanelSizeContext } from '../../shared/panels'
 
 // Node ids already reported for missing geometry, so a bad node that keeps
 // re-rendering warns/reports once instead of spamming.
@@ -183,6 +185,7 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
       )
     },
   )
+  const animationState = node?.animationState
   const focusNode = useCanvasStoreContext((s) => s.focusNode)
   const removeNode = useCanvasStoreContext((s) => s.removeNode)
   const toggleMaximize = useCanvasStoreContext((s) => s.toggleMaximize)
@@ -224,7 +227,12 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
 
   const maximized = node ? checkMaximized(node) : false
 
-  const { handleResizeStart } = useNodeResize(nodeId, primaryPanelType, canvasApi)
+  const resizePreferenceRef = useRef<{ type: PanelType; context: PanelSizeContext } | null>(null)
+  const handleResizeEnd = useCallback((size: { width: number; height: number }) => {
+    const preference = resizePreferenceRef.current
+    if (preference) rememberPanelSize(preference.type, size, preference.context)
+  }, [])
+  const { handleResizeStart } = useNodeResize(nodeId, primaryPanelType, canvasApi, handleResizeEnd)
   // Under the Hand tool, edge presses pan instead of resizing.
   const handleResizeStartGuarded = useCallback(
     (e: React.MouseEvent, edge: Parameters<typeof handleResizeStart>[1]) => {
@@ -244,9 +252,9 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
   // --- Animation lifecycle ---------------------------------------------------
 
   useEffect(() => {
-    if (!node) return
+    if (!animationState) return
 
-    if (node.animationState === 'entering') {
+    if (animationState === 'entering') {
       let innerRaf = 0
       const outerRaf = requestAnimationFrame(() => {
         innerRaf = requestAnimationFrame(() => {
@@ -259,7 +267,7 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
       }
     }
 
-    if (node.animationState === 'exiting') {
+    if (animationState === 'exiting') {
       // Under e2e the window is hidden (throttled compositor) and animations are
       // disabled — finalize removal immediately so "node is gone" assertions
       // don't race the 200ms exit delay.
@@ -270,7 +278,7 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
       animationTimerRef.current = timer
       return () => clearTimeout(timer)
     }
-  }, [node?.animationState, nodeId])
+  }, [animationState, nodeId, canvasApi])
 
   // --- Dock layout renderer --------------------------------------------------
 
@@ -378,7 +386,7 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
 
   const handleTogglePin = useCallback(() => {
     canvasApi.getState().togglePin(nodeId)
-  }, [nodeId])
+  }, [canvasApi, nodeId])
 
   const handleStashActivePanel = useCallback(() => {
     const panelId = activeLeafPanelId(dockStoreApi.getState().zones.center.layout)
@@ -423,6 +431,17 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
     : undefined
   const activeWorktreeId = activeWorktree?.id ?? null
   const worktreeColor = activeWorktree?.color ?? null
+  const resizeWorktreeId = worktrees.some((worktree) => worktree.id === explicitWorktreeId)
+    ? explicitWorktreeId
+    : activeWorktreeId ?? undefined
+  resizePreferenceRef.current = {
+    type: activePanel?.type ?? primaryPanelType,
+    context: {
+      workspaceId: wsId || undefined,
+      worktreeId: resizeWorktreeId,
+      agentId: activePanel?.codingAgentRun?.agentId ?? activePanel?.codingAgentLaunch?.agentId,
+    },
+  }
   const hoveredWorktreeId = useUIStore((s) => s.hoveredWorktreeId)
   const focusedWorktreeId = useUIStore((s) => s.focusedWorktreeId)
   const worktreeHighlight =
@@ -589,7 +608,7 @@ const CanvasNode: React.FC<CanvasNodeProps> = ({
         focusThisNode()
       }
     },
-    [isFocused, focusThisNode, nodeId, wasDragged],
+    [isFocused, focusThisNode, nodeId, wasDragged, canvasApi],
   )
 
   // Grab strip: double-click toggles maximize, drag moves node

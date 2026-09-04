@@ -194,6 +194,36 @@ describe('agent orchestration surface', () => {
     })
   })
 
+  it('maps project, task, context and result commands to the public resource API', () => {
+    expect(buildRequest(['project', 'get'], flags)).toEqual({
+      method: 'cate.project.get', args: {},
+    })
+    expect(buildRequest(['task', 'create', 'Ship', 'it'], flags)).toEqual({
+      method: 'cate.tasks.create',
+      args: { draft: { objective: 'Ship it', constraints: [], status: 'planned', logs: [], artifacts: [] } },
+    })
+    const taskUpdate = parseCli(['task', 'update', 'task-1', '--data', '{"status":"completed"}'])
+    expect(buildRequest(taskUpdate.positionals, taskUpdate.flags)).toEqual({
+      method: 'cate.tasks.update',
+      args: { taskId: 'task-1', patch: { status: 'completed' } },
+    })
+    expect(buildRequest(['context', 'create', 'Decision', 'Keep', 'it', 'curated'], flags)).toEqual({
+      method: 'cate.context.create',
+      args: {
+        draft: {
+          scope: { kind: 'project' },
+          title: 'Decision',
+          content: 'Keep it curated',
+          citations: [{ kind: 'manual', label: 'cate CLI', locator: 'cate-cli' }],
+        },
+      },
+    })
+    expect(buildRequest(['result', 'list', 'task-1'], flags)).toEqual({
+      method: 'cate.results.list', args: { taskId: 'task-1' },
+    })
+    expect(() => buildRequest(['task', 'update', 'task-1'], flags)).toThrow(/requires --data/)
+  })
+
   it('parses an explicit launch profile as a create-only option', () => {
     const parsed = parseCli(['agent', 'create', 'Ship it', '--profile', 'safe.review'])
     expect(buildRequest(parsed.positionals, parsed.flags)).toEqual({
@@ -352,6 +382,10 @@ describe('output and run loop', () => {
     expect(formatHuman('cate.codingAgent.list', [
       { id: 'abcdefgh-more', status: 'working', title: 'Tests' },
     ])).toBe('abcdefgh\tworking\tTests')
+    expect(formatHuman('cate.tasks.list', {
+      items: [{ id: 'abcdefgh-more', status: 'completed', objective: 'Ship it' }],
+      total: 1,
+    })).toBe('abcdefgh\tcompleted\tShip it')
   })
 
   function runDeps(body: unknown = { result: null }): RunDeps & { out: string[]; err: string[] } {

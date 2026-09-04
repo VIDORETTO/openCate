@@ -14,7 +14,7 @@
 // `registry.ts`. The PanelType union in `./types.ts` keeps everyone honest.
 // =============================================================================
 
-import type { PanelType, Size } from './types'
+import type { AppSettings, PanelType, PanelSizePreferences, Size } from './types'
 
 // -----------------------------------------------------------------------------
 // Definition shape
@@ -245,7 +245,64 @@ export const SPLIT_MENU_PANEL_TYPES: readonly PanelType[] = (
 // Default panel size resolution
 // -----------------------------------------------------------------------------
 
-/** The fixed default size for a panel type. Panel size is no longer user-configurable. */
-export function resolvePanelSize(type: PanelType, _settings?: unknown): Size {
-  return PANEL_DEFINITIONS[type].defaultSize
+export interface PanelSizeContext {
+  workspaceId?: string
+  worktreeId?: string
+  agentId?: string
+}
+
+export type PanelSizeSettings = Pick<AppSettings, 'panelSizePreferences'>
+
+/** Stable, human-readable keys used in the settings JSON. IDs are encoded so
+ * workspace labels/remote identifiers cannot collide with the separators. */
+export function panelSizePreferenceKey(
+  scope: 'type' | 'workspace' | 'worktree' | 'agent',
+  type: PanelType,
+  id?: string,
+): string {
+  return scope === 'type'
+    ? `type:${type}`
+    : `${scope}:${encodeURIComponent(id ?? '')}:${type}`
+}
+
+const MAX_PREFERRED_PANEL_DIMENSION = 10_000
+
+/** Validate and normalize a user-resized size before it enters settings. */
+export function sanitizePanelSizePreference(type: PanelType, size: Size | undefined): Size | null {
+  if (!size) return null
+  const minimum = PANEL_DEFINITIONS[type].minimumSize
+  if (!Number.isFinite(size.width) || !Number.isFinite(size.height)) return null
+  if (size.width < minimum.width || size.height < minimum.height) return null
+  if (size.width > MAX_PREFERRED_PANEL_DIMENSION || size.height > MAX_PREFERRED_PANEL_DIMENSION) return null
+  return {
+    width: Math.round(size.width),
+    height: Math.round(size.height),
+  }
+}
+
+function preferenceCandidates(type: PanelType, context?: PanelSizeContext): string[] {
+  const candidates: string[] = []
+  // The most specific scope wins. The type fallback guarantees that a corrupt
+  // or incomplete settings file still opens a usable panel.
+  if (context?.agentId) candidates.push(panelSizePreferenceKey('agent', type, context.agentId))
+  if (context?.worktreeId) candidates.push(panelSizePreferenceKey('worktree', type, context.worktreeId))
+  if (context?.workspaceId) candidates.push(panelSizePreferenceKey('workspace', type, context.workspaceId))
+  candidates.push(panelSizePreferenceKey('type', type))
+  return candidates
+}
+
+/** Resolve a panel's preferred canvas size with specific-to-general fallback:
+ * agent, worktree, workspace, then panel type. */
+export function resolvePanelSize(
+  type: PanelType,
+  settings?: PanelSizeSettings,
+  context?: PanelSizeContext,
+): Size {
+  const definition = PANEL_DEFINITIONS[type]
+  const preferences: PanelSizePreferences | undefined = settings?.panelSizePreferences
+  for (const key of preferenceCandidates(type, context)) {
+    const preferred = sanitizePanelSizePreference(type, preferences?.[key])
+    if (preferred) return preferred
+  }
+  return { ...definition.defaultSize }
 }

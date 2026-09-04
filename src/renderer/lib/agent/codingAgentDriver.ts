@@ -1,6 +1,7 @@
 import { useAppStore } from '../../stores/appStore'
 import { useStatusStore } from '../../stores/statusStore'
 import { useSettingsStore } from '../../stores/settingsStore'
+import { useProjectTaskStore } from '../../stores/projectTaskStore'
 import { getLastTerminalActivity } from '../terminal/activityHistory'
 import { terminalRegistry } from '../terminal/terminalRegistry'
 import { terminalBufferTail } from '../terminal/terminalBuffer'
@@ -27,17 +28,24 @@ import {
 import { resolveDriverAgentCli } from './agentCliHooks'
 import {
   applyCodingAgentWorktree,
+  applyCodingAgentWorktreeSelection,
   discardCodingAgentWorktree,
   keepCodingAgentWorktree,
   reviewCodingAgentWorktree,
 } from './codingAgentIntegration'
 import type { AgentId } from '../../../shared/agents'
+import type { AgentAuditActor, AgentAuditKind } from '../../../shared/agentAudit'
+import {
+  MAX_PROJECT_TASK_CONSTRAINTS,
+  MAX_PROJECT_TASK_CONSTRAINT_CHARS,
+} from '../../../shared/projectTasks'
 import {
   actionableCodingAgentRunIds,
   changedCodingAgentRunIds,
   codingAgentWaitMs,
   compactCodingAgentSnapshot,
 } from './codingAgentWait'
+import { recordAgentAudit } from './recordAgentAudit'
 
 export type CodingAgentOutcome =
   | { ok: true; result: unknown }
@@ -45,12 +53,37 @@ export type CodingAgentOutcome =
 
 const stoppedMissionOwners = new Set<string>()
 
+const DEFAULT_AUDIT_ACTOR: AgentAuditActor = {
+  kind: 'system',
+  label: 'Mission driver',
+  origin: 'system',
+}
+
+interface CodingAgentFollowUpAudit {
+  enabled?: boolean
+  actor?: AgentAuditActor
+  kind?: Exclude<AgentAuditKind, 'context'>
+  commandName?: string
+  contentChars?: number
+  correlationId?: string
+}
+
 function missionOwnerKey(workspaceId: string, ownerPanelId: string): string {
   return `${workspaceId}\0${ownerPanelId}`
 }
 
 function workspace(workspaceId: string) {
   return useAppStore.getState().workspaces.find((candidate) => candidate.id === workspaceId)
+}
+
+function parseTaskConstraints(raw: unknown): string[] | null {
+  if (raw === undefined) return []
+  if (!Array.isArray(raw)) return null
+  return raw
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => value.trim().slice(0, MAX_PROJECT_TASK_CONSTRAINT_CHARS))
+    .filter(Boolean)
+    .slice(0, MAX_PROJECT_TASK_CONSTRAINTS)
 }
 
 function runPanel(workspaceId: string, ownerPanelId: string, runId: string) {
@@ -296,25 +329,60 @@ export async function sendCodingAgentFollowUp(
   ownerPanelId: string,
   runId: string,
   rawPrompt: string,
+  auditOptions: CodingAgentFollowUpAudit = {},
 ): Promise<CodingAgentOutcome> {
   const panel = runPanel(workspaceId, ownerPanelId, runId)
   const run = panel?.codingAgentRun
   const prompt = rawPrompt.trim()
   if (!panel || !run) return { ok: false, error: 'coding-agent-not-found' }
-  if (!prompt) return { ok: false, error: 'prompt-required' }
-  if (prompt.includes('\0')) return { ok: false, error: 'invalid-prompt' }
-  if (prompt.length > 50_000) return { ok: false, error: 'prompt-too-long' }
-  if (run.stoppedAt) return { ok: false, error: 'coding-agent-stopped' }
+  const audit = (outcome: 'sent' | 'failed', error?: string): void => {
+    if (auditOptions.enabled === false) return
+    const ws = workspace(workspaceId)
+    const actor = auditOptions.actor ?? DEFAULT_AUDIT_ACTOR
+    if (!ws?.rootPath) return
+    recordAgentAudit(ws.rootPath, {
+      kind: auditOptions.kind ?? (prompt.startsWith('/') ? 'command' : 'prompt'),
+      outcome,
+      actorKind: actor.kind,
+      ...(actor.id ? { actorId: actor.id } : {}),
+      ...(actor.label ? { actorLabel: actor.label } : {}),
+      origin: actor.origin,
+      ...(actor.sourcePanelId ? { sourcePanelId: actor.sourcePanelId } : {}),
+      targetPanelId: panel.id,
+      targetRunId: run.id,
+      ...(auditOptions.correlationId ? { correlationId: auditOptions.correlationId } : {}),
+      contentChars: auditOptions.contentChars ?? prompt.length,
+      ...(auditOptions.commandName ? { commandName: auditOptions.commandName } : {}),
+      ...(error ? { error } : {}),
+    })
+  }
+  const fail = (error: string): CodingAgentOutcome => {
+    audit('failed', error)
+    return { ok: false, error }
+  }
+  if (!prompt) return fail('prompt-required')
+  if (prompt.includes('\0')) return fail('invalid-prompt')
+  if (prompt.length > 50_000) return fail('prompt-too-long')
+  if (run.stoppedAt) return fail('coding-agent-stopped')
   if (!codingAgentSupportsFollowUp(run.agentId)) {
-    return { ok: false, error: 'coding-agent-follow-up-unsupported' }
+    return fail('coding-agent-follow-up-unsupported')
   }
   if (!(await submitTerminalText(panel.id, prompt))) {
-    return { ok: false, error: 'coding-agent-not-ready' }
+    return fail('coding-agent-not-ready')
   }
+  audit('sent')
   useAppStore.getState().setPanelCodingAgentRun(workspaceId, panel.id, {
     ...run,
     followUps: [...(run.followUps ?? []), { prompt, sentAt: Date.now() }],
   })
+  const ws = workspace(workspaceId)
+  if (ws?.rootPath && run.taskId) {
+    useProjectTaskStore.getState().appendTaskLog(ws.rootPath, run.taskId, {
+      timestamp: Date.now(),
+      level: 'info',
+      message: 'Follow-up prompt sent to the mission.',
+    })
+  }
   const snapshot = codingAgentSnapshot(workspaceId, ownerPanelId, runId)
   return { ok: true, result: snapshot ? compactCodingAgentSnapshot(snapshot) : null }
 }
@@ -324,6 +392,7 @@ export async function handleCodingAgentMethod(
   ownerPanelId: string,
   method: string,
   args: Record<string, unknown>,
+  actor: AgentAuditActor = DEFAULT_AUDIT_ACTOR,
 ): Promise<CodingAgentOutcome> {
   const name = method.slice('cate.codingAgent.'.length)
   if (!ownerPanelId) return { ok: false, error: 'mission-owner-required' }
@@ -343,6 +412,14 @@ export async function handleCodingAgentMethod(
           ...run,
           stoppedAt: Date.now(),
         })
+        const ws = workspace(workspaceId)
+        if (ws?.rootPath && run.taskId) {
+          useProjectTaskStore.getState().syncTaskWithRun(ws.rootPath, run, 'cancelled', {
+            timestamp: Date.now(),
+            level: 'warning',
+            message: 'Mission stopped by the user.',
+          })
+        }
       }
       if (terminalAlive || !run.stoppedAt) stopped++
     }
@@ -354,12 +431,14 @@ export async function handleCodingAgentMethod(
     const requestedAgentId = args.agentId === undefined ? '' : parseCodingAgentId(args.agentId)
     const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : ''
     const requestedTitle = typeof args.title === 'string' ? args.title.trim() : ''
+    const constraints = parseTaskConstraints(args.constraints)
     const commandProfile = typeof args.commandProfile === 'string' ? args.commandProfile : undefined
     const background = args.background !== false
     if (args.agentId !== undefined && !requestedAgentId) {
       return { ok: false, error: 'unsupported-agent' }
     }
     if (!prompt) return { ok: false, error: 'prompt-required' }
+    if (constraints === null) return { ok: false, error: 'constraints-must-be-an-array' }
     if (requestedTitle.length > 80) return { ok: false, error: 'title-too-long' }
     if (
       args.commandProfile !== undefined &&
@@ -467,6 +546,43 @@ export async function handleCodingAgentMethod(
 
     const runId = crypto.randomUUID()
     const title = requestedTitle || prompt.replace(/\s+/g, ' ').slice(0, 54)
+    if (!ws?.rootPath) {
+      const cleanupError = await rollbackCreatedWorktree()
+      return {
+        ok: false,
+        error: cleanupError ? `workspace-not-found; worktree-cleanup-failed: ${cleanupError}` : 'workspace-not-found',
+      }
+    }
+    await useProjectTaskStore.getState().loadTasks(ws.rootPath)
+    const taskStartedAt = Date.now()
+    const task = useProjectTaskStore.getState().createTask(ws.rootPath, {
+      objective: prompt,
+      constraints,
+      status: 'in-progress',
+      logs: [{
+        id: crypto.randomUUID(),
+        timestamp: taskStartedAt,
+        level: 'info',
+        message: `Mission started with ${codingAgentDisplayName(agentId)}.`,
+      }],
+      artifacts: [],
+      attempts: [{
+        id: runId,
+        number: 1,
+        startedAt: taskStartedAt,
+        outcome: 'running',
+      }],
+      runId,
+      ownerPanelId,
+      ...(target.worktreeId ? { worktreeId: target.worktreeId } : {}),
+    })
+    if (!task) {
+      const cleanupError = await rollbackCreatedWorktree()
+      return {
+        ok: false,
+        error: cleanupError ? `task-contract-failed; worktree-cleanup-failed: ${cleanupError}` : 'task-contract-failed',
+      }
+    }
     const placementGroupId = target.worktreeId
       ? `coding-agent:${target.worktreeId}`
       : 'coding-agent:primary'
@@ -476,6 +592,7 @@ export async function handleCodingAgentMethod(
       title,
       prompt,
       ownerPanelId,
+      taskId: task.id,
       ownsWorktree: Boolean(createdWorktree),
       background,
       ...(commandProfile !== undefined ? { commandProfile } : {}),
@@ -488,7 +605,30 @@ export async function handleCodingAgentMethod(
       target.cwd,
       launch,
     )
-    if (!panelId) return { ok: false, error: 'panel-creation-failed' }
+
+    const failMission = async (errorCode: string, message: string): Promise<CodingAgentOutcome> => {
+      useProjectTaskStore.getState().syncTaskWithRun(ws.rootPath!, {
+        id: runId,
+        taskId: task.id,
+        filesTouched: [],
+      }, 'failed', {
+        timestamp: Date.now(),
+        level: 'error',
+        message,
+      })
+      if (panelId) {
+        useAppStore.getState().closePanel(workspaceId, panelId)
+      }
+      const cleanupError = await rollbackCreatedWorktree()
+      return {
+        ok: false,
+        error: cleanupError ? `${errorCode}; worktree-cleanup-failed: ${cleanupError}` : errorCode,
+      }
+    }
+
+    if (!panelId) {
+      return failMission('panel-creation-failed', 'Mission panel could not be created.')
+    }
     const store = useAppStore.getState()
     if (target.worktreeId) store.setPanelWorktreeId(workspaceId, panelId, target.worktreeId)
     const panel = workspace(workspaceId)?.panels[panelId]
@@ -501,11 +641,31 @@ export async function handleCodingAgentMethod(
     // Mission workers are processes, not a React mount side effect. Starting
     // the existing terminal lifecycle here keeps them alive in inactive
     // workspaces/canvases; TerminalPanel later attaches to the same entry.
-    await terminalRegistry.getOrCreate(panelId, {
-      workspaceId,
-      cwd: target.cwd,
-      codingAgentLaunch: launch,
-      placementGroupId,
+    let terminalEntry: Awaited<ReturnType<typeof terminalRegistry.getOrCreate>>
+    try {
+      terminalEntry = await terminalRegistry.getOrCreate(panelId, {
+        workspaceId,
+        cwd: target.cwd,
+        codingAgentLaunch: launch,
+        placementGroupId,
+      })
+    } catch (error) {
+      const detail = error instanceof Error ? ` ${error.message}` : ''
+      return failMission('terminal-start-failed', `Mission terminal could not be started.${detail}`)
+    }
+    recordAgentAudit(ws.rootPath, {
+      kind: 'prompt',
+      outcome: terminalEntry.alive === false ? 'failed' : 'sent',
+      actorKind: actor.kind,
+      ...(actor.id ? { actorId: actor.id } : {}),
+      ...(actor.label ? { actorLabel: actor.label } : {}),
+      origin: 'mission-launch',
+      ...(actor.sourcePanelId ? { sourcePanelId: actor.sourcePanelId } : {}),
+      targetPanelId: panelId,
+      targetRunId: runId,
+      correlationId: runId,
+      contentChars: prompt.length,
+      ...(terminalEntry.alive === false ? { error: 'agent-launch-failed' } : {}),
     })
     const snapshot = codingAgentSnapshot(workspaceId, ownerPanelId, runId)
     return {
@@ -557,6 +717,33 @@ export async function handleCodingAgentMethod(
       return {
         ok: false,
         error: error instanceof Error ? `review-failed: ${error.message}` : 'review-failed',
+      }
+    }
+  }
+
+  if (name === 'applySelection') {
+    const snapshot = codingAgentSnapshot(workspaceId, ownerPanelId, runId)
+    if (!snapshot) return { ok: false, error: 'coding-agent-not-found' }
+    if (!snapshot.worktreeId) return { ok: false, error: 'coding-agent-not-isolated' }
+    if (snapshot.status !== 'ready') return { ok: false, error: 'coding-agent-not-ready' }
+    try {
+      const applied = await applyCodingAgentWorktreeSelection(
+        workspaceId,
+        snapshot.panelId,
+        args.hunkIds,
+      )
+      if (!applied.ok) return { ok: false, error: applied.message }
+      const current = codingAgentSnapshot(workspaceId, ownerPanelId, runId)
+      return {
+        ok: true,
+        result: current
+          ? compactCodingAgentSnapshot(current)
+          : { id: runId, approvedHunkIds: applied.hunkIds, approvedToBranch: applied.branch },
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? `apply-selection-failed: ${error.message}` : 'apply-selection-failed',
       }
     }
   }
@@ -640,6 +827,7 @@ export async function handleCodingAgentMethod(
       ownerPanelId,
       runId,
       typeof args.prompt === 'string' ? args.prompt : '',
+      { actor },
     )
   }
 
@@ -652,6 +840,14 @@ export async function handleCodingAgentMethod(
       ...run,
       stoppedAt: Date.now(),
     })
+    const ws = workspace(workspaceId)
+    if (ws?.rootPath && run.taskId) {
+      useProjectTaskStore.getState().syncTaskWithRun(ws.rootPath, run, 'cancelled', {
+        timestamp: Date.now(),
+        level: 'warning',
+        message: 'Mission stopped by the user.',
+      })
+    }
     const snapshot = codingAgentSnapshot(workspaceId, ownerPanelId, runId)
     return { ok: true, result: snapshot ? compactCodingAgentSnapshot(snapshot) : null }
   }

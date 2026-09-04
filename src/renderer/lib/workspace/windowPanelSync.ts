@@ -174,6 +174,7 @@ export function setupWindowPanelSync(): () => void {
           agentName: agentInfo[p.id]?.name ?? null,
           codingAgentRunId: p.codingAgentRun?.id,
           codingAgentOwnerPanelId: p.codingAgentRun?.ownerPanelId,
+          codingAgentTaskId: p.codingAgentRun?.taskId,
           codingAgentStatus: p.codingAgentRun
             ? deriveCodingAgentRunStatus(p.codingAgentRun, {
                 terminalStarted: terminalEntry !== undefined,

@@ -18,8 +18,7 @@ export const codingConfigLock = new KeyedLock()
 
 /** Read a shared agent config JSON file. Returns null when the file is
  *  missing, unparseable, or not a JSON object; non-ENOENT failures are logged. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function readCodingConfigFile(filePath: string): Promise<Record<string, any> | null> {
+export async function readCodingConfigFile(filePath: string): Promise<Record<string, unknown> | null> {
   try {
     const parsed = JSON.parse(await fsp.readFile(filePath, 'utf-8'))
     if (isPlainObject(parsed)) return parsed
@@ -38,8 +37,7 @@ export async function readCodingConfigFile(filePath: string): Promise<Record<str
  *  edits) survive. Written atomically with mode 0600. */
 export async function updateCodingConfigFile(
   filePath: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  update: (current: Record<string, any>) => Record<string, any>,
+  update: (current: Record<string, unknown>) => Record<string, unknown>,
 ): Promise<void> {
   await codingConfigLock.run(path.basename(filePath), async () => {
     const current = (await readCodingConfigFile(filePath)) ?? {}

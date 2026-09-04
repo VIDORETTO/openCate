@@ -118,7 +118,11 @@ server.listen(PORT, '127.0.0.1', () => {
     return
   }
 
-  const child = spawn('npx', ['electron-vite', 'dev'], {
+  // Invoke the installed CLI through Node instead of an npm shell shim. This
+  // keeps the real-updater harness cross-platform and avoids Windows ENOENT/
+  // EINVAL failures from spawning npx directly.
+  const electronViteCli = path.join(ROOT, 'node_modules', 'electron-vite', 'bin', 'electron-vite.js')
+  const child = spawn(process.execPath, [electronViteCli, 'dev'], {
     cwd: ROOT,
     stdio: 'inherit',
     env: { ...process.env, CATE_DEV_UPDATE: '1', CATE_DEV_UPDATE_PORT: String(PORT) },

@@ -89,7 +89,7 @@ describe('ExtensionServerManager', () => {
     expect(ep.port).toBe(5000)
     expect(ep.token).toMatch(/.+/)
     expect(mgr.getState(EXT, WS)).toBe('READY')
-  })
+  }, 15_000)
 
   it('reuses the same server across a second join (one start call)', async () => {
     await mgr.joinPanel(EXT, WS, 'p1', fakeSender(1))

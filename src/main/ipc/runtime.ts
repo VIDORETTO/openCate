@@ -11,7 +11,7 @@ import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
 import { homedir } from 'os'
-import { join } from 'path'
+import { isAbsolute, join } from 'path'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import log from '../logger'
@@ -24,6 +24,7 @@ import {
   RUNTIME_WSL_DISTROS,
   RUNTIME_SSH_HOSTS,
   RUNTIME_STATUS,
+  RUNTIME_TELEMETRY,
   RUNTIME_LOCAL_STATUS,
   RUNTIME_RETRY_LOCAL,
   RUNTIME_PICK_SSH_KEY,
@@ -34,6 +35,7 @@ import type {
   RuntimeConnectResult,
   RuntimeConnection,
   RuntimeStatusEvent,
+  RuntimeTelemetryEvent,
   SshHostEntry,
 } from '../../shared/types'
 import { broadcastToAll } from '../windowRegistry'
@@ -51,6 +53,7 @@ import { getSetting } from '../settingsFile'
 import type { RuntimeTransport } from '../runtime/transports/transport'
 import { SshTransport } from '../runtime/transports/sshTransport'
 import { WslTransport } from '../runtime/transports/wslTransport'
+import { ContainerTransport } from '../runtime/transports/containerTransport'
 import { saveSshSecret, getSshSecret, type SshSecret } from '../runtime/sshSecretStore'
 import { normalizeKeyPath, assertNotPuttyKey } from '../runtime/sshKey'
 import { getShellEnv } from '../shellEnv'
@@ -145,6 +148,13 @@ export function mintRuntimeId(spec: RemoteConnectSpec): string {
     const h = createHash('sha256').update(`${spec.distro}\0${spec.distroPath}`).digest('hex').slice(0, 10)
     return `wsl_${safe}_${h}`
   }
+  if (spec.kind === 'container') {
+    const h = createHash('sha256')
+      .update(`${spec.engine ?? 'docker'}\0${spec.image}\0${spec.hostPath}\0${spec.containerPath}`)
+      .digest('hex')
+      .slice(0, 10)
+    return `ctr_${h}`
+  }
   const h = createHash('sha256')
     .update(`${spec.user}@${spec.host}:${spec.port ?? 22}${spec.remotePath}`)
     .digest('hex')
@@ -167,6 +177,24 @@ export function mergedSshSecret(current: SshSecret | null, auth: NonNullable<Ext
  *  from the GitHub release, with a client-side scp/copy fallback — see
  *  runtimeArtifacts.ts), so nothing runtime-related ships with the app. */
 export async function buildTransport(runtimeId: string, spec: RemoteConnectSpec): Promise<RuntimeTransport> {
+  if (spec.kind === 'container') {
+    assertAbsoluteRuntimePath(spec.containerPath)
+    if (!isAbsolute(spec.hostPath)) {
+      throw new Error('Container workspace host path must be absolute')
+    }
+    return new ContainerTransport({
+      engine: spec.engine ?? 'docker',
+      image: spec.image,
+      root: spec.containerPath,
+      id: runtimeId,
+      workspaceHostPath: spec.hostPath,
+      workspaceContainerPath: spec.containerPath,
+      workspaceReadOnly: spec.workspaceReadOnly,
+      networkMode: spec.networkMode,
+      exclusions: getSetting('fileExclusions'),
+      idleSuspend: getSetting('autoSuspendIdleTerminals'),
+    })
+  }
   assertAbsoluteRuntimePath(spec.kind === 'server' ? spec.remotePath : spec.distroPath)
   if (spec.kind === 'wsl') {
     // Guard before we hand off to the transport so the failure is a clear
@@ -236,6 +264,9 @@ export function registerRuntimeHandlers(): void {
     const evt: RuntimeStatusEvent = { runtimeId, phase, message }
     broadcastToAll(RUNTIME_STATUS, evt)
   })
+  runtimes.onTelemetry((evt: RuntimeTelemetryEvent) => {
+    broadcastToAll(RUNTIME_TELEMETRY, evt)
+  })
 
   // Registration only — NO network. Mints the stable id, persists SSH auth, and
   // returns the locator + connection record. The renderer stores the connection
@@ -244,8 +275,15 @@ export function registerRuntimeHandlers(): void {
   // probe-driven instead of inferred from this call.
   ipcMain.handle(RUNTIME_CONNECT, async (_event, spec: RemoteConnectSpec): Promise<RuntimeConnectResult> => {
     try {
-      const remotePath = spec.kind === 'server' ? spec.remotePath : spec.distroPath
+      const remotePath = spec.kind === 'server'
+        ? spec.remotePath
+        : spec.kind === 'wsl'
+          ? spec.distroPath
+          : spec.containerPath
       assertAbsoluteRuntimePath(remotePath)
+      if (spec.kind === 'container' && !isAbsolute(spec.hostPath)) {
+        throw new Error('Container workspace host path must be absolute')
+      }
       const runtimeId = mintRuntimeId(spec)
       if (spec.kind === 'server' && spec.auth) {
         // Blank key/passphrase fields in Edit mean "reuse the stored value";
@@ -300,8 +338,9 @@ export function registerRuntimeHandlers(): void {
       log.warn('[runtime:ensure] %s setup failed: %s', runtimeId, message)
       return { ok: false, error: message }
     }
+    const reconnectFactory = () => buildTransport(runtimeId, remoteConnectSpecFromConnection(connection))
     try {
-      await runtimes.connect(runtimeId, transport)
+      await runtimes.connect(runtimeId, transport, { autoReconnect: true, reconnectFactory })
       return { ok: true, runtimeId, rootPath, connection }
     } catch (err) {
       // "Not installed" is an expected probe outcome — the phase is already
@@ -342,8 +381,14 @@ export function registerRuntimeHandlers(): void {
       log.warn('[runtime:install] %s setup failed: %s', runtimeId, message)
       return { ok: false, error: message }
     }
+    const reconnectFactory = () => buildTransport(runtimeId, remoteConnectSpecFromConnection(connection))
     try {
-      await runtimes.connect(runtimeId, transport, { install: true, force: true })
+      await runtimes.connect(runtimeId, transport, {
+        install: true,
+        force: true,
+        autoReconnect: true,
+        reconnectFactory,
+      })
       return { ok: true, runtimeId, rootPath, connection }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)

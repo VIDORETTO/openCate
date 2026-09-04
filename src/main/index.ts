@@ -17,6 +17,8 @@ import { registerUIStateHandlers } from './uiStateStore'
 import { registerProjectStateHandlers } from './projectWorkspaceStore'
 import { registerProjectChatsHandlers } from './projectChatsStore'
 import { registerProjectMemoryHandlers } from './projectMemoryStore'
+import { registerProjectTaskHandlers } from './projectTaskStore'
+import { registerProjectAgentAuditHandlers } from './projectAgentAuditStore'
 import { registerHandlers as registerMenuHandlers } from './ipc/menu'
 import { registerHandlers as registerNotificationHandlers } from './ipc/notifications'
 import { registerCodingHandlers } from '../cateAgent/main/ipcCoding'
@@ -53,6 +55,10 @@ import { registerDragHandlers } from './ipc/dragHandlers'
 import { setMainWindowReady, flushPendingOpenPaths, registerOpenFileHandler } from './lifecycle/openPath'
 import { fireStartupTelemetry, registerTelemetryNoticeHandler } from './lifecycle/telemetry'
 import { registerLifecycleHandlers } from './lifecycle/shutdown'
+import { registerHandlers as registerCompanionHandlers } from './ipc/companion'
+import { MainCompanionController } from './companion/desktopController'
+
+const companionController = new MainCompanionController()
 
 // NOTE: runSmokeAssertions only ever runs when CATE_SMOKE_TEST=1. The 1200 ms
 // wait below is part of the smoke-only branch in mainWin.once('ready-to-show')
@@ -94,6 +100,9 @@ function registerCriticalHandlers(): void {
   registerProjectStateHandlers()
   registerProjectChatsHandlers()
   registerProjectMemoryHandlers()
+  registerProjectTaskHandlers()
+  registerProjectAgentAuditHandlers()
+  registerCompanionHandlers(companionController)
   registerWorkspaceHandlers()
   registerFilesystemHandlers()
   registerTerminalHandlers()
@@ -412,3 +421,4 @@ app.whenReady().then(async () => {
 // Window lifecycle: window-all-closed, activate, and the before-quit / will-quit
 // / quit teardown sequence (session flush coordination, PTY teardown, locks).
 registerLifecycleHandlers()
+app.on('will-quit', () => { void companionController.close() })

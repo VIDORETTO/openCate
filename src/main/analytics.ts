@@ -1,7 +1,7 @@
 // =============================================================================
 // Analytics — anonymous product telemetry posted to cero-analytics'
 // /api/app-events endpoint. Events send only from packaged builds — telemetry
-// is always on there; dev/E2E builds never send (see isEnabled()).
+// requires explicit user opt-in; unpackaged builds never send (see isEnabled()).
 //
 // What we send:
 //   - app_start                : version, platform, arch, locale, electron version
@@ -16,7 +16,7 @@
 //   - update_download_clicked  : user clicked "Download" on the update button
 //   - update_install_clicked   : user clicked "Restart" to install
 //   - update_manual_open_clicked : user clicked through to GitHub release page
-//   - feedback_submitted       : 1-5 rating + optional free-text comment, post-update
+//   - feedback_submitted       : 1-5 rating + bounded comment metadata, post-update
 //   - feedback_dismissed       : user skipped/closed the post-update dialog
 //   - agent_message_sent       : user sent a message to an agent — kind (prompt/
 //                                steer/follow_up), char count, has_images. No text.
@@ -34,6 +34,7 @@ import { sendToWindow } from './windowRegistry'
 import log from './logger'
 import { getCommonContext } from './appContext'
 import { installIdPreexisted } from './installId'
+import { getSetting } from './settingsFile'
 import { readJsonFile, writeJsonFile, readTextFile, writeTextFile, appendLine, removeFile } from './jsonFileStore'
 import { ANALYTICS_FEEDBACK_PROMPT, ANALYTICS_FEEDBACK_SUBMIT, ANALYTICS_FEEDBACK_DISMISS, ANALYTICS_FEEDBACK_GET_PENDING, ANALYTICS_LINK_CLICK, ANALYTICS_TRACK_USAGE, OPEN_EXTERNAL_URL } from '../shared/ipc-channels'
 
@@ -41,7 +42,28 @@ import { ANALYTICS_FEEDBACK_PROMPT, ANALYTICS_FEEDBACK_SUBMIT, ANALYTICS_FEEDBAC
 // Config
 // ---------------------------------------------------------------------------
 
-const ENDPOINT = 'https://analytics.cero-ai.com/api/app-events'
+const DEFAULT_ENDPOINT = 'https://analytics.cero-ai.com/api/app-events'
+
+/**
+ * Packaged telemetry smoke tests need to observe the real Electron `net`
+ * request without contacting the production collector. Keep that escape hatch
+ * unavailable during normal launches and accept only an explicit loopback URL.
+ */
+export function resolveAnalyticsEndpoint(env: NodeJS.ProcessEnv): string {
+  const candidate = env.CATE_TELEMETRY_SMOKE_ENDPOINT
+  const smokeMode = env.CATE_SMOKE_TEST === '1' || env.CATE_TELEMETRY_SMOKE === '1'
+  if (!smokeMode || !candidate) return DEFAULT_ENDPOINT
+  try {
+    const parsed = new URL(candidate)
+    const loopback = parsed.hostname === '127.0.0.1' || parsed.hostname === '[::1]'
+    if (parsed.protocol === 'http:' && loopback) return parsed.toString()
+  } catch {
+    // Invalid or non-loopback overrides intentionally fall through.
+  }
+  return DEFAULT_ENDPOINT
+}
+
+const ENDPOINT = resolveAnalyticsEndpoint(process.env)
 const APP_ID = 'cate'
 const STATE_FILENAME = 'analytics-state.json'
 const PENDING_FILENAME = 'pending-events.jsonl'
@@ -179,6 +201,13 @@ function bufferEvent(payload: AppEventPayload): void {
 async function flushPending(): Promise<void> {
   const raw = readTextFile(PENDING_FILENAME)
   if (!raw) return
+  // A user who has not opted in must not send events queued by an older
+  // version (including legacy free-form feedback). Discard the local buffer
+  // rather than retaining it for a future opt-in.
+  if (!isEnabled()) {
+    handleTelemetryConsentChanged(false)
+    return
+  }
   const lines = raw.split('\n').filter(Boolean)
   if (lines.length === 0) {
     removeFile(PENDING_FILENAME)
@@ -222,6 +251,14 @@ async function sendEvent(name: string, props?: Record<string, unknown>): Promise
     flushPending().catch(() => {})
     return true
   }
+  // Consent can be withdrawn while the request is in flight. Re-check before
+  // persisting the failed payload so an opt-out cannot be followed by a new
+  // local copy of the event.
+  if (!isEnabled()) {
+    log.warn('[analytics] %s failed after consent withdrawal; not buffered', name)
+    handleTelemetryConsentChanged(false)
+    return false
+  }
   log.warn('[analytics] %s failed → buffered', name)
   bufferEvent(payload)
   return false
@@ -231,28 +268,71 @@ async function sendEvent(name: string, props?: Record<string, unknown>): Promise
 // Settings + context
 // ---------------------------------------------------------------------------
 
+/** Pure consent gate, exported so the packaged/unpackaged policy is testable. */
+export function telemetryConsentAllowsSend(isPackaged: boolean, enabled: boolean): boolean {
+  return isPackaged && enabled
+}
+
 function isEnabled(): boolean {
-  // Telemetry is always on in packaged builds (no settings gate, no opt-out).
-  // Dev and E2E builds (unpackaged) never send. The informational telemetry
-  // notice (WelcomeDialog) is not a gate — it only records acknowledgement.
-  return app.isPackaged
+  // Dev and E2E builds (unpackaged) never send. Packaged builds require the
+  // user's explicit opt-in; the notice acknowledgement alone is not consent.
+  return telemetryConsentAllowsSend(app.isPackaged, getSetting('telemetryEnabled'))
+}
+
+/** Remove locally queued events as soon as the user withdraws consent. This is
+ * intentionally separate from the startup flush: a same-session opt-out must
+ * not leave old payloads waiting for a future opt-in. */
+export function handleTelemetryConsentChanged(enabled: boolean): void {
+  if (enabled) return
+  removeFile(PENDING_FILENAME)
+  log.info('[analytics] discarded buffered events because telemetry was disabled')
 }
 
 /** Keep only a few small primitive props (string/number/boolean), with strings
  *  clamped short — defends the usage channel against free-form text or paths
  *  riding along in props. Exported for tests. */
+const TELEMETRY_TOKEN = /^[A-Za-z0-9._-]+$/
+
+function sanitizeTelemetryToken(raw: unknown, maxLength: number): string | null {
+  if (typeof raw !== 'string' || !raw) return null
+  const value = raw.slice(0, maxLength)
+  return TELEMETRY_TOKEN.test(value) ? value : null
+}
+
 export function sanitizeUsageProps(raw: unknown): Record<string, string | number | boolean> {
   const out: Record<string, string | number | boolean> = {}
   if (!raw || typeof raw !== 'object') return out
   let n = 0
   for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
     if (n >= 6) break
-    if (typeof v === 'string') out[k.slice(0, 32)] = v.slice(0, 48)
-    else if (typeof v === 'number' || typeof v === 'boolean') out[k.slice(0, 32)] = v
+    const key = sanitizeTelemetryToken(k, 32)
+    if (!key) continue
+    if (typeof v === 'string') {
+      const value = sanitizeTelemetryToken(v, 48)
+      if (value === null) continue
+      out[key] = value
+    } else if (typeof v === 'number' || typeof v === 'boolean') out[key] = v
     else continue
     n++
   }
   return out
+}
+
+/** Feature usage is a key, never a free-form renderer string. */
+export function sanitizeFeatureName(raw: unknown): string | null {
+  return sanitizeTelemetryToken(raw, 64)
+}
+
+const ALLOWED_PROMO_LINKS = new Set([
+  'full_changelog',
+  'newsletter',
+  'product_hunt',
+  'github_star',
+])
+
+/** Keep the link-click channel to named UI actions, never arbitrary IPC text. */
+export function sanitizeLinkName(raw: unknown): string | null {
+  return typeof raw === 'string' && ALLOWED_PROMO_LINKS.has(raw) ? raw : null
 }
 
 /** Clamp + truncate raw IPC payload from the renderer. Exported for tests. */
@@ -277,7 +357,10 @@ export function initAnalytics(): void {
     const state = readState()
     const ok = await sendEvent('feedback_submitted', {
       rating,
-      comment,
+      // Never transmit free-form feedback: it can contain paths, secrets, or
+      // personal data despite the explicit feedback context.
+      has_comment: comment.trim().length > 0,
+      comment_length: comment.length,
       from_version: state.pendingFeedbackFromVersion ?? null,
     })
     // Clear pending state regardless — if send failed, the event was buffered
@@ -307,7 +390,9 @@ export function initAnalytics(): void {
     return null
   })
 
-  ipcMain.on(ANALYTICS_LINK_CLICK, (_e, link: string) => {
+  ipcMain.on(ANALYTICS_LINK_CLICK, (_e, raw: unknown) => {
+    const link = sanitizeLinkName(raw)
+    if (!link) return
     void sendEvent('promo_link_clicked', { link })
   })
 
@@ -316,8 +401,8 @@ export function initAnalytics(): void {
   // / file paths / project data can ride along. Gated by isEnabled via sendEvent.
   ipcMain.on(ANALYTICS_TRACK_USAGE, (_e, raw: unknown) => {
     const payload = (raw ?? {}) as { feature?: unknown; props?: unknown }
-    if (typeof payload.feature !== 'string' || !payload.feature) return
-    const feature = payload.feature.slice(0, 64)
+    const feature = sanitizeFeatureName(payload.feature)
+    if (!feature) return
     void sendEvent('feature_used', { feature, ...sanitizeUsageProps(payload.props) })
   })
 

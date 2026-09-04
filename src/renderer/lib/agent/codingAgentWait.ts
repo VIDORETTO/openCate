@@ -23,6 +23,7 @@ export function compactCodingAgentSnapshot(snapshot: CodingAgentRunSnapshot) {
       : {}),
     followUpSupported: snapshot.followUpSupported,
     ...(snapshot.worktreeId ? { worktreeId: snapshot.worktreeId } : {}),
+    ...(snapshot.taskId ? { taskId: snapshot.taskId } : {}),
     ...(snapshot.ownsWorktree ? { ownsWorktree: true } : {}),
     background: snapshot.background !== false,
     ...(snapshot.appliedAt ? {

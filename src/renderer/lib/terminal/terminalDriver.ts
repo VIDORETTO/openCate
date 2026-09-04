@@ -26,8 +26,16 @@ import { useAppStore } from '../../stores/appStore'
 import { getActivePanelId } from '../activePanel'
 import { getEntry } from './registryState'
 import { readTerminalBuffer } from './terminalBuffer'
+import type { AgentAuditActor } from '../../../shared/agentAudit'
+import { createAgentAuditCorrelationId, recordAgentAudit } from '../agent/recordAgentAudit'
 
 export type TerminalOutcome = { ok: true; result?: unknown } | { ok: false; error: string }
+
+const DEFAULT_AUDIT_ACTOR: AgentAuditActor = {
+  kind: 'system',
+  label: 'Terminal API',
+  origin: 'terminal-api',
+}
 
 /** Paste one complete prompt using xterm's bracketed-paste semantics, then
  * submit it through the same PTY write bridge used by terminal input. */
@@ -113,6 +121,7 @@ export async function handleTerminalMethod(
   workspaceId: string,
   method: string,
   args: Record<string, unknown>,
+  actor: AgentAuditActor = DEFAULT_AUDIT_ACTOR,
 ): Promise<TerminalOutcome> {
   const name = method.slice('cate.terminal.'.length)
   if (name !== 'read' && name !== 'type' && name !== 'press') {
@@ -121,31 +130,56 @@ export async function handleTerminalMethod(
 
   const target = resolveTargetPanelId(workspaceId, args, name === 'read')
   if ('error' in target) return { ok: false, error: target.error }
+  const ws = useAppStore.getState().workspaces.find((workspace) => workspace.id === workspaceId)
+  const targetRun = ws?.panels[target.panelId]?.codingAgentRun
+  const audit = (outcome: 'sent' | 'failed', contentChars: number, error?: string): void => {
+    if (!ws?.rootPath || !targetRun) return
+    recordAgentAudit(ws.rootPath, {
+      kind: 'command',
+      outcome,
+      actorKind: actor.kind,
+      ...(actor.id ? { actorId: actor.id } : {}),
+      ...(actor.label ? { actorLabel: actor.label } : {}),
+      origin: 'terminal-api',
+      ...(actor.sourcePanelId ? { sourcePanelId: actor.sourcePanelId } : {}),
+      targetPanelId: target.panelId,
+      targetRunId: targetRun.id,
+      correlationId: createAgentAuditCorrelationId(),
+      contentChars,
+      commandName: name,
+      ...(error ? { error } : {}),
+    })
+  }
+  const fail = (error: string, contentChars: number): TerminalOutcome => {
+    audit('failed', contentChars, error)
+    return { ok: false, error }
+  }
   const entry = getEntry(target.panelId)
-  if (!entry) return { ok: false, error: 'terminal-not-ready' }
+  if (!entry) return fail('terminal-not-ready', 0)
 
   if (name === 'read') {
     const screen = readTerminalBuffer(entry.terminal)
     return { ok: true, result: { panelId: target.panelId, ...screen } }
   }
 
-  if (!entry.ptyId || entry.alive === false) return { ok: false, error: 'terminal-not-ready' }
+  if (!entry.ptyId || entry.alive === false) return fail('terminal-not-ready', 0)
 
   let data: string
   if (name === 'type') {
-    if (typeof args.text !== 'string' || args.text === '') return { ok: false, error: 'text-required' }
+    if (typeof args.text !== 'string' || args.text === '') return fail('text-required', 0)
     data = args.text
   } else {
     const seq = typeof args.key === 'string' ? sequenceForKey(args.key) : null
-    if (seq === null) return { ok: false, error: 'unsupported-key' }
+    if (seq === null) return fail('unsupported-key', 0)
     data = seq
   }
 
   try {
     // The exact write path user keystrokes take (terminalLifecycle's onData).
     await window.electronAPI.terminalWrite(entry.ptyId, data)
+    audit('sent', data.length)
     return { ok: true }
   } catch {
-    return { ok: false, error: 'terminal-not-ready' }
+    return fail('terminal-not-ready', data.length)
   }
 }

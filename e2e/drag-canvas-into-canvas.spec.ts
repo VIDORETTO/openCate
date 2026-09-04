@@ -7,7 +7,7 @@ import {
   resetViewport,
   titleBarCentre,
   getNodeRect,
-  dragMouse,
+  dragCanvasFrom,
 } from './fixtures/electron-app'
 import type { ElectronApplication, Page } from 'playwright'
 
@@ -39,7 +39,7 @@ test('canvas panel cannot be docked into a canvas-node mini-dock', async () => {
   const tRect = await getNodeRect(page, target)
   // Aim at the target's tab-bar (would be 'tab' drop for a non-canvas source).
   const dropPoint = { x: tRect!.x + tRect!.width / 2, y: tRect!.y + 10 }
-  await dragMouse(page, grab!, dropPoint, { steps: 20, pauseAtEnd: 50 })
+  await dragCanvasFrom(page, `[data-node-id="${source}"] [data-node-drag-spacer]`, grab!, dropPoint, 20)
   await page.waitForTimeout(150)
 
   // Canvas source must NOT have been absorbed into target's stack.
@@ -57,7 +57,7 @@ test('non-canvas tab is accepted into a canvas-node mini-dock', async () => {
   const grab = await titleBarCentre(page, source)
   const tRect = await getNodeRect(page, target)
   const dropPoint = { x: tRect!.x + tRect!.width / 2, y: tRect!.y + 10 }
-  await dragMouse(page, grab!, dropPoint, { steps: 20, pauseAtEnd: 50 })
+  await dragCanvasFrom(page, `[data-node-id="${source}"] [data-node-drag-spacer]`, grab!, dropPoint, 20)
   await page.waitForTimeout(150)
   // Terminal source was tabbed into target — its canvas-node is gone.
   const sourceStill = await page.$(`[data-node-id="${source}"]`)

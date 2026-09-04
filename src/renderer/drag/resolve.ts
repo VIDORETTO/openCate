@@ -51,8 +51,8 @@ export interface DropEnvironment {
 const defaultDropEnvironment: DropEnvironment = {
   canvasAtCursor(client) {
     const el = document.elementFromPoint(client.x, client.y) as HTMLElement | null
-    if (!el) return null
-    const container = el.closest<HTMLElement>('[data-canvas-container]')
+    const container = el?.closest<HTMLElement>('[data-canvas-container]')
+      ?? e2eCanvasAtCursor(client)
     if (!container) return null
     const panelId = container.getAttribute('data-canvas-panel-id')
     if (!panelId) return null
@@ -69,6 +69,25 @@ const defaultDropEnvironment: DropEnvironment = {
     if (!canvasStoreApi) return null
     return { nodeId, canvasStoreApi }
   },
+}
+
+/**
+ * A hidden Electron BrowserWindow has no compositor hit-test surface, so
+ * document.elementFromPoint can return null even for an in-viewport canvas.
+ * E2E still exercises the real drag dispatcher; only this environment lookup
+ * falls back to the canvas geometry. Production always uses the DOM hit test.
+ */
+function e2eCanvasAtCursor(client: Point): HTMLElement | null {
+  if (!window.electronAPI?.isE2E) return null
+  return Array.from(document.querySelectorAll<HTMLElement>('[data-canvas-container]')).find((canvas) => {
+    const rect = canvas.getBoundingClientRect()
+    return (
+      client.x >= rect.left &&
+      client.x <= rect.right &&
+      client.y >= rect.top &&
+      client.y <= rect.bottom
+    )
+  }) ?? null
 }
 
 /** Optional resolution context. `env` injects DOM/store lookups (defaults to the

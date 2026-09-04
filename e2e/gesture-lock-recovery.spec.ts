@@ -11,7 +11,16 @@
 // =============================================================================
 
 import { test, expect } from '@playwright/test'
-import { launchApp, closeApp, seedTerminal, getNodeRect } from './fixtures/electron-app'
+import {
+  launchApp,
+  closeApp,
+  seedTerminal,
+  getNodeRect,
+  titleBarCentre,
+  beginCanvasDragFrom,
+  dragCanvasFrom,
+  endCanvasDrag,
+} from './fixtures/electron-app'
 import type { ElectronApplication, Page } from 'playwright'
 
 let app: ElectronApplication
@@ -29,10 +38,15 @@ const lockHeld = (p: Page) =>
 async function dragNode(p: Page, nodeId: string, dx: number): Promise<number> {
   const before = await getNodeRect(p, nodeId)
   if (!before) throw new Error('node has no rect')
-  await p.mouse.move(before.x + before.width / 2, before.y + 6)
-  await p.mouse.down()
-  await p.mouse.move(before.x + before.width / 2 + dx, before.y + 6, { steps: 10 })
-  await p.mouse.up()
+  const grab = await titleBarCentre(p, nodeId)
+  if (!grab) throw new Error('node has no drag spacer')
+  await dragCanvasFrom(
+    p,
+    `[data-node-id="${nodeId}"] [data-node-drag-spacer]`,
+    grab,
+    { x: grab.x + dx, y: grab.y },
+    10,
+  )
   await p.waitForTimeout(250)
   const after = await getNodeRect(p, nodeId)
   return after ? after.x - before.x : 0
@@ -50,12 +64,18 @@ test('a stranded gesture lock recovers without restarting the app', async () => 
   // While held, useDragOp refuses to start a drag — this is the wedged state.
   // (Checked immediately, before the watchdog's idle grace elapses.)
   const wedgedBefore = await getNodeRect(page, nodeId)
-  await page.mouse.move(wedgedBefore!.x + wedgedBefore!.width / 2, wedgedBefore!.y + 6)
-  await page.mouse.down()
-  await page.mouse.move(wedgedBefore!.x + wedgedBefore!.width / 2 + 100, wedgedBefore!.y + 6, { steps: 4 })
+  const wedgedGrab = await titleBarCentre(page, nodeId)
+  const wedgedEnd = { x: wedgedGrab!.x + 100, y: wedgedGrab!.y }
+  await beginCanvasDragFrom(
+    page,
+    `[data-node-id="${nodeId}"] [data-node-drag-spacer]`,
+    wedgedGrab!,
+    wedgedEnd,
+    4,
+  )
   const wedgedMid = await getNodeRect(page, nodeId)
   expect(wedgedMid!.x).toBe(wedgedBefore!.x)
-  await page.mouse.up()
+  await endCanvasDrag(page, wedgedEnd)
 
   // The watchdog notices the pointer is idle while the lock is still held.
   await expect.poll(() => lockHeld(page), { timeout: 6000 }).toBe(false)

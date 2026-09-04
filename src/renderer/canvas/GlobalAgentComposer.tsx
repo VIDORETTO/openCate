@@ -16,6 +16,7 @@ import { useWorktrees } from '../stores/useWorktrees'
 import { Tooltip } from '../ui/Tooltip'
 import { getActivePanelId } from '../lib/activePanel'
 import { getEntry } from '../lib/terminal/registryState'
+import { createAgentAuditCorrelationId, recordAgentAudit } from '../lib/agent/recordAgentAudit'
 
 interface WorkspaceFileChoice {
   path: string
@@ -209,9 +210,46 @@ export const GlobalAgentComposer: React.FC<GlobalAgentComposerProps> = ({ worksp
     setConfirming(false)
     const failures: Array<{ name: string; error: string }> = []
     const deliveredTo: string[] = []
+    const sourcePanelId = getActivePanelId() ?? undefined
+    const correlationId = createAgentAuditCorrelationId()
+    const contextItemIds = contextBus.items.map((item) => item.id)
+    const contextChars = contextBus.items.reduce((total, item) => total + item.content.length, 0)
+    const promptText = translation.text.trim()
+    const promptKind = translation.command ? 'command' : 'prompt'
     let sent = 0
     for (const run of selectedRuns) {
-      const outcome = await sendCodingAgentFollowUp(workspaceId, run.ownerPanelId, run.id, prompt)
+      const outcome = await sendCodingAgentFollowUp(workspaceId, run.ownerPanelId, run.id, prompt, {
+        enabled: Boolean(promptText),
+        actor: {
+          kind: 'human',
+          id: 'local-user',
+          label: 'Global composer',
+          origin: 'global-composer',
+          ...(sourcePanelId ? { sourcePanelId } : {}),
+        },
+        kind: promptKind,
+        ...(translation.command ? { commandName: translation.command } : {}),
+        contentChars: promptText.length,
+        correlationId,
+      })
+      const auditOutcome = outcome.ok ? 'sent' : 'failed'
+      if (contextItemIds.length > 0) {
+        recordAgentAudit(rootPath, {
+          kind: 'context',
+          outcome: auditOutcome,
+          actorKind: 'human',
+          actorId: 'local-user',
+          actorLabel: 'Global composer',
+          origin: 'global-composer',
+          ...(sourcePanelId ? { sourcePanelId } : {}),
+          targetPanelId: run.panelId,
+          targetRunId: run.id,
+          correlationId,
+          contextItemIds,
+          contentChars: contextChars,
+          ...(!outcome.ok ? { error: outcome.error } : {}),
+        })
+      }
       if (outcome.ok) {
         sent++
         deliveredTo.push(run.panelId)

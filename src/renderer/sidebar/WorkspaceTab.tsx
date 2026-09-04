@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { useShallow } from 'zustand/shallow'
-import { CaretRight, Terminal as TerminalIcon, Folder, FolderPlus, SquaresFour, DotsThree, Star, type Icon as PhosphorIcon } from '@phosphor-icons/react'
-import { browserPanelUrl, type WorkspaceState, type PanelType, type PanelState, type WindowPanelInfo } from '../../shared/types'
+import { CaretRight, Folder, FolderPlus, SquaresFour, DotsThree } from '@phosphor-icons/react'
+import { browserPanelUrl, type WorkspaceState, type PanelState, type WindowPanelInfo } from '../../shared/types'
 import { isWorktreePanelType } from '../../shared/panels'
 import { useStatusStore } from '../stores/statusStore'
 import { useAppStore, WORKSPACE_COLORS } from '../stores/appStore'
@@ -10,7 +10,6 @@ import { revealPanel } from '../lib/workspace/panelReveal'
 import { useWorkspacePanelTree } from '../lib/workspace/useWorkspacePanelTree'
 import { useOtherWindowPanels } from '../stores/windowPanelStore'
 import type { NativeContextMenuItem } from '../../shared/electron-api'
-import type { AgentState } from '../../shared/types'
 import { terminalRegistry } from '../lib/terminal/terminalRegistry'
 import {
   closePanelWithConfirm,
@@ -19,10 +18,10 @@ import {
 } from '../lib/closePanelWithConfirm'
 import { movePanelToNewWindow } from '../lib/workspace/movePanelToNewWindow'
 import { getActivePanelId } from '../lib/activePanel'
-import { worktreeTitleStyle } from '../lib/worktreeTitleStyle'
 import { isMiddleClick } from '../lib/mouse'
-import { PANEL_REGISTRY } from '../panels/registry'
-import { panelRowLabel } from '../lib/panelTitle'
+import { panelRowLabel, PANEL_ICONS, PanelRenameInput, TerminalPanelRow, type PanelRenameProps } from './WorkspaceTabRows'
+export { panelRowLabel, deriveStashedAgentIndicator, TerminalPanelRow } from './WorkspaceTabRows'
+export type { PanelRenameProps, TerminalPanelRowProps, StashedAgentIndicator } from './WorkspaceTabRows'
 import { useAgentInfoByPanel } from '../hooks/useAgentPanelInfo'
 import { getAgentLogo } from '../lib/agent/agentLogos'
 import { workspaceDisplayName } from '../lib/fs/displayPath'
@@ -31,27 +30,36 @@ import log from '../lib/logger'
 import { InlineEditInput } from './InlineEditInput'
 import { WorkspaceSkillsTree } from './WorkspaceSkillsTree'
 import { WorkspaceMemorySection } from './WorkspaceMemorySection'
+import { WorkspaceTasksSection } from './WorkspaceTasksSection'
+import { useProjectTaskStore } from '../stores/projectTaskStore'
 import { canvasKey, toggleCollapsed, useTreeCollapseStore } from './treeCollapse'
 import { Tooltip } from '../ui/Tooltip'
 import { Modal, btn, inputCls } from '../ui/Modal'
 import { useActiveChatWorktreeByPanel } from '../../cateAgent/renderer/cateAgentStore'
-import { ActivitySparkline } from '../canvas/ActivitySparkline'
-import {
-  codingAgentDisplayName,
-  codingAgentRunDurationMs,
-  type CodingAgentRun,
-} from '../../shared/codingAgentRuns'
 import type { AgentTreeWorker } from '../lib/agent/agentTree'
 import { useAgentTree } from '../lib/agent/useAgentTree'
 import {
   handleCodingAgentMethod,
 } from '../lib/agent/codingAgentDriver'
 import { buildWorkspaceDigest, formatWorkspaceDigest } from './workspaceDigest'
+import {
+  AWAIT_COLOR,
+  AgentWorkerActionDialog,
+  agentTreeMetrics,
+  agentTreeStatusColor,
+  agentWorkerActionErrorMessage,
+  isAgentWorkerActionAvailable,
+  isAgentWorkerPromotionReady,
+  type AgentWorkerAction,
+  type AgentWorkerActionDialogState,
+  type AgentWorkerActionResult,
+} from './WorkspaceTabMissions'
 
 // Stable empty map so the ports selector returns a referentially-constant value
 // when a workspace has no status entry (a fresh `{}` each render would defeat
 // useShallow and spin useSyncExternalStore).
 const EMPTY_PORTS: Record<string, number[]> = {}
+const EMPTY_PROJECT_TASKS: readonly never[] = []
 
 // -----------------------------------------------------------------------------
 // Runtime status dot — surfaces a remote workspace's connection state in the
@@ -99,390 +107,6 @@ function RuntimeDot({ workspace }: { workspace: WorkspaceState }): JSX.Element |
 async function focusWorkspacePanel(workspaceId: string, panelId: string): Promise<void> {
   await revealPanel(workspaceId, panelId, { retry: true })
 }
-
-export interface PanelRenameProps {
-  /** Inline-edit value when this row is being renamed (null = not renaming). */
-  renameValue: string | null
-  onRenameChange: (value: string) => void
-  onRenameSubmit: () => void
-  onRenameCancel: () => void
-  onBeginRename: () => void
-  onContextMenu: (e: React.MouseEvent) => void
-}
-
-// Canonical row-label logic lives in lib/panelTitle (shared with the cross-
-// window panel report and the Cate agent chat). Re-exported for existing
-// importers of this module.
-export { panelRowLabel }
-
-export interface TerminalPanelRowProps {
-  panel: Pick<PanelState, 'id' | 'type' | 'title' | 'filePath' | 'tabs' | 'activeTabId' | 'starred' | 'tags' | 'accentColor'> & Partial<Pick<PanelState, 'agentSession' | 'codingAgentRun'>>
-  indent: boolean
-  agentState: AgentState | undefined
-  agentLogo?: string | null
-  hasPorts: boolean
-  /** Panel-local activity-history key. Omitted for rows owned by another window. */
-  activityHistoryId?: string
-  worktreeColor?: string
-  onClick: (e: React.MouseEvent) => void
-  /** Middle-click closes the row (mirrors the dock tab behavior). */
-  onClose?: () => void
-  rename?: PanelRenameProps
-  /** Context menu for rows without rename support (detached rows). Local rows
-   *  route their menu through rename.onContextMenu instead. */
-  onContextMenu?: (e: React.MouseEvent) => void
-  /** Overrides the row's hover tooltip (used by detached rows to note the panel
-   *  lives in another window). Falls back to the panel's path / url / label. */
-  titleHint?: string
-}
-
-const AWAIT_COLOR = '#c08a5a'
-
-/** Sidebar mission actions reuse the canonical driver contract. The dialog
- *  payload is intentionally narrow so it can render compact facts without
- *  duplicating the full inspector or worktree review model here. */
-type AgentWorkerAction = 'inspect' | 'send' | 'stop' | 'review'
-type AgentWorkerActionResult = Record<string, unknown> & {
-  recentOutput?: string
-  statusLine?: string
-  failureReason?: string
-  branch?: string
-  baseBranch?: string
-  dirty?: boolean
-  canApply?: boolean
-  message?: string
-  commits?: Array<{ hash: string; message: string }>
-  files?: Array<{ path: string; status: string }>
-  workingFiles?: string[]
-}
-
-interface AgentWorkerActionDialogState {
-  action: 'inspect' | 'review'
-  worker: AgentTreeWorker
-  title: string
-  loading: boolean
-  error?: string
-  result?: AgentWorkerActionResult
-}
-
-/** Availability is a UI gate only; the driver remains authoritative and every
- *  action still receives its canonical not-found/not-ready error. */
-function isAgentWorkerActionAvailable(worker: AgentTreeWorker, action: AgentWorkerAction): boolean {
-  switch (action) {
-    case 'inspect': return true
-    case 'review': return Boolean(worker.worktreeId)
-    case 'send': return worker.status !== 'stopped' && worker.status !== 'failed'
-    case 'stop': return worker.status !== 'stopped' && worker.status !== 'failed'
-  }
-}
-
-function isAgentWorkerPromotionReady(worker: AgentTreeWorker): boolean {
-  return Boolean(worker.worktreeId && worker.status === 'ready')
-}
-
-/** Driver errors are stable machine codes; translate the ones users can act on
- *  and preserve unknown diagnostics instead of hiding them behind "failed". */
-function agentWorkerActionErrorMessage(error: string): string {
-  switch (error) {
-    case 'coding-agent-not-found': return 'This mission is no longer available.'
-    case 'coding-agent-not-isolated': return 'This mission has no isolated worktree to review.'
-    case 'coding-agent-not-ready': return 'Wait for this mission to finish before integrating it.'
-    case 'worker-does-not-own-worktree': return 'Only missions that created their worktree can discard it.'
-    case 'prompt-required': return 'Enter a follow-up prompt.'
-    case 'coding-agent-follow-up-unsupported': return 'This agent does not support follow-up prompts.'
-    default: return `Action failed: ${error}`
-  }
-}
-
-/** Compact sidebar presentation for mission facts already derived upstream. */
-function agentTreeStatusColor(status: AgentTreeWorker['status']): string {
-  switch (status) {
-    case 'waiting': return AWAIT_COLOR
-    case 'ready': return '#34c759'
-    case 'failed': return '#ff453a'
-    case 'stalled': return '#ff9f0a'
-    case 'stopped': return '#8e8e93'
-    case 'working': return 'var(--focus-blue)'
-    default: return '#8e8e93'
-  }
-}
-
-function formatAgentTreeTokens(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1).replace(/\.0$/, '')}M`
-  if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1).replace(/\.0$/, '')}k`
-  return String(Math.round(value))
-}
-
-function formatAgentTreeDuration(ms: number): string {
-  const seconds = Math.max(0, Math.floor(ms / 1_000))
-  if (seconds < 60) return `${seconds}s`
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m`
-  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`
-}
-
-function agentTreeMetrics(worker: AgentTreeWorker): string | null {
-  const usage = worker.usage
-  const duration = worker.createdAt !== undefined
-    ? formatAgentTreeDuration(codingAgentRunDurationMs({
-        createdAt: worker.createdAt,
-        endedAt: undefined,
-        stoppedAt: undefined,
-      }))
-    : null
-  const totalTokens = usage?.totalTokens !== undefined ? formatAgentTreeTokens(usage.totalTokens) : null
-  const contextLeft = worker.contextRemainingTokens !== undefined
-    ? formatAgentTreeTokens(worker.contextRemainingTokens)
-    : null
-  const cost = usage?.costUsd !== undefined
-    ? `${usage.costSource === 'estimated' ? '~' : ''}$${usage.costUsd.toFixed(usage.costUsd < 0.1 ? 4 : 2)}`
-    : null
-  const filesTouched = worker.filesTouchedCount !== undefined && worker.filesTouchedCount > 0
-    ? `${worker.filesTouchedCount} file${worker.filesTouchedCount === 1 ? '' : 's'}`
-    : null
-  const parts: string[] = []
-  if (worker.lastToolCall?.name) parts.push(worker.lastToolCall.name)
-  if (filesTouched) parts.push(filesTouched)
-  if (totalTokens) parts.push(`${totalTokens} tok`)
-  if (contextLeft) parts.push(`ctx ${contextLeft}`)
-  if (cost) parts.push(cost)
-  if (duration) parts.push(duration)
-  return parts.length > 0 ? parts.join(' · ') : null
-}
-
-/** One compact, read-only action result. This is the sidebar's first inspector:
- *  it surfaces canonical driver facts without pretending to be a full diff UI. */
-function AgentWorkerActionDialog({
-  state,
-  onClose,
-}: {
-  state: AgentWorkerActionDialogState
-  onClose: () => void
-}): JSX.Element {
-  const { worker, loading, error, result } = state
-  return (
-    <Modal title={state.title} onClose={onClose} width={640} height="min(70vh, 560px)">
-      <div className="flex h-full min-h-0 flex-col gap-3 p-4">
-        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
-          <span>{worker.agentName}</span>
-          {worker.status && (
-            <>
-              <span aria-hidden>·</span>
-              <span style={{ color: agentTreeStatusColor(worker.status) }}>{worker.status}</span>
-            </>
-          )}
-        </div>
-
-        {loading && <div className="text-[13px] text-muted">Loading…</div>}
-        {!loading && error && (
-          <div className="rounded-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-[12px] text-red-300">
-            {error}
-          </div>
-        )}
-
-        {!loading && !error && result?.branch && (
-          <div className="rounded-md bg-surface-0 border border-subtle p-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[12px] font-medium text-primary">{result.branch}</span>
-              <span
-                className={`rounded-full px-1.5 py-0.5 text-[9px] uppercase tracking-wide ${
-                  result.canApply ? 'bg-green-500/15 text-green-300' : 'bg-amber-500/15 text-amber-300'
-                }`}
-              >
-                {result.canApply ? 'Ready to apply' : 'Needs attention'}
-              </span>
-            </div>
-            {result.baseBranch && <p className="mt-1 text-[11px] text-muted">Target: {result.baseBranch}</p>}
-            {!!result.files?.length && (
-              <ul className="mt-2 max-h-24 space-y-0.5 overflow-auto text-[11px] text-secondary">
-                {result.files.slice(0, 30).map((file) => (
-                  <li key={`${file.path}:${file.status}`} className="truncate">{file.path} — {file.status}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-
-        {!loading && !error && state.action === 'inspect' && (
-          <pre
-            data-testid="agent-worker-output"
-            className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words rounded-md bg-surface-0 border border-subtle p-2.5 text-[12px] leading-relaxed text-secondary"
-          >
-            {(result?.recentOutput ?? '').trim() || 'No terminal output yet.'}
-          </pre>
-        )}
-      </div>
-    </Modal>
-  )
-}
-
-/** Durable stashed-agent facts. Live status remains the owner window's job;
- *  these badges survive restart and do not invent transient process state. */
-export type StashedAgentIndicator = {
-  label: string
-  color: string
-  title: string
-}
-
-export function deriveStashedAgentIndicator(
-  panel: {
-    agentSession?: PanelState['agentSession']
-    codingAgentRun?: Pick<CodingAgentRun, 'endedAt' | 'exitCode' | 'stoppedAt'>
-  },
-): StashedAgentIndicator | null {
-  if (panel.codingAgentRun) {
-    if (panel.codingAgentRun.stoppedAt) return { label: 'Stopped', color: '#8e8e93', title: 'Stashed coding-agent mission stopped' }
-    if (panel.codingAgentRun.exitCode != null && panel.codingAgentRun.exitCode !== 0) {
-      return { label: 'Failed', color: '#ff453a', title: 'Stashed coding-agent mission failed' }
-    }
-    if (panel.codingAgentRun.endedAt) return { label: 'Ready', color: '#34c759', title: 'Stashed coding-agent mission ready' }
-    return { label: 'Mission', color: '#34c759', title: 'Stashed coding-agent mission retained' }
-  }
-
-  const session = panel.agentSession
-  if (!session?.sessionId) return null
-  return {
-    label: 'Session',
-    color: 'var(--focus-blue)',
-    title: `Retained ${codingAgentDisplayName(session.agentId as never)} CLI session`,
-  }
-}
-
-export const TerminalPanelRow: React.FC<TerminalPanelRowProps> = ({ panel, indent, agentState, agentLogo: agentLogoProp, hasPorts, activityHistoryId, worktreeColor, onClick, onClose, rename, titleHint, onContextMenu }) => {
-  const Icon = PANEL_ICONS[panel.type] ?? TerminalIcon
-  const label = panelRowLabel(panel)
-
-  const isRunning = agentState === 'running'
-  const isAwaiting = agentState === 'waitingForInput'
-  const agentLogo = panel.type === 'terminal' ? agentLogoProp : null
-  const isRenaming = rename?.renameValue != null
-  const rowAccent = panel.accentColor ?? worktreeColor
-  const stashedIndicator = deriveStashedAgentIndicator(panel)
-
-  return (
-    <button
-      className={`group/panel mx-1.5 my-0.5 rounded-lg flex items-center gap-1.5 h-7 pr-2 text-[13px] hover:bg-hover text-left min-w-0 focus:outline-none ${
-        indent ? 'pl-10' : 'pl-7'
-      } ${isAwaiting ? 'text-primary' : 'text-muted hover:text-primary'}`}
-      onClick={onClick}
-      onContextMenu={onContextMenu ?? rename?.onContextMenu}
-      onMouseDown={(e) => { if (isMiddleClick(e)) e.preventDefault() }}
-      onAuxClick={(e) => {
-        if (isMiddleClick(e) && onClose) {
-          e.preventDefault()
-          e.stopPropagation()
-          onClose()
-        }
-      }}
-      title={titleHint ?? (panel.filePath || browserPanelUrl(panel) || label)}
-    >
-      {agentLogo ? (
-        <img
-          src={agentLogo}
-          alt=""
-          width={11}
-          height={11}
-          draggable={false}
-          className="flex-shrink-0"
-          style={{ width: 11, height: 11, objectFit: 'contain', display: 'block', opacity: 0.95 }}
-        />
-      ) : (
-        <Icon
-          size={11}
-          className="flex-shrink-0"
-          style={{ opacity: 0.6 }}
-        />
-      )}
-      {isRenaming ? (
-        <PanelRenameInput rename={rename!} />
-      ) : (
-        <span
-          className={`truncate min-w-0 flex-1 ${isRunning ? 'cate-notif-pulse' : ''}`}
-          style={worktreeTitleStyle(rowAccent, isRunning)}
-          onDoubleClick={(e) => { e.stopPropagation(); rename?.onBeginRename() }}
-        >
-          {label}
-        </span>
-      )}
-      {!!panel.starred && (
-        <Star
-          weight="fill"
-          size={10}
-          className="flex-shrink-0"
-          style={{ color: rowAccent || 'var(--activity-orange)' }}
-          aria-label="Starred"
-        />
-      )}
-      {!!panel.tags?.length && (
-        <span className="flex-shrink-0 max-w-[38%] truncate rounded-full px-1.5 text-[9px]" style={rowAccent ? { backgroundColor: `${rowAccent}22`, color: rowAccent } : undefined}>
-          {panel.tags.join(' · ')}
-        </span>
-      )}
-      {isAwaiting ? (
-        <span className="cate-await-indicator flex-shrink-0" aria-label="awaiting input">
-          <span className="cate-await-dot" style={{ backgroundColor: AWAIT_COLOR }} />
-        </span>
-      ) : !isRunning && hasPorts ? (
-        <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-muted opacity-50" />
-      ) : null}
-      {stashedIndicator && !isRenaming && (
-        <span
-          aria-label={stashedIndicator.title}
-          className="flex-shrink-0 rounded-full px-1.5 text-[9px] uppercase tracking-wide"
-          style={{
-            backgroundColor: `color-mix(in srgb, ${stashedIndicator.color} 18%, transparent)`,
-            color: stashedIndicator.color,
-          }}
-          title={stashedIndicator.title}
-        >
-          {stashedIndicator.label}
-        </span>
-      )}
-      {panel.type === 'terminal' && !!activityHistoryId && !isRenaming && (
-        <ActivitySparkline
-          panelId={activityHistoryId}
-          height={9}
-          width={18}
-          style={{ opacity: 0.8 }}
-        />
-      )}
-    </button>
-  )
-}
-
-// Inline edit input for a panel-row rename. Mirrors the workspace rename input
-// UX: Enter / blur commits, Escape cancels. Click is swallowed so it doesn't
-// trigger the row's focus-panel handler.
-const PanelRenameInput: React.FC<{ rename: PanelRenameProps }> = ({ rename }) => {
-  // Focus + select ONCE on mount. A callback ref running focus/select would
-  // re-run on every render (new fn identity each render) and re-select all text
-  // after each keystroke — making it impossible to type more than one character.
-  const inputRef = useRef<HTMLInputElement>(null)
-  useEffect(() => {
-    const el = inputRef.current
-    if (el) { el.focus(); el.select() }
-  }, [])
-  return (
-    <input
-      ref={inputRef}
-      className="flex-1 min-w-0 text-[13px] bg-surface-3 border border-subtle rounded px-1 py-0 outline-none text-primary"
-      value={rename.renameValue ?? ''}
-      onChange={(e) => rename.onRenameChange(e.target.value)}
-      onBlur={rename.onRenameSubmit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') rename.onRenameSubmit()
-        if (e.key === 'Escape') rename.onRenameCancel()
-      }}
-      onClick={(e) => e.stopPropagation()}
-      onDoubleClick={(e) => e.stopPropagation()}
-    />
-  )
-}
-
-const PANEL_ICONS: Record<PanelType, PhosphorIcon> = Object.fromEntries(
-  (Object.keys(PANEL_REGISTRY) as PanelType[]).map((t) => [t, PANEL_REGISTRY[t].icon]),
-) as Record<PanelType, PhosphorIcon>
-
 
 interface WorkspaceTabProps {
   workspace: WorkspaceState
@@ -568,6 +192,9 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
     detachedPanels: otherWindowPanels,
   }), [attentionQueue, stashedPanels, orderedPanels, agentInfoByPanel, otherWindowPanels])
   const workspaceDigestText = formatWorkspaceDigest(workspaceDigest)
+  const projectTasks = useProjectTaskStore((state) =>
+    state.tasksByRoot[workspace.rootPath] ?? EMPTY_PROJECT_TASKS,
+  )
 
   // Live orchestrator → worker projection. The pure builder joins mission
   // ownership with cross-window discovery; the hook re-derives local status at
@@ -576,6 +203,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
     workspaceId: workspace.id,
     localPanels: Object.values(panels),
     detachedPanels: otherWindowPanels,
+    tasks: projectTasks,
     refreshIntervalMs: 1_000,
   })
 
@@ -716,7 +344,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
       case 'close-panels': void closeAllPanelsWithConfirm(workspace.id); break
       case 'remove': void removeWorkspacesWithConfirm([workspace.id]); break
     }
-  }, [workspace.id, workspace.name, workspace.rootPath, workspace.color, panels, detachedCount, isSelected, onBulkContextMenu, beginRename])
+  }, [workspace.id, workspace.rootPath, workspace.color, panels, detachedCount, isSelected, onBulkContextMenu, beginRename])
 
   useEffect(() => {
     if (isRenaming && renameInputRef.current) {
@@ -924,9 +552,16 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
     setAgentWorkerSubmitting(true)
     setAgentWorkerError('')
     try {
+      const sourcePanelId = getActivePanelId()
       const outcome = await handleCodingAgentMethod(workspace.id, worker.panelId, 'cate.codingAgent.send', {
         runId: worker.runId,
         prompt,
+      }, {
+        kind: 'human',
+        id: 'local-user',
+        label: 'Mission sidebar',
+        origin: 'mission-sidebar',
+        ...(sourcePanelId ? { sourcePanelId } : {}),
       })
       if (outcome.ok) {
         setAgentWorkerPrompt(null)
@@ -1351,6 +986,11 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
           style={{ backgroundColor: status }}
         />
         <span className="truncate min-w-0 flex-1">{worker.title}</span>
+        {worker.task && (
+          <span className="flex-shrink-0 rounded-full bg-surface-3 px-1.5 text-[9px] capitalize text-secondary" title={worker.task.objective}>
+            task {worker.task.status.replace('-', ' ')}
+          </span>
+        )}
         {metrics && (
           <span className="flex-shrink-0 text-[10px] text-muted opacity-80">{metrics}</span>
         )}
@@ -1633,6 +1273,7 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
               one row per agent, its skills nested beneath. No separate section. */}
           <WorkspaceSkillsTree workspaceId={workspace.id} rootPath={workspace.rootPath} />
           <WorkspaceMemorySection rootPath={workspace.rootPath} worktrees={worktrees} />
+          <WorkspaceTasksSection rootPath={workspace.rootPath} />
         </div>
       )}
 
@@ -1684,7 +1325,19 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
       )}
 
       {agentWorkerAction && (
-        <AgentWorkerActionDialog state={agentWorkerAction} onClose={() => setAgentWorkerAction(null)} />
+        <AgentWorkerActionDialog
+          state={agentWorkerAction}
+          onClose={() => setAgentWorkerAction(null)}
+          onApplySelection={async (worker, hunkIds) => {
+            const outcome = await handleCodingAgentMethod(
+              workspace.id,
+              worker.panelId,
+              'cate.codingAgent.applySelection',
+              { runId: worker.runId, hunkIds },
+            )
+            if (!outcome.ok) throw new Error(agentWorkerActionErrorMessage(outcome.error))
+          }}
+        />
       )}
     </div>
   )

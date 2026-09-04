@@ -37,6 +37,7 @@ import { join } from 'path'
 import { buildTransport, listWslDistros } from './runtime'
 import { SshTransport } from '../runtime/transports/sshTransport'
 import { WslTransport } from '../runtime/transports/wslTransport'
+import { ContainerTransport } from '../runtime/transports/containerTransport'
 
 const openSshKey = '-----BEGIN OPENSSH PRIVATE KEY-----\ntest fixture\n-----END OPENSSH PRIVATE KEY-----\n'
 
@@ -144,6 +145,21 @@ describe('buildTransport', () => {
     })
     expect(t).toBeInstanceOf(SshTransport)
     expect(t.kind).toBe('server')
+  })
+
+  test('builds a ContainerTransport with an explicit host mount', async () => {
+    setPlatform('win32')
+    const t = await buildTransport('ctr_abc', {
+      kind: 'container',
+      image: 'ghcr.io/cate/runtime:stable',
+      hostPath: 'C:\\projects\\cate',
+      containerPath: '/workspace',
+      engine: 'docker',
+      workspaceReadOnly: false,
+      networkMode: 'none',
+    })
+    expect(t).toBeInstanceOf(ContainerTransport)
+    expect(t.kind).toBe('container')
   })
 
   test('reads a key from a QUOTED path (strips the quotes — #335)', async () => {

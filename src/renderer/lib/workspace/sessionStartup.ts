@@ -16,6 +16,9 @@ import type {
   DockWindowInitPayload,
   PanelTransferSnapshot,
   PanelState,
+  DockLayoutNode,
+  DockStateSnapshot,
+  WindowDockState,
 } from '../../../shared/types'
 import { isRemoteRuntimeConnection } from '../../../shared/runtimeConnection'
 
@@ -187,6 +190,57 @@ async function recreateDockWindow(dw: DetachedDockWindowSnapshot): Promise<void>
   log.debug(`[session] dock window restored: ${init.topLevelPanelIds.length} top-level tabs, ${Object.keys(dw.panels).length} panels`)
 }
 
+/** Remove stale panel references before a detached window reaches its shell.
+ * A partial/crashed session flush can leave a dock layout ahead of `panels`.
+ * Empty stacks disappear; surviving split ratios are renormalized so the
+ * receiving dock never renders a tab without a corresponding panel record. */
+function pruneDockLayoutNode(
+  node: DockLayoutNode,
+  panels: Record<string, PanelState>,
+): DockLayoutNode | null {
+  if (node.type === 'tabs') {
+    const panelIds = node.panelIds.filter((panelId) => !!panels[panelId])
+    if (panelIds.length === 0) return null
+
+    const rawActiveIndex = Number.isInteger(node.activeIndex) ? node.activeIndex : 0
+    const activeIndex = Math.min(Math.max(rawActiveIndex, 0), panelIds.length - 1)
+    if (panelIds.length === node.panelIds.length && activeIndex === node.activeIndex) return node
+    return { ...node, panelIds, activeIndex }
+  }
+
+  const children: DockLayoutNode[] = []
+  const ratios: number[] = []
+  for (let index = 0; index < node.children.length; index++) {
+    const child = pruneDockLayoutNode(node.children[index], panels)
+    if (!child) continue
+    children.push(child)
+    const ratio = node.ratios[index]
+    ratios.push(Number.isFinite(ratio) && ratio > 0 ? ratio : 0)
+  }
+
+  if (children.length === 0) return null
+  if (children.length === 1) return children[0]
+
+  const total = ratios.reduce((sum, ratio) => sum + ratio, 0)
+  const normalizedRatios = total > 0
+    ? ratios.map((ratio) => ratio / total)
+    : children.map(() => 1 / children.length)
+  return { ...node, children, ratios: normalizedRatios }
+}
+
+function pruneDockStateToKnownPanels(
+  dockState: DockStateSnapshot,
+  panels: Record<string, PanelState>,
+): WindowDockState {
+  const zones = { ...dockState.zones }
+  for (const position of Object.keys(zones) as Array<keyof WindowDockState>) {
+    const zone = zones[position]
+    const layout = zone.layout ? pruneDockLayoutNode(zone.layout, panels) : null
+    if (layout !== zone.layout) zones[position] = { ...zone, layout }
+  }
+  return zones
+}
+
 /**
  * Pure, testable reconstruction of a detached dock window from its persisted
  * snapshot. Returns the list of TOP-LEVEL panels (those referenced by the dock
@@ -201,7 +255,7 @@ async function recreateDockWindow(dw: DetachedDockWindowSnapshot): Promise<void>
 export function buildDockWindowRestoreInit(
   dw: DetachedDockWindowSnapshot,
 ): { topLevelPanelIds: string[]; initPayload: DockWindowInitPayload } {
-  const zones = dw.dockState.zones
+  const zones = pruneDockStateToKnownPanels(dw.dockState, dw.panels)
   const topLevelIds = collectPanelIdsFromDockState(zones)
   if (topLevelIds.length === 0) {
     return {

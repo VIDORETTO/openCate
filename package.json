@@ -2,8 +2,10 @@
   "name": "cate",
   "version": "1.6.1-beta.2",
   "productName": "Cate",
+  "desktopName": "Cate",
   "description": "An infinite zoomable canvas IDE",
   "license": "MIT",
+  "packageManager": "bun@1.3.13",
   "repository": {
     "type": "git",
     "url": "https://github.com/0-AI-UG/cate.git"
@@ -17,6 +19,13 @@
     "email": "hello@0-ai.org"
   },
   "main": "dist/main/index.js",
+  "exports": {
+    "./sdk": {
+      "types": "./dist/sdk/index.d.ts",
+      "import": "./dist/sdk/index.js",
+      "default": "./dist/sdk/index.js"
+    }
+  },
   "engines": {
     "node": ">=20 <23"
   },
@@ -25,23 +34,40 @@
     "predev": "node scripts/patch-electron-name.mjs",
     "setup": "bun install && bun run runtime:tarball",
     "dev": "electron-vite dev",
-    "dev:dialog": "DEV_FORCE_DIALOG=1 electron-vite dev",
-    "dev:firststart": "CATE_FRESH_USERDATA=1 electron-vite dev",
+    "dev:dialog": "node scripts/run-command-with-env.mjs DEV_FORCE_DIALOG=1 electron-vite dev",
+    "dev:firststart": "node scripts/run-command-with-env.mjs CATE_FRESH_USERDATA=1 electron-vite dev",
     "dev:update": "node scripts/dev-update.mjs",
-    "dev:update:major": "CATE_SIMULATE_UPDATE=major electron-vite dev",
-    "dev:update:minor": "CATE_SIMULATE_UPDATE=minor electron-vite dev",
-    "dev:update:patch": "CATE_SIMULATE_UPDATE=patch electron-vite dev",
+    "test:update:fixture": "node scripts/verify-dev-update-fixture.mjs",
+    "dev:update:major": "node scripts/run-command-with-env.mjs CATE_SIMULATE_UPDATE=major electron-vite dev",
+    "dev:update:minor": "node scripts/run-command-with-env.mjs CATE_SIMULATE_UPDATE=minor electron-vite dev",
+    "dev:update:patch": "node scripts/run-command-with-env.mjs CATE_SIMULATE_UPDATE=patch electron-vite dev",
     "sentry:test": "node scripts/sentry-test.mjs",
     "build": "electron-vite build",
+    "build:sdk": "node scripts/build-sdk.mjs",
+    "build:companion": "vite build --config companion-web/vite.config.mjs",
+    "package:companion": "node scripts/package-companion.mjs",
+    "test:companion:web": "node scripts/verify-companion-web.mjs",
+    "test:companion:proxy": "node scripts/run-command-with-env.mjs CATE_COMPANION_PROXY=1 vitest --config vitest.live.config.ts relayProxy",
+    "test:container:runtime": "node scripts/verify-container-runtime.mjs",
+    "test:container:runtime:podman": "node scripts/run-command-with-env.mjs CATE_CONTAINER_ENGINE=podman node scripts/verify-container-runtime.mjs",
+    "test:tmux:live": "node scripts/verify-tmux-live.mjs",
     "build:runtime": "node src/runtime/build/esbuild.config.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:ssh:loopback": "CATE_LOCAL_SSH_E2E=1 vitest run --config vitest.live.config.ts sshLoopback",
-    "test:agent-contracts": "CATE_LIVE_AGENT_CLIS=1 vitest run --config vitest.live.config.ts agentHookContracts",
+   "verify:hygiene": "node scripts/verify-hygiene.mjs",
+   "verify:companion-deployment": "node scripts/verify-companion-deployment.mjs",
+    "verify:release-workflow": "node scripts/verify-release-workflow.mjs",
+   "verify:repository-boundaries": "node scripts/verify-repository-boundaries.mjs",
+    "test:ssh:loopback": "node scripts/run-command-with-env.mjs CATE_LOCAL_SSH_E2E=1 vitest --config vitest.live.config.ts sshLoopback",
+    "test:agent-contracts": "node scripts/run-command-with-env.mjs CATE_LIVE_AGENT_CLIS=1 vitest --config vitest.live.config.ts agentHookContracts",
     "test:e2e": "playwright test",
-    "test:e2e:ci": "E2E_SKIP_PERF=1 playwright test",
+    "test:e2e:ci": "node scripts/run-command-with-env.mjs E2E_SKIP_PERF=1 playwright test",
+    "companion:relay": "bun src/main/companion/relayServerCli.ts",
     "test:smoke:electron": "node scripts/run-electron-smoke.mjs",
+    "test:smoke:telemetry": "node scripts/verify-packaged-telemetry.mjs",
+    "test:smoke:packaged-restore": "node scripts/verify-packaged-restore.mjs",
+    "verify:release-metadata": "node scripts/verify-release-metadata.mjs",
     "icons": "node scripts/generate-icons.js",
     "runtime:tarball": "node scripts/build-runtime-tarball.mjs",
     "pi:tarball": "node scripts/build-pi-tarball.mjs",
@@ -69,7 +95,8 @@
     "sharp"
   ],
   "overrides": {
-    "node-gyp": "^12.4.0"
+    "node-gyp": "^12.4.0",
+    "@xmldom/xmldom": "0.8.15"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.80.6",
@@ -90,6 +117,7 @@
     "mammoth": "^1.12.0",
     "monaco-editor": "^0.52.0",
     "pdfjs-dist": "^6.2.108",
+    "qrcode": "^1.5.4",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-markdown": "^10.1.0",
@@ -103,6 +131,7 @@
     "@electron/rebuild": "^4.0.3",
     "@eslint/js": "^9.39.0",
     "@playwright/test": "^1.60.0",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",

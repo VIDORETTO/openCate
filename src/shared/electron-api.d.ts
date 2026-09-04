@@ -2,13 +2,19 @@
 // Type declaration for window.electronAPI exposed via contextBridge
 // =============================================================================
 
-import type { CodingCreateOptions, CodingEventEnvelope, CodingExtensionUIResponse, CodingImageAttachment, CateAgentModelRef, CodingModelDescriptor, CodingRpcState, CodingSessionListEntry, CodingSessionStats, CodingSlashCommand, CodingThinkingLevel, AppSettings, AgentState, AuthProviderDescriptor, AuthProviderStatus, CustomOpenAIProvider, DockWindowInitPayload, DockWindowSyncState, DetachedDockWindowSnapshot, WindowPanelInfo, WindowPanelReport, FileSearchOptions, FileSearchResult, FileTreeNode, SearchOptions, SearchResultBatch, SearchDoneEvent, NotificationAction, OAuthFlowEvent, PanelTransferSnapshot, PerfSnapshot, Point, ProviderVerification, SidebarSession, TerminalActivity, TerminalAgentSession, WorkspaceInfo, WorkspaceMutationResult, RemoteConnectSpec, RuntimeConnectResult, RuntimeStatusEvent, RuntimeConnection, RuntimePhase, RemoteProjectEntry, SshHostEntry, UIState } from './types'
+import type { CodingCreateOptions, CodingEventEnvelope, CodingExtensionUIResponse, CodingImageAttachment, CateAgentModelRef, CodingModelDescriptor, CodingRpcState, CodingSessionListEntry, CodingSessionStats, CodingSlashCommand, CodingThinkingLevel, AppSettings, AgentState, AuthProviderDescriptor, AuthProviderStatus, CustomOpenAIProvider, DockWindowInitPayload, DockWindowSyncState, DetachedDockWindowSnapshot, WindowPanelInfo, WindowPanelReport, FileSearchOptions, FileSearchResult, FileTreeNode, SearchOptions, SearchResultBatch, SearchDoneEvent, NotificationAction, OAuthFlowEvent, PanelTransferSnapshot, PerfSnapshot, Point, ProviderVerification, SidebarSession, TerminalActivity, TerminalAgentSession, WorkspaceInfo, WorkspaceMutationResult, RemoteConnectSpec, RuntimeConnectResult, RuntimeStatusEvent, RuntimeTelemetryEvent, RuntimeConnection, RuntimePhase, RemoteProjectEntry, SshHostEntry, UIState } from './types'
 import type { CodingAgentLaunch } from './codingAgentRuns'
+import type { TerminalPersistenceMode } from './terminalDurability'
 import type { SavedSkill, InstalledSkill, SkillEntry, SkillSource, SkillTargetId } from './skills'
 import type { AgentHookEvent, AgentHookAgentState } from './agentHooks'
 import type { AgentSessionRef, AgentSessionSummary, AgentTranscriptMessage } from './agentSessions'
 import type { ExtensionListEntry, ExtensionManifest } from './extensions'
 import type { ProjectMemoryNote } from './projectMemory'
+import type { ProjectTask } from './projectTasks'
+import type { AgentAuditEvent } from './agentAudit'
+import type { GitDiffHunk } from './gitDiff'
+import type { CompanionActionMethod, CompanionPairingProof } from './companionProtocol'
+import type { CompanionDeviceInfo, CompanionPairingStart } from './companionPairing'
 
 /** Lifecycle state of the auto-updater, surfaced to the renderer for the
  *  in-app "update ready" modal. `downloaded` is the one the modal acts on. */
@@ -64,6 +70,8 @@ export interface ElectronAPI {
     panelId?: string
     /** Opaque canvas affinity, exposed to the shell for host-API creates. */
     placementGroupId?: string
+    /** Persist/reattach this terminal through tmux on a POSIX runtime host. */
+    terminalPersistence?: TerminalPersistenceMode
     /** Closed agent launch contract; main resolves the executable and argv. */
     codingAgentLaunch?: CodingAgentLaunch
   }): Promise<string>
@@ -252,8 +260,19 @@ export interface ElectronAPI {
     workingFiles: string[]
     diff: string
     truncated: boolean
+    hunks?: GitDiffHunk[]
     message?: string
   }>
+
+  /** Stage only selected reviewed hunks from a worker branch into the current
+   *  clean base checkout. The runtime recomputes the diff before applying. */
+  gitWorktreeApplySelection(
+    repoCwd: string,
+    sourceBranch: string,
+    baseBranch: string,
+    hunkIds: string[],
+    workspaceId: string,
+  ): Promise<{ ok: true; result: unknown } | { ok: false; conflict: boolean; message: string }>
 
   /** Fetch + checkout `toBranch` + merge `fromBranch` into it. Returns
    *  `{ ok: false, conflict }` on merge failure so the renderer can show a
@@ -457,6 +476,25 @@ export interface ElectronAPI {
   onSettingsReloaded(callback: (settings: AppSettings) => void): () => void
 
   // ---------------------------------------------------------------------------
+  // Companion pairing
+  // ---------------------------------------------------------------------------
+
+  /** Start a local, loopback-only pairing invitation for the active workspace. */
+  companionPairingBegin(input: { workspaceId: string; allowApprove?: boolean }): Promise<CompanionPairingStart>
+
+  /** Complete pairing with the proof copied from the companion device. */
+  companionPairingComplete(proof: string | CompanionPairingProof): Promise<CompanionDeviceInfo | null>
+
+  /** List active paired devices without exposing session bearers or keys. */
+  companionDevicesList(): Promise<CompanionDeviceInfo[]>
+
+  /** Revoke a paired device and stop its relay responder. */
+  companionDeviceRevoke(deviceId: string): Promise<void>
+
+  /** Mint a short-lived, one-shot approval for a specific action payload. */
+  companionApprovalGrant(deviceId: string, method: CompanionActionMethod, args: unknown): Promise<string>
+
+  // ---------------------------------------------------------------------------
   // Session
   // ---------------------------------------------------------------------------
 
@@ -491,6 +529,18 @@ export interface ElectronAPI {
 
   /** Persist the complete user-curated project/worktree memory note list. */
   projectMemorySave(rootPath: string, notes: ProjectMemoryNote[]): Promise<void>
+
+  /** Load durable task contracts from `.cate/tasks.json`. */
+  projectTasksLoad(rootPath: string): Promise<ProjectTask[]>
+
+  /** Persist the complete bounded task-contract list. */
+  projectTasksSave(rootPath: string, tasks: ProjectTask[]): Promise<void>
+
+  /** Load bounded local provenance for inputs sent to agents. */
+  projectAgentAuditLoad(rootPath: string): Promise<AgentAuditEvent[]>
+
+  /** Persist bounded local provenance without prompt/context contents. */
+  projectAgentAuditSave(rootPath: string, events: AgentAuditEvent[]): Promise<void>
 
   // ---------------------------------------------------------------------------
   // App
@@ -944,6 +994,9 @@ export interface ElectronAPI {
   /** Subscribe to runtime connection status (main -> renderer). */
   onRuntimeStatus(callback: (event: RuntimeStatusEvent) => void): () => void
 
+  /** Subscribe to bounded runtime lifecycle telemetry (main -> renderer). */
+  onRuntimeTelemetry(callback: (event: RuntimeTelemetryEvent) => void): () => void
+
   /** Update workspace metadata in the main process. */
   workspaceUpdate(id: string, changes: Partial<Omit<WorkspaceInfo, 'id'>>): Promise<WorkspaceMutationResult>
 
@@ -1019,8 +1072,8 @@ export interface ElectronAPI {
   /** Track a promo link click (e.g. product_hunt, github_star, newsletter). */
   trackLinkClick(link: string): void
   /** Record that the telemetry notice (WelcomeDialog) was acknowledged for the
-   *  current TELEMETRY_NOTICE_VERSION. Informational only — telemetry is always
-   *  on in packaged builds and does not depend on this. */
+   *  current TELEMETRY_NOTICE_VERSION. Informational only — sending still
+   *  requires the user's explicit telemetry opt-in. */
   acknowledgeTelemetryNotice(): Promise<void>
   /** Report an anonymous feature-usage signal (gated by analytics consent).
    *  `feature` is a short key; `props` are small primitives, clamped in main. */

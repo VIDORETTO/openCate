@@ -194,6 +194,36 @@ describe('canvasStore.selectVisibleNodeIds — keep-mounted webview nodes', () =
     expect(after.has(nodeB)).toBe(true)
     expect(after.has(nodeA)).toBe(false)
   })
+
+  it('keeps a 64-node terminal canvas bounded to the viewport', () => {
+    const store = createCanvasStore()
+    for (let i = 0; i < 64; i += 1) {
+      const col = i % 8
+      const row = Math.floor(i / 8)
+      store.getState().addNode(
+        `terminal-${i}`,
+        'terminal',
+        { x: col * 900, y: row * 700 },
+        { width: 240, height: 160 },
+      )
+    }
+    store.getState().setContainerSize({ width: 800, height: 600 })
+    store.setState({ zoomLevel: 1, viewportOffset: { x: 0, y: 0 }, selection: [], selectionActive: false })
+
+    const visible = selectVisibleNodeIds(store.getState())
+    expect(Object.keys(store.getState().nodes)).toHaveLength(64)
+    expect(visible.length).toBeGreaterThan(0)
+    expect(visible.length).toBeLessThan(64)
+    expect(new Set(visible).size).toBe(visible.length)
+
+    // A viewport move must preserve deterministic z-order while changing the
+    // bounded mounted set; this is the hot path used by terminal canvases.
+    store.setState({ viewportOffset: { x: -3600, y: -2100 } })
+    const moved = selectVisibleNodeIds(store.getState())
+    expect(moved.length).toBeGreaterThan(0)
+    expect(moved.length).toBeLessThan(64)
+    expect(moved).not.toEqual(visible)
+  })
 })
 
 // focusEpoch is the signal panels watch to re-fire focus side effects when the

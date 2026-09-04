@@ -6,6 +6,7 @@ import {
   stopAgentScreenDetector,
   noteAgentPresence,
   noteAgentProcess,
+  noteAgentCompletion,
   noteAgentScreenSnapshot,
   noteAgentHookEvent,
   noteAgentInputSubmitted,
@@ -236,9 +237,26 @@ describe('agent activity coordinator (hook FSM + presence edges)', () => {
 
     noteAgentPresence(PTY, false)
     expect(state()).toBe('finished')
+    expect(sendOsNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Claude Code finished' }),
+    )
     // A relaunch must start idle, not resurrect the dead turn.
     noteAgentPresence(PTY, true)
     expect(state()).toBe('waitingForInput')
+  })
+
+  it('known process completion preserves a failed exit outcome', () => {
+    noteAgentPresence(PTY, true)
+    noteAgentHookEvent(hookEvent('turn-start'))
+
+    expect(noteAgentCompletion(PTY, 'failed')).toBe(true)
+    expect(state()).toBe('finished')
+    expect(sendOsNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Claude Code failed',
+        body: 'Claude Code failed. Open the terminal to inspect the output.',
+      }),
+    )
   })
 
   it('hook events arriving before the 1 Hz presence scan do not flip state early', () => {

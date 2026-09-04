@@ -25,6 +25,7 @@ import type {
   DockZonePosition,
   WindowDockState,
   CanvasLayoutSnapshot,
+  CanvasMemorySnapshot,
 } from '../../../shared/types'
 import type { PanelPlacement } from '../../stores/appStore'
 import { ALL_ZONES, ZOOM_DEFAULT } from '../../../shared/types'
@@ -193,7 +194,7 @@ export function getWorkspaceCanvasOps(workspaceId: string): CanvasOperations | n
 // workspace so save still round-trips.
 // -----------------------------------------------------------------------------
 
-export interface WorkspaceCanvasSnapshot {
+export interface WorkspaceCanvasSnapshot extends CanvasMemorySnapshot {
   nodes: Record<CanvasNodeId, CanvasNodeState>
   zoomLevel: number
   viewportOffset: Point
@@ -214,6 +215,13 @@ export function getCanvasSnapshotForPanel(canvasPanelId: string): WorkspaceCanva
       nodes: { ...s.nodes },
       zoomLevel: s.zoomLevel,
       viewportOffset: { ...s.viewportOffset },
+      waypoints: (s.waypoints ?? []).map((waypoint) => ({ ...waypoint, point: { ...waypoint.point } })),
+      decorations: (s.decorations ?? []).map((decoration) => ({ ...decoration })),
+      layoutHistory: (s.layoutHistory ?? []).map((entry) => ({
+        ...entry,
+        nodes: { ...entry.nodes },
+        viewportOffset: { ...entry.viewportOffset },
+      })),
     }
   }
   // Find the workspace that owns this canvas panel to read its persisted
@@ -231,6 +239,9 @@ export function getCanvasSnapshotForPanel(canvasPanelId: string): WorkspaceCanva
       nodes: { ...persisted.canvasNodes },
       zoomLevel: persisted.zoomLevel,
       viewportOffset: { ...persisted.viewportOffset },
+      waypoints: persisted.waypoints,
+      decorations: persisted.decorations,
+      layoutHistory: persisted.layoutHistory,
     }
   }
   return { nodes: {}, zoomLevel: ZOOM_DEFAULT, viewportOffset: { x: 0, y: 0 } }
@@ -282,6 +293,9 @@ export function captureCanvasPanel(canvasPanelId: string): CanvasLayoutSnapshot 
     viewportOffset: { ...state.viewportOffset },
     zoomLevel: state.zoomLevel,
     panelIds: [...panelIds],
+    waypoints: state.waypoints,
+    decorations: state.decorations,
+    layoutHistory: state.layoutHistory,
   }
 }
 

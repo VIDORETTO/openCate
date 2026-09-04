@@ -6,6 +6,8 @@ import {
   resetViewport,
   titleBarCentre,
   getNodeRect,
+  beginCanvasDragFrom,
+  endCanvasDrag,
 } from './fixtures/electron-app'
 import type { ElectronApplication, Page } from 'playwright'
 
@@ -42,30 +44,37 @@ test('dock-split indicator is clamped to the canvas, never over the sidebar', as
   // Aim at the target's real left edge (+12px) → dock-split-left of its mini-dock.
   // That x is under the sidebar, but resolveDockHit uses registered zone rects,
   // not elementFromPoint, so the drop still resolves there.
-  await page.mouse.move(grab!.x, grab!.y)
-  await page.mouse.down()
-  await page.mouse.move(tRect!.x + 12, tRect!.y + tRect!.height / 2, { steps: 25 })
-  await page.waitForSelector('[data-drag-indicator]', { state: 'attached', timeout: 2000 })
-  await page.waitForTimeout(60)
+  const dropPoint = { x: tRect!.x + 12, y: tRect!.y + tRect!.height / 2 }
+  try {
+    await beginCanvasDragFrom(
+      page,
+      `[data-node-id="${source}"] [data-node-drag-spacer]`,
+      grab!,
+      dropPoint,
+      25,
+    )
+    await page.waitForSelector('[data-drag-indicator]', { state: 'attached', timeout: 2000 })
+    await page.waitForTimeout(60)
 
-  const diag = await page.evaluate(() => {
-    const ind = document.querySelector('[data-drag-indicator]') as HTMLElement | null
-    const sb = document.querySelector('[data-app-sidebar="left"]')!.getBoundingClientRect()
-    const r = ind?.getBoundingClientRect() ?? null
-    return {
-      targetKind: window.__cateE2E!.dragSnapshot().targetKind,
-      attr: ind?.getAttribute('data-drag-indicator') ?? null,
-      indicatorLeft: r ? r.left : null,
-      sidebarRight: sb.right,
-    }
-  })
-  await page.mouse.up()
-  await page.waitForTimeout(50)
+    const diag = await page.evaluate(() => {
+      const ind = document.querySelector('[data-drag-indicator]') as HTMLElement | null
+      const sb = document.querySelector('[data-app-sidebar="left"]')!.getBoundingClientRect()
+      const r = ind?.getBoundingClientRect() ?? null
+      return {
+        targetKind: window.__cateE2E!.dragSnapshot().targetKind,
+        attr: ind?.getAttribute('data-drag-indicator') ?? null,
+        indicatorLeft: r ? r.left : null,
+        sidebarRight: sb.right,
+      }
+    })
 
-  expect(diag.targetKind).toBe('dock-split')
-  expect(diag.attr).toBe('split-left')
-  // The fix: the indicator's left edge is clamped to the canvas edge (= the
-  // sidebar's right edge), so it never paints over the sidebar.
-  expect(diag.indicatorLeft).not.toBeNull()
-  expect(diag.indicatorLeft!).toBeGreaterThanOrEqual(diag.sidebarRight - 1)
+    expect(diag.targetKind).toBe('dock-split')
+    expect(diag.attr).toBe('split-left')
+    // The fix: the indicator's left edge is clamped to the canvas edge (= the
+    // sidebar's right edge), so it never paints over the sidebar.
+    expect(diag.indicatorLeft).not.toBeNull()
+    expect(diag.indicatorLeft!).toBeGreaterThanOrEqual(diag.sidebarRight - 1)
+  } finally {
+    await endCanvasDrag(page, dropPoint)
+  }
 })

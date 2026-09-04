@@ -12,7 +12,6 @@ import { flushWorkspaceStateSync } from '../workspaceStateStore'
 import { flushBrowserStateSync } from '../browserStateStore'
 import { flushUIStateSync } from '../uiStateStore'
 import { releaseAllProjectLocks } from '../projectLock'
-import { runtimes } from '../runtime/runtimeManager'
 import { extensionServerManager } from '../extensions/ExtensionServerManager'
 import { workspaceCateApi } from '../extensions/workspaceCateApi'
 import { flushAllPendingWritesSync as flushExtensionStoragesSync } from '../extensions/storage'
@@ -49,9 +48,11 @@ const FLUSH_TIMEOUT_MS = 1500
 // renderer's session flush, so dock sync + session save share the quit budget.
 const DOCK_FLUSH_TIMEOUT_MS = 600
 // Bound the await of extension-server / runtime teardown on will-quit before the
-// hard reallyExit(). Long enough for a clean local SIGTERM, short enough that an
-// unresponsive remote socket can't stall quit (the daemon reaps orphans anyway).
-const EXIT_DISPOSE_TIMEOUT_MS = 800
+// hard reallyExit(). The local transport deliberately gives its runtime daemon
+// 1500 ms after stdin closes to reap PTY process groups, so this budget must be
+// longer than that grace period. It remains bounded for unresponsive remote
+// sockets (whose daemon also reaps orphans on its next startup).
+const EXIT_DISPOSE_TIMEOUT_MS = 2_000
 
 // Re-entrancy guard for the hard-exit path: once we've prevented Electron's
 // natural teardown and kicked off the bounded dispose, a second will-quit fire
@@ -240,7 +241,7 @@ export function registerLifecycleHandlers(): void {
     // Must happen while the JS environment is still alive. If we let them die
     // during Environment::CleanupHandles, node-pty's ThreadSafeFunction exit
     // callback throws into a torn-down context and SIGABRTs the process.
-    killAllTerminals()
+    const terminalsDisposing = killAllTerminals()
     // An update has been downloaded and is queued to install on quit. DO NOT
     // reallyExit — electron-updater's install-on-quit hook runs on the 'quit'
     // event (which fires AFTER will-quit), so reallyExit (libc exit()) would kill
@@ -251,7 +252,7 @@ export function registerLifecycleHandlers(): void {
     if (isUpdatePendingInstall()) {
       workspaceCateApi.disposeAll()
       void extensionServerManager.disposeAll()
-      void runtimes.disposeAll()
+      void terminalsDisposing
       log.info('will-quit: update staged, yielding to electron-updater install-on-quit')
       return
     }
@@ -277,7 +278,7 @@ export function registerLifecycleHandlers(): void {
         // is fire-and-forget + reverse.dispose closes the http server), then the
         // bounded async server/runtime dispose.
         workspaceCateApi.disposeAll()
-        return Promise.allSettled([extensionServerManager.disposeAll(), runtimes.disposeAll()])
+        return Promise.allSettled([extensionServerManager.disposeAll(), terminalsDisposing])
       },
       // process.reallyExit is Node's binding to libc exit() — it skips the 'exit'
       // event and the cleanup path app.exit/process.exit would run, bypassing

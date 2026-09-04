@@ -28,7 +28,6 @@ function resolveShellEnv(): Promise<Record<string, string>> {
 
   return new Promise((resolve) => {
     const child = spawn(shell, ['-ilc', 'env -0'], {
-      encoding: 'utf-8',
       env: {
         ...process.env,
         // Prevent Electron from interfering with the child shell
@@ -36,7 +35,7 @@ function resolveShellEnv(): Promise<Record<string, string>> {
       },
       stdio: ['ignore', 'pipe', 'ignore'],
       timeout: 10_000,
-    } as any)
+    })
 
     let stdout = ''
 

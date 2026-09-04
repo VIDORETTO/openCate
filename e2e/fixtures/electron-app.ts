@@ -5,10 +5,11 @@
 //   - renderer to install window.__cateE2E (see src/renderer/lib/e2eHarness.ts)
 
 import { _electron as electron, type ElectronApplication, type Page } from 'playwright'
+import { spawn, type ChildProcess } from 'node:child_process'
 import path from 'node:path'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { buildSync } from 'esbuild'
+import { buildSync, stop } from 'esbuild'
 
 export interface LaunchResult {
   electronApp: ElectronApplication
@@ -18,18 +19,24 @@ export interface LaunchResult {
 const REPO_ROOT = path.resolve(__dirname, '..', '..')
 let cateCliBin: string | null = null
 
-function currentCateCliBin(): string {
+async function currentCateCliBin(): Promise<string> {
   if (cateCliBin) return cateCliBin
   const root = mkdtempSync(path.join(tmpdir(), 'cate-e2e-cli-'))
   const cli = path.join(root, 'cli.cjs')
-  buildSync({
-    entryPoints: [path.join(REPO_ROOT, 'src', 'cli', 'cate.ts')],
-    bundle: true,
-    platform: 'node',
-    format: 'cjs',
-    target: 'node20',
-    outfile: cli,
-  })
+  try {
+    buildSync({
+      entryPoints: [path.join(REPO_ROOT, 'src', 'cli', 'cate.ts')],
+      bundle: true,
+      platform: 'node',
+      format: 'cjs',
+      target: 'node20',
+      outfile: cli,
+    })
+  } finally {
+    // buildSync starts esbuild's persistent service process. The bundle is
+    // already on disk, so release it before the Playwright worker can exit.
+    await stop()
+  }
   const bin = path.join(root, 'bin')
   mkdirSync(bin)
   const launcher = path.join(bin, 'cate')
@@ -40,7 +47,7 @@ function currentCateCliBin(): string {
   return bin
 }
 
-function localRuntimeEnv(): Record<string, string> {
+async function localRuntimeEnv(): Promise<Record<string, string>> {
   const version = JSON.parse(readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8')).version
   const tarballName = `cate-runtime-${version}-${process.platform}-${process.arch}.tgz`
   const roots = [REPO_ROOT, path.resolve(REPO_ROOT, '..', '..', '..')]
@@ -49,7 +56,7 @@ function localRuntimeEnv(): Record<string, string> {
     .find(existsSync)
   const bundle = path.join(REPO_ROOT, 'dist-runtime', 'runtime.cjs')
   return {
-    CATE_E2E_CATE_BIN: currentCateCliBin(),
+    CATE_E2E_CATE_BIN: await currentCateCliBin(),
     ...(tarball ? { CATE_E2E_RUNTIME_TARBALL: tarball } : {}),
     ...(existsSync(bundle) ? { CATE_E2E_RUNTIME_BUNDLE: bundle } : {}),
   }
@@ -64,7 +71,7 @@ export async function launchApp(opts: {
     ...process.env,
     CATE_E2E: '1',
     NODE_ENV: 'production',
-    ...localRuntimeEnv(),
+    ...(await localRuntimeEnv()),
     // Activate the resource profiler (main getAppMetrics sampler + counters,
     // renderer FPS/long-task/render counters, window.__catePerf) for the
     // perf-stress spec. Harmless no-op for other specs that don't set it.
@@ -76,29 +83,46 @@ export async function launchApp(opts: {
   // NO_COLOR. Passing both into a real terminal makes every bundled Node CLI
   // print a warning before its own stdout, which is not a Cate behavior.
   delete env.NO_COLOR
-  const electronApp = await electron.launch({
-    args: ['.'],
-    cwd: REPO_ROOT,
-    env,
-  })
-  const mainWindow = await electronApp.firstWindow()
-  await mainWindow.waitForLoadState('domcontentloaded')
-  await mainWindow.waitForFunction(() => window.__cateE2E?.ready === true, { timeout: 15_000 })
-  // The harness `ready` flag is set by its own effect the moment e2eHarness
-  // installs — independent of App's async init(), which restores/creates the
-  // workspace and mounts the Canvas. Wait for the Canvas to actually be in the
-  // DOM so specs don't race a not-yet-mounted canvas (activeCanvasPanelId would
-  // otherwise transiently return null right after launch).
-  await mainWindow.waitForSelector('[data-canvas-panel-id]', { timeout: 15_000 })
-  return { electronApp, mainWindow }
+  let electronApp: ElectronApplication | undefined
+  try {
+    const launchedApp = await electron.launch({
+      args: ['.'],
+      cwd: REPO_ROOT,
+      env,
+    })
+    electronApp = launchedApp
+    const mainWindow = await launchedApp.firstWindow()
+    await mainWindow.waitForLoadState('domcontentloaded')
+    await mainWindow.waitForFunction(() => window.__cateE2E?.ready === true, { timeout: 15_000 })
+    // The harness `ready` flag is set by its own effect the moment e2eHarness
+    // installs — independent of App's async init(), which restores/creates the
+    // workspace and mounts the Canvas. Wait for the Canvas to actually be in the
+    // DOM so specs don't race a not-yet-mounted canvas (activeCanvasPanelId would
+    // otherwise transiently return null right after launch).
+    await mainWindow.waitForSelector('[data-canvas-panel-id]', { timeout: 15_000 })
+    return { electronApp: launchedApp, mainWindow }
+  } catch (error) {
+    await closeApp(electronApp)
+    throw error
+  }
 }
 
-export async function closeApp(electronApp: ElectronApplication): Promise<void> {
+export async function closeApp(electronApp: ElectronApplication | undefined): Promise<void> {
+  if (!electronApp) return
   const child = electronApp.process()
+  const waitForExit = (): Promise<void> => {
+    if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve()
+    return new Promise((resolve) => child.once('exit', () => resolve()))
+  }
+
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
+    // ElectronApplication.close() drives Electron's normal app.quit lifecycle
+    // and drains Playwright's transport as part of the same operation. Calling
+    // it only after app.quit leaves a protocol request pending against an
+    // already-exited process, which keeps the Playwright worker alive.
     await Promise.race([
-      electronApp.close(),
+      Promise.all([electronApp.close(), waitForExit()]),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error('Electron close timed out')), 10_000)
       }),
@@ -107,10 +131,34 @@ export async function closeApp(electronApp: ElectronApplication): Promise<void> 
     // A wedged runtime/PTY must not hold the entire Playwright worker open after
     // the assertions have completed. This child belongs exclusively to the
     // current isolated E2E app instance.
-    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+    await forceKillProcessTree(child)
   } finally {
     if (timer) clearTimeout(timer)
   }
+}
+
+/** Kill the Playwright-launched Electron process and its Windows helper tree.
+ * Node's child.kill() only targets the root on Windows, so GPU/renderer
+ * children can otherwise keep an isolated E2E user-data directory and process
+ * alive after the test worker has reported success. */
+async function forceKillProcessTree(child: ChildProcess): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return
+  if (process.platform !== 'win32' || child.pid == null) {
+    try { child.kill('SIGKILL') } catch { /* already exited */ }
+    return
+  }
+
+  await new Promise<void>((resolve) => {
+    const killer = spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    })
+    killer.once('error', () => {
+      try { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL') } catch { /* already exited */ }
+      resolve()
+    })
+    killer.once('close', () => resolve())
+  })
 }
 
 // -----------------------------------------------------------------------------
@@ -124,12 +172,132 @@ export async function dragMouse(
   opts: { steps?: number; holdDownMs?: number; pauseAtEnd?: number } = {},
 ): Promise<void> {
   const steps = opts.steps ?? 20
+  // A hidden Electron window can lag one compositor turn behind Playwright's
+  // final native mousemove. Give the renderer a small chance to arm/paint the
+  // drag before mouseup; callers can still override this when they need a
+  // longer settle for a drop-preview assertion.
+  const pauseAtEnd = opts.pauseAtEnd ?? 50
   await page.mouse.move(from.x, from.y)
   await page.mouse.down()
   if (opts.holdDownMs) await page.waitForTimeout(opts.holdDownMs)
   await page.mouse.move(to.x, to.y, { steps })
-  if (opts.pauseAtEnd) await page.waitForTimeout(opts.pauseAtEnd)
+  if (pauseAtEnd) await page.waitForTimeout(pauseAtEnd)
   await page.mouse.up()
+}
+
+/**
+ * Drive an in-window canvas drag without Electron's native hidden-window input
+ * round trip. The target is still the element beneath the supplied point, so
+ * React's real mousedown handler and the window-level drag runtime both run.
+ * Keep this scoped to drag-move's geometry coverage; specs that exercise native
+ * window-boundary behavior continue to use `dragMouse` above.
+ */
+export async function beginCanvasDrag(
+  page: Page,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  steps = 20,
+): Promise<void> {
+  await page.evaluate(({ from: start, to: end, count }) => {
+    const target = document.elementFromPoint(start.x, start.y)
+    if (!target) throw new Error(`No drag target at ${start.x},${start.y}`)
+    const mouse = (type: string, point: { x: number; y: number }, buttons: number) =>
+      new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        buttons,
+        clientX: point.x,
+        clientY: point.y,
+        screenX: point.x,
+        screenY: point.y,
+      })
+    target.dispatchEvent(mouse('mousedown', start, 1))
+    for (let i = 1; i <= count; i++) {
+      const progress = i / count
+      window.dispatchEvent(mouse('mousemove', {
+        x: start.x + (end.x - start.x) * progress,
+        y: start.y + (end.y - start.y) * progress,
+      }, 1))
+    }
+  }, { from, to, count: steps })
+}
+
+export async function endCanvasDrag(page: Page, point: { x: number; y: number }): Promise<void> {
+  await page.evaluate((at) => {
+    window.dispatchEvent(new MouseEvent('mouseup', {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      buttons: 0,
+      clientX: at.x,
+      clientY: at.y,
+      screenX: at.x,
+      screenY: at.y,
+    }))
+  }, point)
+  await page.waitForTimeout(50)
+}
+
+export async function dragCanvas(
+  page: Page,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  steps = 20,
+): Promise<void> {
+  await beginCanvasDrag(page, from, to, steps)
+  await page.waitForTimeout(50)
+  await endCanvasDrag(page, to)
+}
+
+/**
+ * As dragCanvas, but starts from an explicit element rather than compositor
+ * hit-testing. Hidden Electron windows do not reliably route native mouse input
+ * or document.elementFromPoint, while this still invokes React's real handler
+ * and the production window-level drag lifecycle.
+ */
+export async function beginCanvasDragFrom(
+  page: Page,
+  sourceSelector: string,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  steps = 20,
+): Promise<void> {
+  await page.evaluate(({ selector, from: start, to: end, count }) => {
+    const target = document.querySelector(selector)
+    if (!target) throw new Error(`No drag source for selector: ${selector}`)
+    const mouse = (type: string, point: { x: number; y: number }, buttons: number) =>
+      new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        buttons,
+        clientX: point.x,
+        clientY: point.y,
+        screenX: point.x,
+        screenY: point.y,
+      })
+    target.dispatchEvent(mouse('mousedown', start, 1))
+    for (let i = 1; i <= count; i++) {
+      const progress = i / count
+      window.dispatchEvent(mouse('mousemove', {
+        x: start.x + (end.x - start.x) * progress,
+        y: start.y + (end.y - start.y) * progress,
+      }, 1))
+    }
+  }, { selector: sourceSelector, from, to, count: steps })
+}
+
+export async function dragCanvasFrom(
+  page: Page,
+  sourceSelector: string,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  steps = 20,
+): Promise<void> {
+  await beginCanvasDragFrom(page, sourceSelector, from, to, steps)
+  await page.waitForTimeout(50)
+  await endCanvasDrag(page, to)
 }
 
 export async function getNodeRect(
@@ -202,13 +370,12 @@ export async function titleBarCentre(
   page: Page,
   nodeId: string,
 ): Promise<{ x: number; y: number } | null> {
-  const rect = await getNodeRect(page, nodeId)
+  // The tab-bar spacer starts a whole-node drag with no panelId, unlike a tab
+  // pill which may detach an individual tab from a multi-tab node.
+  const spacer = page.locator(`[data-node-id="${nodeId}"] [data-node-drag-spacer]`).first()
+  const rect = await spacer.boundingBox()
   if (!rect) return null
-  // Aim INSIDE the first tab (the tab handler routes to dock-tab drag, which
-  // resolveDrop maps to canvas-reposition for same-canvas drops). The empty
-  // tab-bar spacer absorbs mousedown without dispatching to the host's
-  // onTabBarMouseDown, so we deliberately target a real tab element.
-  return { x: rect.x + 40, y: rect.y + 6 }
+  return { x: rect.x + Math.min(50, rect.width / 2), y: rect.y + rect.height / 2 }
 }
 
 export async function waitForGhost(

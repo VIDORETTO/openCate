@@ -7,13 +7,29 @@
 // =============================================================================
 
 import { describe, it, expect } from 'vitest'
-import { createServerCapability } from './server'
+import { createServerCapability, sanitizeServerEnv } from './server'
 import { createTunnelCapability } from './tunnel'
 
 const HTTP_SERVER_SRC =
   "const http=require('http');http.createServer((q,s)=>s.end('hello-ext')).listen(process.env.PORT,'127.0.0.1')"
 
 describe('server + tunnel capabilities (e2e)', () => {
+  it('strips ambient secret-bearing environment variables', () => {
+    expect(sanitizeServerEnv({
+      PATH: '/bin',
+      Path: 'C:\\Windows\\System32',
+      HOME: '/home/tester',
+      OPENAI_API_KEY: 'secret',
+      NPM_TOKEN: 'secret',
+      NODE_OPTIONS: '--require evil',
+      SSH_AUTH_SOCK: '/tmp/agent.sock',
+    })).toEqual({
+      PATH: '/bin',
+      Path: 'C:\\Windows\\System32',
+      HOME: '/home/tester',
+    })
+  })
+
   it('starts a server (ready probe), tunnels a request, then stops it', async () => {
     const server = createServerCapability()
     const tunnel = createTunnelCapability()

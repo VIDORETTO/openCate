@@ -134,14 +134,26 @@ export function useCateHostActionResponder(): void {
         // resolves the target terminal panel and reads its xterm buffer /
         // writes to its PTY via the terminalRegistry.
         if (method.startsWith('cate.terminal.')) {
-          const outcome = await handleTerminalMethod(workspaceId, method, args)
+          const outcome = await handleTerminalMethod(workspaceId, method, args, {
+            kind: 'extension',
+            id: payload.extensionId,
+            label: payload.extensionId,
+            sourcePanelId: payload.panelId,
+            origin: 'terminal-api',
+          })
           return outcome.ok
             ? reply(true, outcome.result !== undefined ? { result: outcome.result } : undefined)
             : reply(false, { error: outcome.error })
         }
 
         if (method.startsWith('cate.codingAgent.')) {
-          const outcome = await handleCodingAgentMethod(workspaceId, payload.panelId, method, args)
+          const outcome = await handleCodingAgentMethod(workspaceId, payload.panelId, method, args, {
+            kind: 'extension',
+            id: payload.extensionId,
+            label: payload.extensionId,
+            sourcePanelId: payload.panelId,
+            origin: 'orchestrator',
+          })
           return outcome.ok
             ? reply(true, { result: outcome.result })
             : reply(false, { error: outcome.error })

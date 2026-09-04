@@ -16,7 +16,7 @@ Use **Cate** as the foundation. Keep its Electron architecture, canvas store, pa
 
 ## Rationale
 
-1. Cate directly implements the hardest core requirement: an infinite zoomable canvas with nested canvases, docks and detached windows.
+1. Cate directly implements the hardest core requirement: an infinite zoomable canvas with canvas panels, docks and detached windows. Canvas-inside-canvas nesting remains an explicit follow-up because the current store contract rejects it.
 2. Its MIT license permits a derivative without forcing source disclosure.
 3. It already has real PTYs, scrollback restoration, Monaco/browser/document panels, agent status detection, subagents, orchestration modes, SSH/WSL and per-project JSON persistence.
 4. Higher-adoption projects are stronger at orchestration/platform or task management, but do not center the free spatial canvas.

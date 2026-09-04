@@ -332,7 +332,17 @@ describe('useCateHostActionResponder', () => {
 
   it('delegates cate.terminal.* to the terminal driver and relays its result', async () => {
     await fire('cate.terminal.read', { panelId: 't1' })
-    expect(terminalDriver.handleTerminalMethod).toHaveBeenCalledWith(WS, 'cate.terminal.read', { panelId: 't1' })
+    expect(terminalDriver.handleTerminalMethod).toHaveBeenCalledWith(
+      WS,
+      'cate.terminal.read',
+      { panelId: 't1' },
+      expect.objectContaining({
+        kind: 'extension',
+        id: 'cate.kitchensink',
+        origin: 'terminal-api',
+        sourcePanelId: 'host-panel',
+      }),
+    )
     expect(replies).toContainEqual({
       requestId: 'req-cate.terminal.read',
       ok: true,

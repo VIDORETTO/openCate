@@ -151,6 +151,25 @@ describe('hydrateWorkspaceFromDiskIfEmpty — restore', () => {
     await hydrateWorkspaceFromDiskIfEmpty(id)
     expect(projectStateLoad).not.toHaveBeenCalled()
   })
+
+  it('serializes concurrent empty-workspace hydrates and reads disk only once', async () => {
+    const id = await freshWorkspace('ws-concurrent-hydrate')
+    let releaseLoad!: (value: ReturnType<typeof diskState>) => void
+    projectStateLoad.mockImplementation(() => new Promise((resolve) => {
+      releaseLoad = resolve
+    }))
+
+    const first = hydrateWorkspaceFromDiskIfEmpty(id)
+    const second = hydrateWorkspaceFromDiskIfEmpty(id)
+    await Promise.resolve()
+
+    expect(projectStateLoad).toHaveBeenCalledTimes(1)
+    releaseLoad(diskState())
+    await Promise.all([first, second])
+
+    expect(projectStateLoad).toHaveBeenCalledTimes(1)
+    expect(useAppStore.getState().workspaces.find((workspace) => workspace.id === id)?.panels['ed-1']).toBeDefined()
+  })
 })
 
 // -----------------------------------------------------------------------------

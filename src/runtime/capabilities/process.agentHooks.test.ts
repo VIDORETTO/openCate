@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
-import { createProcessCapability } from './process'
+import { createProcessCapability, resolveWindowsCommand, resolveWindowsExecutable } from './process'
 
 const ptySpawn = vi.hoisted(() => vi.fn())
 vi.mock('node-pty', () => ({ spawn: ptySpawn }))
@@ -79,5 +79,34 @@ describe('process agent hook preparation', () => {
     )
     expect(handle.shell).toBe('codex')
     processCapability.kill(handle.id)
+  })
+
+  test.skipIf(process.platform !== 'win32')('resolves a Windows command shim for direct PTY spawning', () => {
+    const resolved = resolveWindowsExecutable(
+      'codex',
+      { Path: ['C:\\fake-bin', 'C:\\other-bin'].join(';'), PATHEXT: '.EXE;.CMD' },
+      (candidate) => candidate.toLowerCase() === 'c:\\fake-bin\\codex.cmd',
+    )
+
+    expect(resolved.toLowerCase()).toBe('c:\\fake-bin\\codex.cmd')
+  })
+
+  test.skipIf(process.platform !== 'win32')('bypasses a simple Node shim without losing multiline argv', () => {
+    const prompt = 'Complete this coding task:\n\n--literal mission; no shell'
+    const result = resolveWindowsCommand(
+      'codex',
+      [prompt],
+      { Path: 'C:\\fake-bin', PATHEXT: '.EXE;.CMD' },
+      () => `"${process.execPath}" "%~dp0fake-codex.cjs" %*`,
+      (candidate) => [
+        'c:\\fake-bin\\codex.cmd',
+        process.execPath.toLowerCase(),
+      ].includes(candidate.toLowerCase()),
+    )
+
+    expect(result).toEqual({
+      executable: process.execPath,
+      args: ['C:\\fake-bin\\fake-codex.cjs', prompt],
+    })
   })
 })

@@ -13,6 +13,8 @@ import { app } from 'electron'
 import * as Sentry from '@sentry/electron/main'
 import log from './logger'
 import { getCommonContext } from './appContext'
+import { getSetting } from './settingsFile'
+import { scrubSentryEvent, scrubSentryUrl } from './sentryPrivacy'
 
 declare const __SENTRY_DSN__: string
 
@@ -58,16 +60,17 @@ function actuallyInit(): void {
     tracesSampleRate: 0,
     initialScope: buildSentryScope(),
     beforeSend(event) {
-      return scrubEvent(event) as typeof event
+      if (!getSetting('telemetryEnabled')) return null
+      return scrubSentryEvent(event, app.getPath('home')) as typeof event | null
     },
     beforeBreadcrumb(crumb) {
       // BrowserPanel URLs can contain auth tokens / personal pages.
       // Strip query + path; keep origin only.
       if (crumb.category === 'navigation' || crumb.category === 'fetch' || crumb.category === 'xhr') {
         const data = crumb.data as Record<string, unknown> | undefined
-        if (data && typeof data['url'] === 'string') data['url'] = scrubUrl(data['url'] as string)
-        if (data && typeof data['to'] === 'string') data['to'] = scrubUrl(data['to'] as string)
-        if (data && typeof data['from'] === 'string') data['from'] = scrubUrl(data['from'] as string)
+        if (data && typeof data['url'] === 'string') data['url'] = scrubSentryUrl(data['url'] as string)
+        if (data && typeof data['to'] === 'string') data['to'] = scrubSentryUrl(data['to'] as string)
+        if (data && typeof data['from'] === 'string') data['from'] = scrubSentryUrl(data['from'] as string)
       }
       return crumb
     },
@@ -78,11 +81,15 @@ function actuallyInit(): void {
 }
 
 export function initSentry(): void {
-  // Telemetry is always on in packaged builds (no opt-out). In dev, init only
-  // when a DSN was explicitly provided via the environment (opt-in for
-  // debugging the Sentry pipeline itself).
+  // Dev builds require an explicit DSN; packaged builds additionally require
+  // the user's telemetry opt-in. The setting is read at startup so disabling
+  // it takes effect without sending another event after the next launch.
   if (!app.isPackaged && !process.env.SENTRY_DSN) {
     log.info('[sentry] dev build without SENTRY_DSN; skipping init')
+    return
+  }
+  if (!getSetting('telemetryEnabled')) {
+    log.info('[sentry] telemetry disabled by user; skipping init')
     return
   }
   actuallyInit()
@@ -91,7 +98,7 @@ export function initSentry(): void {
 /** Capture an uncaughtException in the main process. Best-effort: returns
  *  immediately if Sentry isn't initialized, so the crash path never blocks. */
 export function captureMainException(err: unknown): void {
-  if (!initialized) return
+  if (!initialized || !getSetting('telemetryEnabled')) return
   try {
     Sentry.captureException(err)
   } catch (sentryErr) {
@@ -105,7 +112,7 @@ export function captureMainMessage(
   message: string,
   extra?: Record<string, unknown>,
 ): void {
-  if (!initialized) return
+  if (!initialized || !getSetting('telemetryEnabled')) return
   try {
     Sentry.captureMessage(message, { level: 'error', extra })
   } catch (sentryErr) {
@@ -121,31 +128,5 @@ export async function flushSentry(): Promise<void> {
     await Sentry.flush(2000)
   } catch {
     /* best-effort */
-  }
-}
-
-/** Strip the user's home directory from any string field that might carry it. */
-function scrubPath(s: string): string {
-  const home = app.getPath('home')
-  if (!home) return s
-  return s.split(home).join('~')
-}
-
-function scrubUrl(u: string): string {
-  try {
-    const parsed = new URL(u)
-    return `${parsed.protocol}//${parsed.host}`
-  } catch {
-    return '[scrubbed]'
-  }
-}
-
-function scrubEvent(event: unknown): unknown {
-  try {
-    const json = JSON.stringify(event)
-    const scrubbed = scrubPath(json)
-    return JSON.parse(scrubbed)
-  } catch {
-    return event
   }
 }

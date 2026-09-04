@@ -159,11 +159,7 @@ describe('buildDockWindowRestoreInit', () => {
     expect(topLevelPanelIds).toContain('top-term')
   })
 
-  // Asserts the DESIRED behavior and is marked `.fails`: a zone entry whose
-  // panel record is gone currently rides through into topLevelPanelIds and the
-  // restored layout, so the shell renders a tab backed by nothing. It should be
-  // pruned at restore. Remove the marker when fixed.
-  it.fails('prunes zone entries whose panel record is missing', () => {
+  it('prunes zone entries whose panel record is missing', () => {
     const dw = makeMultiTabSnapshot()
     dw.dockState = multiTabDockState(['top-term', 'ghost-panel', 'top-editor', 'top-canvas'])
 

@@ -25,6 +25,71 @@ import { errorMessage } from '../lib/errorMessage'
 import { pathKey } from '../../shared/pathUtils'
 import { seedAgentPanelWithWorktreeChat } from '../../cateAgent/renderer/seedWorktreeChat'
 import { activeChatWorktreeIdForPanel } from '../../cateAgent/renderer/cateAgentStore'
+import {
+  startWorktreeMission,
+  type WorktreeMissionOptions,
+  type WorktreeMissionResult,
+} from '../lib/worktreeMission'
+import {
+  isCommitChecklistComplete,
+  type CommitChecklist,
+} from '../lib/worktreeCommit'
+
+import { useMergeQueueStore } from './mergeQueueStore'
+
+const activeMergeQueueRoots = new Set<string>()
+
+async function drainMergeQueue(
+  rootPath: string,
+  workspaceId: string,
+  setError: (value: string | null) => void,
+  setBusy: ((id: string | null) => void) | undefined,
+  reconcile: () => void,
+): Promise<void> {
+  if (activeMergeQueueRoots.has(rootPath)) return
+  activeMergeQueueRoots.add(rootPath)
+  try {
+    while (true) {
+      const entry = useMergeQueueStore.getState().startNext(rootPath)
+      if (!entry) return
+      setBusy?.(entry.worktreeId)
+      try {
+        const result = await window.electronAPI.gitWorktreeMergeTo(
+          rootPath,
+          entry.sourceBranch,
+          entry.targetBranch,
+          workspaceId,
+        )
+        if (!result.ok) {
+          useMergeQueueStore.getState().finish(
+            rootPath,
+            entry.id,
+            result.conflict ? 'conflict' : 'failed',
+            result.message,
+          )
+          setError(
+            result.conflict
+              ? `Merge ${entry.sourceBranch} → ${entry.targetBranch} is conflicted. Resolve it before continuing the queue.`
+              : `Merge ${entry.sourceBranch} → ${entry.targetBranch}: ${errorMessage(result.message, 'The merge failed.')}`,
+          )
+          return
+        }
+        useMergeQueueStore.getState().finish(rootPath, entry.id, 'completed')
+        setError(null)
+        reconcile()
+      } catch (err: unknown) {
+        const message = errorMessage(err, 'The operation failed.')
+        useMergeQueueStore.getState().finish(rootPath, entry.id, 'failed', message)
+        setError(`Merge ${entry.sourceBranch} → ${entry.targetBranch}: ${message}`)
+        return
+      } finally {
+        setBusy?.(null)
+      }
+    }
+  } finally {
+    activeMergeQueueRoots.delete(rootPath)
+  }
+}
 
 /** Apply a color/label change to a worktree's UI metadata, creating the metadata
  *  record when none exists yet (a worktree discovered only from git has its path
@@ -61,6 +126,7 @@ export interface WorktreeStatus {
 /** The per-worktree action set a card / row binds its buttons + menu to. */
 export interface CardCallbacks {
   onLaunch: (type: WorktreePanelType) => void
+  onCommit: (message: string, checklist: CommitChecklist) => Promise<boolean>
   onPublish: () => void
   onCreatePR: () => void
   onUpdateFromMain: () => void
@@ -87,8 +153,10 @@ export async function runWorktreeContextMenu(opts: {
   cb: CardCallbacks
   beginRename: () => void
   beginRecolor: () => void
+  beginCommit: () => void
 }): Promise<void> {
   const items: NativeContextMenuItem[] = [
+    { id: 'commit', label: 'Commit changes…' },
     { id: 'publish', label: 'Publish branch' },
     { id: 'pr', label: opts.hasPr ? 'Open pull request' : 'Create pull request' },
   ]
@@ -112,6 +180,7 @@ export async function runWorktreeContextMenu(opts: {
     return
   }
   switch (choice) {
+    case 'commit': opts.beginCommit(); break
     case 'publish': opts.cb.onPublish(); break
     case 'pr': if (opts.hasPr) opts.cb.onOpenPr(opts.prUrl); else opts.cb.onCreatePR(); break
     case 'update': opts.cb.onUpdateFromMain(); break
@@ -130,6 +199,10 @@ export interface UseParallelWork {
   /** Spawn a terminal or Agent bound to a worktree. Pass `placement` to pin
    *  it to a specific canvas (the toolbar does); omit for default placement. */
   launchInWorktree: (wt: JoinedWorktree, type: WorktreePanelType, placement?: PanelPlacement) => void
+  /** Create an isolated worktree, task, coding-agent terminal, and supervisor
+   *  panel as one user-confirmed flow. */
+  startWorktreeMission: (options: WorktreeMissionOptions) => Promise<WorktreeMissionResult | null>
+  handleCommit: (wt: JoinedWorktree, message: string, checklist: CommitChecklist) => Promise<boolean>
   handlePublish: (wt: JoinedWorktree) => Promise<void>
   handleCreatePR: (wt: JoinedWorktree) => Promise<void>
   handleUpdateFromMain: (wt: JoinedWorktree) => Promise<void>
@@ -175,6 +248,55 @@ export function useParallelWork(
     [rootPath, workspaceId],
   )
 
+  const startWorktreeMissionAction = useCallback(
+    async (options: WorktreeMissionOptions) => {
+      if (!workspaceId || !rootPath) return null
+      return startWorktreeMission(workspaceId, rootPath, options)
+    },
+    [rootPath, workspaceId],
+  )
+
+  const handleCommit = useCallback(
+    async (wt: JoinedWorktree, message: string, checklist: CommitChecklist): Promise<boolean> => {
+      const trimmed = message.trim()
+      if (!workspaceId) {
+        setError('Could not resolve the workspace before committing.')
+        return false
+      }
+      if (!trimmed) {
+        setError('Enter a commit message.')
+        return false
+      }
+      if (!isCommitChecklistComplete(checklist)) {
+        setError('Complete the review checklist before committing.')
+        return false
+      }
+      setBusy?.(wt.id)
+      try {
+        // Re-read immediately before staging so the dialog cannot commit a
+        // stale file list after another terminal has changed the worktree.
+        const status = await window.electronAPI.gitStatus(wt.path, workspaceId)
+        if (status.files.length === 0) {
+          setError('There are no changed files to commit.')
+          return false
+        }
+        for (const file of status.files) {
+          await window.electronAPI.gitStage(wt.path, file.path, workspaceId)
+        }
+        await window.electronAPI.gitCommit(wt.path, trimmed, workspaceId)
+        setError(null)
+        reconcile()
+        return true
+      } catch (err: unknown) {
+        setError(`Commit failed: ${errorMessage(err, 'The operation failed.')}`)
+        return false
+      } finally {
+        setBusy?.(null)
+      }
+    },
+    [reconcile, setBusy, setError, workspaceId],
+  )
+
   const handlePublish = useCallback(
     async (wt: JoinedWorktree) => {
       if (!wt.branch) return
@@ -202,6 +324,11 @@ export function useParallelWork(
       setError(null)
       setBusy?.(wt.id)
       try {
+        const status = await window.electronAPI.gitStatus(wt.path, workspaceId ?? '')
+        if (status.files.length > 0) {
+          setError('Commit or discard the worktree changes before creating a pull request.')
+          return
+        }
         const res = await window.electronAPI.gitCreatePR(wt.path, wt.branch, workspaceId ?? '')
         if (res.ok) {
           window.electronAPI.openExternalUrl(res.url)
@@ -252,22 +379,31 @@ export function useParallelWork(
         setError('Could not resolve the base branch — open Source Control once to refresh.')
         return
       }
-      const ok = window.confirm(`Merge ${wt.branch} into ${target}?`)
-      if (!ok) return
-      setBusy?.(wt.id)
       try {
-        const result = await window.electronAPI.gitWorktreeMergeTo(rootPath, wt.branch, target, workspaceId ?? '')
-        if (!result.ok) {
-          setError(`Merge ${wt.branch} → ${target}: ${errorMessage(result.message, 'The merge failed.')}`)
-        } else {
-          setError(null)
-          reconcile()
+        const review = await window.electronAPI.gitWorktreeReview(wt.path, target, workspaceId ?? '')
+        if (!review.canApply) {
+          setError(`Merge ${wt.branch} → ${target}: ${errorMessage(review.message, 'This worktree is not ready to merge.')}`)
+          return
         }
       } catch (err: unknown) {
-        setError(`Merge failed: ${errorMessage(err, 'The operation failed.')}`)
-      } finally {
-        setBusy?.(null)
+        setError(`Couldn’t check ${wt.branch} before merging: ${errorMessage(err, 'The review failed.')}`)
+        return
       }
+      const ok = window.confirm(`Merge ${wt.branch} into ${target}?`)
+      if (!ok) return
+      const entry = useMergeQueueStore.getState().enqueue({
+        rootPath,
+        workspaceId: workspaceId ?? '',
+        worktreeId: wt.id,
+        sourceBranch: wt.branch,
+        targetBranch: target,
+      })
+      if (!entry) {
+        setError('The merge queue is full. Clear completed entries before adding another merge.')
+        return
+      }
+      setError(null)
+      void drainMergeQueue(rootPath, workspaceId ?? '', setError, setBusy, reconcile)
     },
     [rootPath, primaryLabel, reconcile, setBusy, setError, workspaceId],
   )
@@ -364,6 +500,7 @@ export function useParallelWork(
   const makeCallbacks = useCallback(
     (wt: JoinedWorktree): CardCallbacks => ({
       onLaunch: (type) => launchInWorktree(wt, type),
+      onCommit: (message, checklist) => handleCommit(wt, message, checklist),
       onPublish: () => handlePublish(wt),
       onCreatePR: () => handleCreatePR(wt),
       onUpdateFromMain: () => handleUpdateFromMain(wt),
@@ -386,7 +523,7 @@ export function useParallelWork(
       },
       onError: setError,
     }),
-    [launchInWorktree, handlePublish, handleCreatePR, handleUpdateFromMain, handleMerge, handleDelete, workspaceId, setError],
+    [launchInWorktree, handleCommit, handlePublish, handleCreatePR, handleUpdateFromMain, handleMerge, handleDelete, workspaceId, setError],
   )
 
   return {
@@ -394,6 +531,8 @@ export function useParallelWork(
     createWorktree,
     checkoutPr,
     launchInWorktree,
+    startWorktreeMission: startWorktreeMissionAction,
+    handleCommit,
     handlePublish,
     handleCreatePR,
     handleUpdateFromMain,

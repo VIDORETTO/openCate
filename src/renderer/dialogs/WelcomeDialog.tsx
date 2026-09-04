@@ -4,8 +4,8 @@
 // Shown once per TELEMETRY_NOTICE_VERSION, in the main window, on a (plain)
 // first-run canvas before the guided tour — so fresh installs see it once, and
 // existing users see it once more whenever the notice version is bumped (e.g.
-// the v2 switch to always-on telemetry). Purely informational: there is no
-// opt-in choice, just a privacy-policy link. Uses the app's surface tokens +
+// the v3 switch to explicit opt-in telemetry). The choice defaults to off and
+// can be changed later in Settings. Uses the app's surface tokens +
 // radius (matching the ⌘K palette) and the blue accent, with a logo header.
 // =============================================================================
 
@@ -17,6 +17,7 @@ import log from '../lib/logger'
 import headerImg from '../assets/welcome-header.jpg'
 import { AnimatedDotGrid } from './AnimatedDotGrid'
 import { TELEMETRY_NOTICE_VERSION } from '../../shared/types'
+import { Toggle } from '../settings/SettingsComponents'
 
 const GITHUB_REPO = 'https://github.com/0-AI-UG/cate'
 const NEWSLETTER_URL = 'https://cate.cero-ai.com'
@@ -41,6 +42,8 @@ function GithubMark({ size = 17 }: { size?: number }) {
 export function WelcomeDialog() {
   const acknowledgedVersion = useSettingsStore((s) => s.telemetryNoticeAcknowledgedVersion)
   const loaded = useSettingsStore((s) => s._loaded)
+  const telemetryEnabled = useSettingsStore((s) => s.telemetryEnabled)
+  const setSetting = useSettingsStore((s) => s.setSetting)
 
   const [saving, setSaving] = useState(false)
   const [exiting, setExiting] = useState(false)
@@ -148,17 +151,23 @@ export function WelcomeDialog() {
 
           <div className="border-t border-subtle" />
 
-          {/* Telemetry notice — informational only, no choice. */}
-          <p className="text-center text-[12px] text-secondary leading-relaxed">
-            Cate collects anonymous usage data and crash reports to improve the app.{' '}
-            <button
-              type="button"
-              onClick={() => openLink(PRIVACY_URL, 'privacy_policy')}
-              className="text-blue-400 hover:text-blue-300 font-medium"
-            >
-              Privacy Policy
-            </button>
-          </p>
+          {/* Telemetry notice — explicit opt-in, off by default. */}
+          <div className="flex items-center gap-3 rounded-lg border border-subtle bg-surface-0/45 px-3 py-2.5">
+            <div className="min-w-0 flex-1">
+              <p className="text-[12px] text-primary font-medium">Share anonymous diagnostics</p>
+              <p className="mt-0.5 text-[11px] text-secondary leading-relaxed">
+                Usage data and crash reports only. No file contents, paths, or project names.{' '}
+                <button
+                  type="button"
+                  onClick={() => openLink(PRIVACY_URL, 'privacy_policy')}
+                  className="text-blue-400 hover:text-blue-300 font-medium"
+                >
+                  Privacy Policy
+                </button>
+              </p>
+            </div>
+            <Toggle checked={telemetryEnabled} onChange={(value) => setSetting('telemetryEnabled', value)} />
+          </div>
 
           <button
             onClick={onContinue}

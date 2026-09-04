@@ -95,6 +95,9 @@ interface ToggleProps {
 export function Toggle({ checked, onChange }: ToggleProps) {
   return (
     <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
       onClick={() => onChange(!checked)}
       className={`relative w-9 h-5 rounded-full transition-colors ${
         checked ? 'bg-focus-blue' : 'bg-surface-6'

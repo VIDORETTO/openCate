@@ -156,8 +156,37 @@ describe('GlobalAgentComposer', () => {
 
     await act(async () => document.body.querySelector<HTMLButtonElement>('[aria-label="Confirm broadcast to 2 agents"]')?.click())
     expect(h.sendCodingAgentFollowUp).toHaveBeenCalledTimes(2)
-    expect(h.sendCodingAgentFollowUp).toHaveBeenNthCalledWith(1, 'ws', 'owner-a', 'run-a', 'Run the focused tests')
-    expect(h.sendCodingAgentFollowUp).toHaveBeenNthCalledWith(2, 'ws', 'owner-b', 'run-b', 'Run the focused tests')
+    expect(h.sendCodingAgentFollowUp).toHaveBeenNthCalledWith(
+      1,
+      'ws',
+      'owner-a',
+      'run-a',
+      'Run the focused tests',
+      expect.objectContaining({
+        enabled: true,
+        kind: 'prompt',
+        contentChars: 'Run the focused tests'.length,
+        actor: expect.objectContaining({
+          kind: 'human',
+          id: 'local-user',
+          origin: 'global-composer',
+        }),
+        correlationId: expect.any(String),
+      }),
+    )
+    expect(h.sendCodingAgentFollowUp).toHaveBeenNthCalledWith(
+      2,
+      'ws',
+      'owner-b',
+      'run-b',
+      'Run the focused tests',
+      expect.objectContaining({
+        enabled: true,
+        kind: 'prompt',
+        actor: expect.objectContaining({ origin: 'global-composer' }),
+        correlationId: expect.any(String),
+      }),
+    )
   })
 
   it('does not select a finished or unsupported target', () => {
@@ -201,12 +230,22 @@ describe('GlobalAgentComposer', () => {
       'owner-a',
       'run-a',
       expect.stringContaining('--- Context 1: failure.log'),
+      expect.objectContaining({
+        kind: 'prompt',
+        actor: expect.objectContaining({ origin: 'global-composer' }),
+        correlationId: expect.any(String),
+      }),
     )
     expect(h.sendCodingAgentFollowUp).toHaveBeenCalledWith(
       'ws',
       'owner-b',
       'run-b',
       expect.stringContaining('Fix the failing test'),
+      expect.objectContaining({
+        kind: 'prompt',
+        actor: expect.objectContaining({ origin: 'global-composer' }),
+        correlationId: expect.any(String),
+      }),
     )
   })
 
@@ -241,6 +280,11 @@ describe('GlobalAgentComposer', () => {
       'owner-a',
       'run-a',
       expect.stringContaining('failing assertion'),
+      expect.objectContaining({
+        kind: 'prompt',
+        actor: expect.objectContaining({ origin: 'global-composer' }),
+        correlationId: expect.any(String),
+      }),
     )
     expect(h.recordDelivery).toHaveBeenCalledTimes(1)
     expect(h.recordDelivery).toHaveBeenCalledWith(contextItems, ['panel-a'])

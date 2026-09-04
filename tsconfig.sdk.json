@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "declarationMap": false,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/sdk/index.ts",
+    "src/shared/catePublicApi.ts",
+    "src/shared/projectTasks.ts",
+    "src/shared/projectMemory.ts",
+    "src/sdk/companionClient.ts",
+    "src/sdk/companionIdentityStore.ts",
+    "src/shared/companionCrypto.ts",
+    "src/shared/companionProtocol.ts",
+    "src/shared/companionPairing.ts"
+  ]
+}

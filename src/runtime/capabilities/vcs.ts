@@ -12,19 +12,54 @@
 // =============================================================================
 
 import { simpleGit } from 'simple-git'
-import { execFile } from 'child_process'
+import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
 import fsp from 'fs/promises'
 import path from 'path'
 import {
   validateCwd as validateScopedCwd,
+  validatePathForCreation as validateScopedPathForCreation,
+  validatePathStrict as validateScopedPathStrict,
   addAllowedRootForRelatedPath,
   removeAllowedRootFromAllScopes,
 } from '../../main/ipc/pathValidation'
 import { ensureCateGitignore } from '../../main/cateGitignore'
 import type { FileAccessContext, VcsHost } from '../../main/runtime/types'
+import { MAX_GIT_DIFF_HUNKS, parseGitDiffHunks, selectedGitDiff } from '../../shared/gitDiff'
 
 const execFileP = promisify(execFile)
+
+function applyPatchToIndex(cwd: string, patch: string, environment: NodeJS.ProcessEnv): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', ['apply', '--cached', '--whitespace=nowarn', '-'], {
+      cwd,
+      env: environment,
+      stdio: ['pipe', 'ignore', 'pipe'],
+    })
+    let stderr = ''
+    let settled = false
+    const fail = (error: Error): void => {
+      if (settled) return
+      settled = true
+      reject(error)
+    }
+    child.stderr.on('data', (chunk: Buffer | string) => {
+      if (stderr.length < 8_000) stderr += chunk.toString()
+    })
+    child.on('error', (error) => fail(error))
+    child.stdin.on('error', (error) => fail(error))
+    child.on('close', (code) => {
+      if (settled) return
+      settled = true
+      if (code === 0) {
+        resolve()
+      } else {
+        reject(new Error(stderr.trim() || `git apply exited with code ${code ?? 'unknown'}`))
+      }
+    })
+    child.stdin.end(patch)
+  })
+}
 
 /** Best-effort symlink of workspace-root-relative paths (e.g. node_modules,
  *  build output) from the source checkout into a freshly created worktree, so
@@ -113,6 +148,10 @@ export function createVcsCapability(deps: VcsCapabilityDeps): VcsHost {
     validateScopedCwd(cwd, access?.ownerWindowId, access?.scopeId)
   const addWorktreeRoot = (root: string, repoCwd: string) =>
     addAllowedRootForRelatedPath(root, repoCwd, deps.scopeId)
+  const validateWorktreeTargetForCreation = (targetPath: string, access?: FileAccessContext) =>
+    validateScopedPathForCreation(targetPath, access?.ownerWindowId, access?.scopeId)
+  const validateWorktreeTarget = (targetPath: string, access?: FileAccessContext) =>
+    validateScopedPathStrict(targetPath, access?.ownerWindowId, access?.scopeId)
 
   function validateFilePath(cwd: string, filePath: string): string {
     const resolvedCwd = path.resolve(cwd)
@@ -370,24 +409,27 @@ export function createVcsCapability(deps: VcsCapabilityDeps): VcsHost {
       }
     },
     async worktreeAdd(repoCwd, branch, targetPath, options, access) {
-      const git = simpleGit(validateCwd(repoCwd, access))
-      await ensureContainingDir(targetPath)
+      const validRepo = validateCwd(repoCwd, access)
+      const safeTarget = await validateWorktreeTargetForCreation(targetPath, access)
+      const git = simpleGit(validRepo)
+      await ensureContainingDir(safeTarget)
       const args = ['worktree', 'add']
-      if (options?.createBranch) args.push('-b', branch, targetPath, options.baseRef ?? 'HEAD')
-      else args.push(targetPath, branch)
+      if (options?.createBranch) args.push('-b', branch, safeTarget, options.baseRef ?? 'HEAD')
+      else args.push(safeTarget, branch)
       await git.raw(args)
-      addWorktreeRoot(targetPath, repoCwd)
-      await linkWorktreePaths(validateCwd(repoCwd, access), targetPath, options?.symlinkPaths)
-      return { path: targetPath, branch }
+      addWorktreeRoot(safeTarget, validRepo)
+      await linkWorktreePaths(validRepo, safeTarget, options?.symlinkPaths)
+      return { path: safeTarget, branch }
     },
     async worktreeAddFromPr(repoCwd, prNumber, targetPath, options, access) {
       const validRepo = validateCwd(repoCwd, access)
+      const safeTarget = await validateWorktreeTargetForCreation(targetPath, access)
       const git = simpleGit(validRepo)
       if (!(await ghAvailable(validRepo))) throw new Error('GitHub CLI (gh) is required to check out pull requests.')
-      await ensureContainingDir(targetPath)
+      await ensureContainingDir(safeTarget)
       const branch = await availablePrBranch(git, prNumber)
       try {
-        await git.raw(['worktree', 'add', '--detach', targetPath])
+        await git.raw(['worktree', 'add', '--detach', safeTarget])
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error)
         if (/already exists|already checked out|already registered/i.test(detail)) {
@@ -395,46 +437,49 @@ export function createVcsCapability(deps: VcsCapabilityDeps): VcsHost {
         }
         throw new Error(`Couldn’t create a worktree for PR #${prNumber}. Check that the repository is writable and try again.`)
       }
-      addWorktreeRoot(targetPath, repoCwd)
+      addWorktreeRoot(safeTarget, validRepo)
       try {
         // Never let gh reuse the contributor's local branch: it may have
         // diverged, be checked out elsewhere, or contain unpublished work.
         await execFileP('gh', ['pr', 'checkout', String(prNumber), '--branch', branch], {
-          cwd: targetPath,
+          cwd: safeTarget,
           timeout: 120000,
           env: env(),
         })
       } catch (error) {
-        await git.raw(['worktree', 'remove', '--force', targetPath]).catch(() => {})
+        await git.raw(['worktree', 'remove', '--force', safeTarget]).catch(() => {})
         await git.branch(['-D', branch]).catch(() => {})
-        await fsp.rm(targetPath, { recursive: true, force: true }).catch(() => {})
-        removeAllowedRootFromAllScopes(targetPath)
+        await fsp.rm(safeTarget, { recursive: true, force: true }).catch(() => {})
+        removeAllowedRootFromAllScopes(safeTarget)
         throw prCheckoutError(prNumber, error)
       }
-      await linkWorktreePaths(validRepo, targetPath, options?.symlinkPaths)
-      return { path: targetPath, branch }
+      await linkWorktreePaths(validRepo, safeTarget, options?.symlinkPaths)
+      return { path: safeTarget, branch }
     },
     async worktreeRemove(repoCwd, worktreePath, options, access) {
-      const git = simpleGit(validateCwd(repoCwd, access))
+      const validRepo = validateCwd(repoCwd, access)
+      const safeWorktree = await validateWorktreeTarget(worktreePath, access)
+      const git = simpleGit(validRepo)
       const args = ['worktree', 'remove']
       if (options?.force) args.push('--force')
-      args.push(worktreePath)
+      args.push(safeWorktree)
       await git.raw(args)
-      await fsp.rm(worktreePath, { recursive: true, force: true }).catch(() => {})
-      removeAllowedRootFromAllScopes(worktreePath)
+      await fsp.rm(safeWorktree, { recursive: true, force: true }).catch(() => {})
+      removeAllowedRootFromAllScopes(safeWorktree)
     },
     async worktreePrune(repoCwd, access) {
       const output = await simpleGit(validateCwd(repoCwd, access)).raw(['worktree', 'prune', '-v'])
       return { output }
     },
     async worktreeStatus(worktreePath, access) {
+      const safeWorktree = validateCwd(worktreePath, access)
       try {
-        const stat = await fsp.stat(worktreePath)
+        const stat = await fsp.stat(safeWorktree)
         if (!stat.isDirectory()) return null
       } catch {
         return null
       }
-      const git = simpleGit(validateCwd(worktreePath, access))
+      const git = simpleGit(safeWorktree)
       if (!(await git.checkIsRepo())) return null
       const status = await git.status()
       let ahead = 0, behind = 0
@@ -507,6 +552,7 @@ export function createVcsCapability(deps: VcsCapabilityDeps): VcsHost {
         workingFiles,
         diff: truncated ? rawDiff.slice(0, maxDiffChars) : rawDiff,
         truncated,
+        hunks: truncated ? [] : parseGitDiffHunks(rawDiff),
         ...(!branch
           ? { message: 'Check out a named branch in this worktree before applying it.' }
           : dirty
@@ -514,6 +560,68 @@ export function createVcsCapability(deps: VcsCapabilityDeps): VcsHost {
             : commits.length === 0
               ? { message: `No unapplied commits differ from ${baseBranch}.` }
               : {}),
+      }
+    },
+    async worktreeApplySelection(repoCwd, sourceBranch, baseBranch, hunkIds, access) {
+      const repo = validateCwd(repoCwd, access)
+      const git = simpleGit(repo)
+      const requested = [...new Set(hunkIds)].slice(0, MAX_GIT_DIFF_HUNKS)
+      if (requested.length === 0) {
+        return { ok: false, conflict: false, message: 'Select at least one change before applying.' }
+      }
+      const status = await git.status()
+      if (status.current !== baseBranch) {
+        return {
+          ok: false,
+          conflict: false,
+          message: `The base checkout is on ${status.current ?? 'an unnamed branch'}, not ${baseBranch}.`,
+        }
+      }
+      if (status.files.length > 0) {
+        return {
+          ok: false,
+          conflict: false,
+          message: `Commit or stash changes in ${baseBranch} before applying a selection.`,
+        }
+      }
+      let mergeBase: string
+      try {
+        mergeBase = (await git.raw(['merge-base', baseBranch, sourceBranch])).trim()
+      } catch {
+        return {
+          ok: false,
+          conflict: false,
+          message: `Couldn’t compare ${sourceBranch} with ${baseBranch}.`,
+        }
+      }
+      const rawDiff = await git.raw(['diff', '--no-ext-diff', '--binary', `${mergeBase}...${sourceBranch}`])
+      const hunks = parseGitDiffHunks(rawDiff)
+      const known = new Set(hunks.map((hunk) => hunk.id))
+      if (requested.some((id) => !known.has(id))) {
+        return {
+          ok: false,
+          conflict: true,
+          message: 'The worker changed since this review. Review the diff again before applying.',
+        }
+      }
+      const patch = selectedGitDiff(rawDiff, requested)
+      if (!patch) {
+        return { ok: false, conflict: false, message: 'The selected changes are no longer available.' }
+      }
+      try {
+        await applyPatchToIndex(repo, patch, env())
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        return { ok: false, conflict: true, message: `Couldn’t apply the selected changes: ${message}` }
+      }
+      return {
+        ok: true,
+        result: {
+          branch: sourceBranch,
+          baseBranch,
+          selectedHunks: requested,
+          staged: true,
+        },
       }
     },
     async worktreeMergeTo(repoCwd, fromBranch, toBranch, access) {

@@ -16,6 +16,7 @@ import type {
   RemoteConnectSpec,
   RuntimeConnection,
   RuntimePhase,
+  RuntimeTelemetryEvent,
 } from '../../../shared/types'
 import type { CodingAgentLaunch, CodingAgentRun } from '../../../shared/codingAgentRuns'
 
@@ -65,6 +66,9 @@ export interface AppStoreState {
    *  it's global rather than per-workspace). Drives the local loading blocker.
    *  `null` until seeded at init. */
   localRuntimePhase: RuntimePhase | null
+  /** Bounded in-memory lifecycle history for runtime diagnostics. Never
+   * persisted and never populated with transport error details. */
+  runtimeTelemetry: RuntimeTelemetryEvent[]
   /** Per-workspace reload counter. Bumped when a workspace's layout is rebuilt
    *  from disk (reload / hydrate), so the main shell can remount and respawn its
    *  terminals cleanly. Defaults to 0 for any workspace not present here. */
@@ -176,6 +180,7 @@ export interface AppStoreActions {
   /** Set the global LOCAL runtime phase (drives the local loading blocker).
    *  Written by the RUNTIME_STATUS handler for LOCAL events + the init seed. */
   setLocalRuntimePhase: (phase: RuntimePhase) => void
+  recordRuntimeTelemetry: (event: RuntimeTelemetryEvent) => void
   setWorkspaceColor: (wsId: string, color: string) => void
   renameWorkspace: (wsId: string, name: string) => void
   closeAllPanels: (wsId: string) => void

@@ -92,6 +92,11 @@ export function guardQuit(
   parent: BrowserWindow | null | undefined,
   onConfirm: () => void,
 ): QuitGuardResult {
+  // The isolated Playwright app has no user who can answer a native modal
+  // dialog. Keep its normal session-flush and runtime-dispose path intact, but
+  // let it cross this interactive gate so the fixture can exercise a graceful
+  // quit instead of eventually force-killing Electron and orphaning PTYs.
+  if (process.env.CATE_E2E === '1') return 'proceed'
   if (quitConfirmed) return 'proceed'
 
   const prompt = decideQuitPrompt({

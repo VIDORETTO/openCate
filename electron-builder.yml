@@ -111,6 +111,10 @@ mac:
         - arm64
 win:
   icon: build/icon.ico
+  # Keep the physical installer name aligned with the GitHub-safe name used
+  # by electron-updater in latest.yml; otherwise uploads retain spaces while
+  # the generated update manifest points at a hyphenated asset.
+  artifactName: ${productName}-Setup-${version}.${ext}
   # Code signing is driven by CI env vars (CSC_LINK / CSC_KEY_PASSWORD), wired
   # from the WINDOWS_CERTS / WINDOWS_CERTS_PASSWORD repo secrets in
   # .github/workflows/release.yml. With them set, electron-builder signs the
@@ -129,6 +133,7 @@ win:
 linux:
   icon: build/icon.png
   category: Development
+  syncDesktopName: true
   target:
     - target: AppImage
       arch:

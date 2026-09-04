@@ -199,7 +199,7 @@ test.describe('content search', () => {
 
     const line = page.locator('[data-testid="search-line"]').first()
     await line.hover()
-    await line.locator('button[title="Dismiss match"]').click()
+    await line.locator('button[aria-label="Dismiss match"]').click()
     await expect.poll(async () => (await snap(page)).dismissedLines).toBe(1)
   })
 
@@ -210,7 +210,7 @@ test.describe('content search', () => {
 
     const file = page.locator('[data-testid="search-file"]').first()
     await file.hover()
-    await file.locator('button[title="Dismiss file"]').click()
+    await file.locator('button[aria-label="Dismiss file"]').click()
     await expect.poll(async () => (await snap(page)).dismissedFiles).toBe(1)
   })
 

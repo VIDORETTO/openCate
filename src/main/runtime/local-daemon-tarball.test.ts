@@ -7,6 +7,7 @@ import { RuntimeManager } from './runtimeManager'
 import { LocalSubprocessTransport } from './transports/localTransport'
 import { hostRuntimeTarget, tarballName } from './runtimeArtifacts'
 import { RUNTIME_VERSION } from '../../runtime/version'
+import { LOCAL_RUNTIME_ID } from '../../shared/runtimeLocator'
 
 // Provision the REAL per-target runtime tarball locally and run the daemon
 // through its OWN bundled node (runtime/bin/node), not Electron-as-node. This is
@@ -26,6 +27,7 @@ describe.skipIf(!hasTarball)('local daemon from the real tarball', () => {
   let installRoot: string
   let installDir: string
   let workspace: string
+  let restartMgr: RuntimeManager | undefined
 
   beforeAll(async () => {
     // Keep fixtures in the system temp dir: the daemon explicitly allows
@@ -36,12 +38,17 @@ describe.skipIf(!hasTarball)('local daemon from the real tarball', () => {
   }, 60_000)
 
   afterAll(async () => {
+    await restartMgr?.disposeAll()
     await mgr?.disposeAll()
-    await fs.rm(installRoot, { recursive: true, force: true })
-    await fs.rm(workspace, { recursive: true, force: true })
-  })
+    // The extracted runtime contains thousands of files and Windows Defender
+    // can briefly hold node.exe or a directory while scanning it. Retry the
+    // fixture cleanup instead of treating that transient lock as a daemon
+    // failure; the hook itself needs more than Vitest's 10s default on Windows.
+    await fs.rm(installRoot, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 })
+    await fs.rm(workspace, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 })
+  }, 120_000)
 
-  test('provisions, runs the daemon on the tarball node, serves fs + a PTY', async () => {
+  test('provisions, runs, and restarts the daemon on the tarball node', async () => {
     mgr = new RuntimeManager()
     const transport = new LocalSubprocessTransport({
       root: workspace,
@@ -95,5 +102,46 @@ describe.skipIf(!hasTarball)('local daemon from the real tarball', () => {
       })
     })
     await sawData
+
+    // The first connection above covers tarball provisioning and the native
+    // watcher/PTY capabilities. Now exercise the production LOCAL reconnect
+    // path against the same extracted install after an actual daemon exit.
+    await mgr.disposeAll()
+    let activeTransport: LocalSubprocessTransport | undefined
+    restartMgr = new RuntimeManager({
+      localTransportFactory: (options) => {
+        activeTransport = new LocalSubprocessTransport({
+          ...options,
+          tarballPath,
+          installRoot,
+          target: target!,
+        })
+        return activeTransport
+      },
+    })
+    restartMgr.ensureLocalRuntime({ root: workspace })
+    await waitFor(() => restartMgr!.isConnected(LOCAL_RUNTIME_ID), 60_000)
+    const firstRuntime = restartMgr.resolve(LOCAL_RUNTIME_ID)
+    expect(await activeTransport!.installDir()).toBe(installDir)
+
+    // Closing stdin is the same graceful exit path used by app shutdown; the
+    // manager must observe the drop and launch a fresh tarball-backed daemon.
+    await activeTransport!.dispose()
+    await waitFor(
+      () => restartMgr!.isConnected(LOCAL_RUNTIME_ID) && restartMgr!.resolve(LOCAL_RUNTIME_ID) !== firstRuntime,
+      20_000,
+    )
+    const restartedRuntime = restartMgr.resolve(LOCAL_RUNTIME_ID)
+    const restartedDir = await restartedRuntime.validatePathStrict(workspace)
+    expect((await restartedRuntime.file.readDir(restartedDir)).map((entry) => entry.name)).toContain('watched.ts')
   }, 60_000)
 })
+
+async function waitFor(condition: () => boolean, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (condition()) return
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  throw new Error(`condition did not become true within ${timeoutMs}ms`)
+}

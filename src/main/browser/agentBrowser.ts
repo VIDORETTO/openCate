@@ -1,9 +1,10 @@
-import { execFile } from 'child_process'
+import { spawn } from 'child_process'
 import { randomInt, randomUUID } from 'crypto'
 import fs from 'fs'
 import path from 'path'
 import { app, type WebContents } from 'electron'
 import log from '../logger'
+import { sanitizeServerEnv } from '../../runtime/capabilities/server'
 import {
   agentBrowserActivityLabel,
   agentBrowserCommandShowsActivity,
@@ -17,8 +18,13 @@ const COMMAND_TIMEOUT_MS = 28_000
 const BIND_ATTEMPTS = 4
 const BIND_RETRY_MS = 75
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024
-const SESSION = 'cate'
-const NAMESPACE = 'cate'
+// agent-browser keeps daemon identity outside this Electron process. A fixed
+// session name lets a daemon from a previous app/test run collide with the
+// current CDP endpoint while its idle timeout is still active. Keep one
+// stable identity per app process, but never share it across processes.
+const AGENT_BROWSER_INSTANCE = `${process.pid}-${randomUUID()}`
+const SESSION = `cate-${AGENT_BROWSER_INSTANCE}`
+const NAMESPACE = `cate-${AGENT_BROWSER_INSTANCE}`
 const AUTOFILL_USERNAME_MARKER = 'data-cate-autofill-username-target'
 const EPHEMERAL_PORT_MIN = 49_152
 const EPHEMERAL_PORT_MAX_EXCLUSIVE = 65_536
@@ -56,6 +62,17 @@ export interface AgentBrowserResult {
 }
 
 type BrowserArgs = Record<string, unknown>
+
+/** Build the minimal environment needed by the native agent-browser child.
+ * It is a third-party executable, so it must not receive Cate's ambient
+ * credentials or process-injection options. */
+export function createAgentBrowserEnv(input: NodeJS.ProcessEnv, socketDir: string): NodeJS.ProcessEnv {
+  return {
+    ...sanitizeServerEnv(input),
+    AGENT_BROWSER_SOCKET_DIR: socketDir,
+    AGENT_BROWSER_IDLE_TIMEOUT_MS: '60000',
+  }
+}
 
 /** Enable Chromium's loopback CDP endpoint before Electron becomes ready.
  * Chromium's special port `0` also enables AutomationControlled and exposes
@@ -141,43 +158,225 @@ function parseEnvelope(stdout: string): unknown {
   return data
 }
 
+interface BrowserKey {
+  key: string
+  code: string
+}
+
+const BROWSER_KEY_ALIASES: Record<string, BrowserKey> = {
+  enter: { key: 'Enter', code: 'Enter' },
+  tab: { key: 'Tab', code: 'Tab' },
+  escape: { key: 'Escape', code: 'Escape' },
+  esc: { key: 'Escape', code: 'Escape' },
+  backspace: { key: 'Backspace', code: 'Backspace' },
+  delete: { key: 'Delete', code: 'Delete' },
+  del: { key: 'Delete', code: 'Delete' },
+  insert: { key: 'Insert', code: 'Insert' },
+  home: { key: 'Home', code: 'Home' },
+  end: { key: 'End', code: 'End' },
+  pageup: { key: 'PageUp', code: 'PageUp' },
+  pagedown: { key: 'PageDown', code: 'PageDown' },
+  arrowup: { key: 'ArrowUp', code: 'ArrowUp' },
+  up: { key: 'ArrowUp', code: 'ArrowUp' },
+  arrowdown: { key: 'ArrowDown', code: 'ArrowDown' },
+  down: { key: 'ArrowDown', code: 'ArrowDown' },
+  arrowleft: { key: 'ArrowLeft', code: 'ArrowLeft' },
+  left: { key: 'ArrowLeft', code: 'ArrowLeft' },
+  arrowright: { key: 'ArrowRight', code: 'ArrowRight' },
+  right: { key: 'ArrowRight', code: 'ArrowRight' },
+  space: { key: ' ', code: 'Space' },
+  f1: { key: 'F1', code: 'F1' },
+  f2: { key: 'F2', code: 'F2' },
+  f3: { key: 'F3', code: 'F3' },
+  f4: { key: 'F4', code: 'F4' },
+  f5: { key: 'F5', code: 'F5' },
+  f6: { key: 'F6', code: 'F6' },
+  f7: { key: 'F7', code: 'F7' },
+  f8: { key: 'F8', code: 'F8' },
+  f9: { key: 'F9', code: 'F9' },
+  f10: { key: 'F10', code: 'F10' },
+  f11: { key: 'F11', code: 'F11' },
+  f12: { key: 'F12', code: 'F12' },
+}
+
+function browserKey(raw: string): { key: BrowserKey; modifiers: number } | null {
+  const parts = raw.split('+')
+  const base = parts.pop()?.trim()
+  if (!base) return null
+  let modifiers = 0
+  for (const modifier of parts) {
+    switch (modifier.toLowerCase()) {
+      case 'alt':
+      case 'option':
+        modifiers |= 1
+        break
+      case 'control':
+      case 'ctrl':
+        modifiers |= 2
+        break
+      case 'meta':
+      case 'cmd':
+      case 'command':
+        modifiers |= 4
+        break
+      case 'shift':
+        modifiers |= 8
+        break
+      default:
+        return null
+    }
+  }
+  const normalized = base.toLowerCase()
+  const alias = BROWSER_KEY_ALIASES[normalized]
+  if (alias) return { key: alias, modifiers }
+  if (/^[a-z]$/i.test(base)) {
+    const upper = base.toUpperCase()
+    return {
+      key: { key: modifiers & 8 ? upper : base.toLowerCase(), code: `Key${upper}` },
+      modifiers,
+    }
+  }
+  if (/^\d$/.test(base)) {
+    return {
+      key: { key: base, code: `Digit${base}` },
+      modifiers,
+    }
+  }
+  return null
+}
+
+async function sendBrowserKey(contents: WebContents, raw: string): Promise<unknown> {
+  const parsed = browserKey(raw)
+  if (!parsed) return undefined
+  const { key, modifiers } = parsed
+  const script = `(() => {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement)) return { error: 'no-focused-element' };
+    const init = {
+      key: ${JSON.stringify(key.key)},
+      code: ${JSON.stringify(key.code)},
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      altKey: ${Boolean(modifiers & 1)},
+      ctrlKey: ${Boolean(modifiers & 2)},
+      metaKey: ${Boolean(modifiers & 4)},
+      shiftKey: ${Boolean(modifiers & 8)},
+    };
+    const down = new KeyboardEvent('keydown', init);
+    const accepted = active.dispatchEvent(down);
+    if (accepted && ${JSON.stringify(key.key)} === 'Enter'
+      && active instanceof HTMLInputElement && active.form) {
+      active.form.requestSubmit();
+    }
+    if (accepted && ${JSON.stringify(key.key)} === ' '
+      && active instanceof HTMLButtonElement) active.click();
+    active.dispatchEvent(new KeyboardEvent('keyup', init));
+    if (accepted && ${JSON.stringify(key.key)} === 'PageDown') window.scrollBy(0, window.innerHeight * 0.9);
+    if (accepted && ${JSON.stringify(key.key)} === 'PageUp') window.scrollBy(0, -window.innerHeight * 0.9);
+    if (accepted && ${JSON.stringify(key.key)} === 'Home') window.scrollTo(0, 0);
+    if (accepted && ${JSON.stringify(key.key)} === 'End') window.scrollTo(0, document.documentElement.scrollHeight);
+    return { ok: true };
+  })()`
+  return contents.executeJavaScript(script, true)
+}
+
 function defaultRunner(): Runner {
   return async (args) => new Promise((resolve, reject) => {
     const configDir = path.join(app.getPath('userData'), 'agent-browser')
     fs.mkdirSync(configDir, { recursive: true })
     const configPath = path.join(configDir, 'cate-config.json')
-    if (!fs.existsSync(configPath)) fs.writeFileSync(configPath, '{}\n', { mode: 0o600 })
+    // agent-browser's native config parser is strict and rejects a trailing
+    // newline as characters after the JSON object.
+    if (!fs.existsSync(configPath)) fs.writeFileSync(configPath, '{}', { mode: 0o600 })
     runtimeSocketDir ??= fs.mkdtempSync(path.join(app.getPath('temp'), 'cate-ab-'))
     const socketDir = runtimeSocketDir
-    const env = { ...process.env }
-    for (const key of Object.keys(env)) {
-      if (key.startsWith('AGENT_BROWSER_')) delete env[key]
-    }
-    execFile(
+    const env = createAgentBrowserEnv(process.env, socketDir)
+    // The native binary is a client/daemon pair. It writes one JSON response
+    // for the command, then keeps the daemon alive until its idle timeout.
+    // Waiting for the child-process callback would therefore turn every
+    // successful operation into a 60-second IPC timeout.
+    const child = spawn(
       agentBrowserBinaryPath(),
       ['--config', configPath, '--session', SESSION, '--namespace', NAMESPACE, '--json', ...args],
       {
-        env: {
-          ...env,
-          AGENT_BROWSER_SOCKET_DIR: socketDir,
-          AGENT_BROWSER_IDLE_TIMEOUT_MS: '60000',
-        },
-        timeout: COMMAND_TIMEOUT_MS,
-        maxBuffer: MAX_OUTPUT_BYTES,
+        env,
         windowsHide: true,
-      },
-      (error, stdout, stderr) => {
-        if (error) {
-          reject(new Error(stderr.trim() || stdout.trim() || error.message))
-          return
-        }
-        try {
-          resolve(parseEnvelope(stdout))
-        } catch (parseError) {
-          reject(parseError)
-        }
+        stdio: ['ignore', 'pipe', 'pipe'],
       },
     )
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      child.kill()
+      reject(new Error(`agent-browser command timed out after ${COMMAND_TIMEOUT_MS}ms`))
+    }, COMMAND_TIMEOUT_MS)
+
+    const finish = (callback: () => void): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      callback()
+    }
+
+    const fail = (error: unknown): void => {
+      finish(() => {
+        child.kill()
+        reject(error instanceof Error ? error : new Error(String(error)))
+      })
+    }
+
+    const succeed = (value: unknown): void => {
+      finish(() => {
+        // The daemon owns the browser session, so keep it alive for later
+        // commands while allowing this Electron process to quit independently.
+        child.stdout?.removeAllListeners('data')
+        child.stderr?.removeAllListeners('data')
+        child.stdout?.resume()
+        child.stderr?.resume()
+        child.unref()
+        resolve(value)
+      })
+    }
+
+    const tryReadResponse = (): void => {
+      const candidates = stdout
+        .trim()
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+      const candidate = candidates.at(-1)
+      // A response is a single JSON object. Wait for the closing brace when
+      // stdout arrives in multiple chunks; non-JSON diagnostic lines are
+      // ignored until the actual response line appears.
+      if (!candidate || !candidate.startsWith('{') || !candidate.endsWith('}')) return
+      try {
+        succeed(parseEnvelope(candidate))
+      } catch (error) {
+        fail(error)
+      }
+    }
+
+    child.stdout?.on('data', (chunk: Buffer | string) => {
+      stdout += chunk.toString()
+      if (Buffer.byteLength(stdout, 'utf8') > MAX_OUTPUT_BYTES) {
+        fail(new Error(`agent-browser output exceeded ${MAX_OUTPUT_BYTES} bytes`))
+        return
+      }
+      tryReadResponse()
+    })
+    child.stderr?.on('data', (chunk: Buffer | string) => {
+      stderr += chunk.toString()
+    })
+    child.once('error', (error) => fail(new Error(stderr.trim() || error.message)))
+    child.once('close', (code, signal) => {
+      if (settled) return
+      const detail = stderr.trim() || stdout.trim()
+      fail(new Error(detail || `agent-browser exited (${signal ?? code ?? 'unknown'})`))
+    })
   })
 }
 
@@ -739,7 +938,37 @@ export class AgentBrowserService {
     let result: unknown
     const action = command[0]
     const revisionedRef = typeof command[1] === 'string' && /^@s\d+e\d+$/.test(command[1])
-    if (revisionedRef && ['click', 'dblclick', 'focus', 'hover', 'fill', 'type'].includes(action)) {
+    if (action === 'reload') {
+      target.contents.reload()
+      result = { ok: true }
+    } else if (action === 'back') {
+      target.contents.goBack()
+      result = { ok: true }
+    } else if (action === 'forward') {
+      target.contents.goForward()
+      result = { ok: true }
+    } else if (action === 'press' && command[1]) {
+      // The native daemon's keyboard target is the top-level CDP page. Cate's
+      // selected target is an Electron webview guest, so send the key through
+      // that guest's DOM instead. This also works while the app window is
+      // hidden, where window-level input APIs are not reliable.
+      result = await sendBrowserKey(target.contents, command[1])
+      if (result === undefined) result = await this.run(translated)
+    } else if (typeof command[1] === 'string'
+      && !command[1].startsWith('@')
+      && ['click', 'dblclick', 'focus', 'hover', 'fill', 'type'].includes(action)) {
+      // CSS selectors are evaluated in the selected guest. The native daemon
+      // resolves them against its top-level page, which is not the Electron
+      // webview guest when the panel is parked off-screen.
+      const selector = command[1]
+      if (action === 'fill' && command.length === 3) result = await this.fillSelector(selector, command[2])
+      else if (action === 'type' && command.length === 3) result = await this.appendText(selector, command[2])
+      else if (action === 'click' || action === 'dblclick' || action === 'focus' || action === 'hover') {
+        result = await this.actOnSelector(selector, action)
+      } else {
+        result = await this.run(translated)
+      }
+    } else if (revisionedRef && ['click', 'dblclick', 'focus', 'hover', 'fill', 'type'].includes(action)) {
       const selector = await this.actionSelector(target, command[1])
       if (!selector.startsWith('@') && action === 'fill' && command.length === 3) {
         result = await this.fillSelector(selector, command[2])
@@ -1022,7 +1251,9 @@ export class AgentBrowserService {
       }
       const key = stringArg(args, 'key')
       if (!key) return { error: 'key-required' }
-      return finish(['press', key.replace(/^cmd\+/i, 'Meta+')])
+      const normalizedKey = key.replace(/^cmd\+/i, 'Meta+')
+      const browserInput = await sendBrowserKey(target.contents, normalizedKey)
+      return complete(browserInput ?? await this.run(['press', normalizedKey]))
     }
     if (method === 'focus') {
       if (args.ref !== undefined) {

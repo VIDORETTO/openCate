@@ -1,4 +1,5 @@
 import type { ElectronAPI } from '../../../shared/electron-api'
+import { MAX_GIT_DIFF_HUNKS } from '../../../shared/gitDiff'
 import { useAppStore } from '../../stores/appStore'
 import { gitStatusStore } from '../../stores/gitStatusStore'
 
@@ -55,6 +56,46 @@ export async function applyCodingAgentWorktree(
   })
   gitStatusStore.refresh(workspace.rootPath)
   return { ok: true, branch: review.baseBranch }
+}
+
+export async function applyCodingAgentWorktreeSelection(
+  workspaceId: string,
+  panelId: string,
+  rawHunkIds: unknown,
+): Promise<{ ok: true; branch: string; hunkIds: string[] } | { ok: false; message: string }> {
+  const { store, workspace, run } = context(workspaceId, panelId)
+  if (run.appliedToBranch) return { ok: false, message: 'coding-agent-already-applied' }
+  if (!Array.isArray(rawHunkIds)) return { ok: false, message: 'hunk-ids-must-be-an-array' }
+  const hunkIds = [...new Set(rawHunkIds.filter((id): id is string => typeof id === 'string' && id.length > 0))]
+    .slice(0, MAX_GIT_DIFF_HUNKS)
+  if (hunkIds.length === 0) return { ok: false, message: 'Select at least one change before applying.' }
+
+  const review = await reviewCodingAgentWorktree(workspaceId, panelId)
+  if (!review.canApply) {
+    return { ok: false, message: review.message ?? 'coding-agent-not-ready-to-apply' }
+  }
+  const known = new Set((review.hunks ?? []).map((hunk) => hunk.id))
+  if (review.truncated || hunkIds.some((id) => !known.has(id))) {
+    return { ok: false, message: 'The worker changed since this review. Review the diff again before applying.' }
+  }
+  const result = await window.electronAPI.gitWorktreeApplySelection(
+    workspace.rootPath,
+    review.branch,
+    review.baseBranch,
+    hunkIds,
+    workspaceId,
+  )
+  if (!result.ok) return { ok: false, message: result.message }
+  const approvedHunkIds = [...new Set([...(run.approvedHunkIds ?? []), ...hunkIds])]
+    .slice(-MAX_GIT_DIFF_HUNKS)
+  store.setPanelCodingAgentRun(workspaceId, panelId, {
+    ...run,
+    approvedHunkIds,
+    approvedAt: Date.now(),
+    approvedToBranch: review.baseBranch,
+  })
+  gitStatusStore.refresh(workspace.rootPath)
+  return { ok: true, branch: review.baseBranch, hunkIds }
 }
 
 export function keepCodingAgentWorktree(workspaceId: string, panelId: string): void {

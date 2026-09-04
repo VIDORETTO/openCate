@@ -13,10 +13,12 @@ const endpointKey = (workspaceId: string): string => `first-party:${workspaceId}
 const cateAgentEndpointKey = (workspaceId: string, panelId: string): string =>
   `cate-agent:${workspaceId}:${panelId}`
 
-// Only scopes the CLI has verbs for. workspace.read/theme exist for extensions
-// (webviews with no filesystem) — a terminal's cwd IS the workspace root, so
-// granting them here would be dead surface.
+// Only scopes the CLI has verbs for. Project records are first-party-only, but
+// still carry explicit read/write scopes so the shared dispatcher has one
+// predictable capability vocabulary for CLI and embedded-agent callers.
 export const GRANTED_SCOPES: readonly string[] = [
+  'project.read',
+  'project.write',
   'browser',
   'ui',
   'editor',

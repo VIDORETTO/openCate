@@ -5,8 +5,8 @@
 // It does two things on a fixed interval:
 //   1. Samples app.getAppMetrics() for per-process CPU% + working-set memory.
 //   2. Drains lightweight counters that instrument the hot paths the perf audit
-//      flagged — subprocess spawns (pgrep/ps/lsof/git), main->renderer IPC bytes
-//      per channel, and terminal PTY throughput.
+//      flagged — subprocess spawns (pgrep/ps/lsof/git), logical process-monitor
+//      work, main->renderer IPC bytes per channel, and terminal PTY throughput.
 //
 // The latest snapshot is logged and stored; the renderer HUD pulls it over IPC
 // (PERF_GET). Counters are runtime no-ops unless PERF_ENABLED, and the byte-size
@@ -26,6 +26,7 @@ const SAMPLE_INTERVAL_MS = 2000
 
 // --- Counters (reset every sample tick) -------------------------------------
 const spawnCounts = new Map<string, number>()
+const monitorWorkCounts = new Map<string, number>()
 const ipcByChannel = new Map<string, { bytes: number; count: number }>()
 let terminalBytes = 0
 let terminalChunks = 0
@@ -43,6 +44,13 @@ export function countTerminalData(bytes: number): void {
   if (!PERF_ENABLED) return
   terminalBytes += bytes
   terminalChunks++
+}
+
+/** Count one logical process-monitor scan. This is separate from child-process
+ * spawns because daemon-hosted and Linux /proc scans may do no local fork. */
+export function countMonitorWork(label: string): void {
+  if (!PERF_ENABLED) return
+  monitorWorkCounts.set(label, (monitorWorkCounts.get(label) ?? 0) + 1)
 }
 
 // --- Snapshot ----------------------------------------------------------------
@@ -73,6 +81,8 @@ function tick(): void {
 
   const spawnsPerSec: Record<string, number> = {}
   for (const [label, n] of spawnCounts) spawnsPerSec[label] = Math.round((n / secs) * 10) / 10
+  const monitorWorkPerSec: Record<string, number> = {}
+  for (const [label, n] of monitorWorkCounts) monitorWorkPerSec[label] = Math.round((n / secs) * 10) / 10
 
   const ipc = Array.from(ipcByChannel.entries())
     .map(([channel, e]) => ({
@@ -88,6 +98,7 @@ function tick(): void {
     totalCpu,
     procs: procs.sort((a, b) => b.cpu - a.cpu),
     spawnsPerSec,
+    monitorWorkPerSec,
     ipc,
     terminal: {
       kbPerSec: Math.round((terminalBytes / secs / 1024) * 10) / 10,
@@ -98,12 +109,14 @@ function tick(): void {
   // Compact one-line log so it's greppable in the terminal running `npm run dev`.
   const topIpc = ipc.slice(0, 3).map((c) => `${c.channel}=${c.kbPerSec}KB/s`).join(' ')
   const spawnStr = Object.entries(spawnsPerSec).map(([k, v]) => `${k}=${v}/s`).join(' ')
+  const monitorStr = Object.entries(monitorWorkPerSec).map(([k, v]) => `${k}=${v}/s`).join(' ')
   log.info(
-    '[perf] cpu=%s%% focused=%s term=%sKB/s(%s chunks/s) spawns[%s] ipc[%s]',
-    totalCpu, focused, latest.terminal.kbPerSec, latest.terminal.chunksPerSec, spawnStr, topIpc,
+    '[perf] cpu=%s%% focused=%s term=%sKB/s(%s chunks/s) spawns[%s] monitor[%s] ipc[%s]',
+    totalCpu, focused, latest.terminal.kbPerSec, latest.terminal.chunksPerSec, spawnStr, monitorStr, topIpc,
   )
 
   spawnCounts.clear()
+  monitorWorkCounts.clear()
   ipcByChannel.clear()
   terminalBytes = 0
   terminalChunks = 0

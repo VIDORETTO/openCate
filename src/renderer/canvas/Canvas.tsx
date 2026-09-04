@@ -18,6 +18,7 @@ import SnapGuides from './SnapGuides'
 import GhostPlacementLayer from './GhostPlacementLayer'
 import PlacementVizOverlay from './placementViz/PlacementVizOverlay'
 import AgentContextEdgesOverlay from './AgentContextEdgesOverlay'
+import CanvasMemoryLayer from './CanvasMemoryLayer'
 import { WorktreeTerritoryLayer } from './worktree'
 import type { Point, PanelType } from '../../shared/types'
 import { isWorktreePanelType, type WorktreePanelType } from '../../shared/panels'
@@ -27,6 +28,7 @@ import { CHAT_DRAG_MIME, readChatDrag } from '../drag/fileDragPayload'
 import { createSeededChatPanel } from '../drag/openChatDrop'
 import { endChatDrag } from '../drag/chatDragState'
 import { seedAgentPanelWithWorktreeChat } from '../../cateAgent/renderer/seedWorktreeChat'
+import type { NativeContextMenuItem } from '../../shared/electron-api'
 
 // Module-level style injection — shared across all Canvas instances
 let canvasStyleInjected = false
@@ -237,7 +239,7 @@ const Canvas: React.FC<CanvasProps> = ({ children, onCreateAtPoint, panelId }) =
       unsubscribe()
       if (willChangeResetRef.current) clearTimeout(willChangeResetRef.current)
     }
-  }, []) // mount-only
+  }, [canvasApi])
 
   // Auto-focus the node that occupies the most visible viewport area (opt-in).
   useAutoFocusLargestVisible(canvasApi)
@@ -293,7 +295,7 @@ const Canvas: React.FC<CanvasProps> = ({ children, onCreateAtPoint, panelId }) =
       el.removeEventListener('mousemove', onMove)
       if (rafId) cancelAnimationFrame(rafId)
     }
-  }, [])
+  }, [canvasApi])
 
   // Track container size for grid visibility, and keep canvas content anchored
   // to whichever container edge stayed put when the OTHER edge moves — so a
@@ -351,7 +353,7 @@ const Canvas: React.FC<CanvasProps> = ({ children, onCreateAtPoint, panelId }) =
     canvasApi.getState().setContainerSize(initialSize)
 
     return () => observer.disconnect()
-  }, [])
+  }, [canvasApi])
 
   // Click on the canvas background (world div) to unfocus
   const handleWorldClick = useCallback(
@@ -374,7 +376,7 @@ const Canvas: React.FC<CanvasProps> = ({ children, onCreateAtPoint, panelId }) =
         useUIStore.getState().clearWorktreeLens()
       }
     },
-    [],
+    [canvasApi],
   )
 
   const handleFileDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -458,7 +460,7 @@ const Canvas: React.FC<CanvasProps> = ({ children, onCreateAtPoint, panelId }) =
     // …and OS-level drops from Finder / Explorer (Electron exposes `path`).
     if (filePaths.length === 0 && e.dataTransfer.files.length > 0) {
       for (const f of Array.from(e.dataTransfer.files)) {
-        const p = (f as any).path as string | undefined
+        const p = window.electronAPI.getPathForFile(f)
         if (p) filePaths.push(p)
       }
     }
@@ -492,7 +494,7 @@ const Canvas: React.FC<CanvasProps> = ({ children, onCreateAtPoint, panelId }) =
       }
       offsetX += 40
     }
-  }, [canvasRef, here])
+  }, [canvasRef, here, canvasApi])
 
   // Memoize marquee rect to avoid recalculation in render
   const marqueeRect = useMemo(() => {
@@ -524,7 +526,7 @@ const Canvas: React.FC<CanvasProps> = ({ children, onCreateAtPoint, panelId }) =
         } catch { /* single-root fallback */ }
       }
 
-      const items: Array<any> = []
+      const items: NativeContextMenuItem[] = []
       if (onCreateAtPoint) {
         if (gitWorktrees.length > 1) {
           items.push({
@@ -548,6 +550,38 @@ const Canvas: React.FC<CanvasProps> = ({ children, onCreateAtPoint, panelId }) =
       items.push(
         { id: 'auto-layout', label: 'Auto Layout' },
         { id: 'zoom-to-fit', label: 'Zoom to Fit' },
+      )
+      const canvasState = canvasApi.getState()
+      const selectedNodes = canvasState.selection
+        .map((nodeId) => canvasState.nodes[nodeId])
+        .filter((node): node is NonNullable<typeof node> => !!node)
+      const waypointMenu: NativeContextMenuItem[] = [
+        { id: 'save-waypoint', label: 'Save Waypoint Here…' },
+        ...canvasState.waypoints.map((waypoint) => ({
+          label: waypoint.name,
+          submenu: [
+            { id: `jump-waypoint:${waypoint.id}`, label: 'Jump to' },
+            { id: `delete-waypoint:${waypoint.id}`, label: 'Delete' },
+          ],
+        })),
+      ]
+      const snapshotMenu: NativeContextMenuItem[] = [
+        { id: 'save-layout-snapshot', label: 'Save Current Layout…' },
+        ...canvasState.layoutHistory.map((snapshot) => ({
+          label: snapshot.name,
+          submenu: [
+            { id: `restore-layout-snapshot:${snapshot.id}`, label: 'Rollback to' },
+            { id: `delete-layout-snapshot:${snapshot.id}`, label: 'Delete' },
+          ],
+        })),
+      ]
+      items.push(
+        { type: 'separator' as const },
+        { label: 'Spatial Memory', submenu: waypointMenu },
+        { label: 'Layout Snapshots', submenu: snapshotMenu },
+        { id: 'add-note', label: 'Add Note Here…' },
+        { id: 'add-group', label: selectedNodes.length ? 'Group Selected Panels…' : 'Add Visual Group Here…' },
+        ...(selectedNodes.length >= 2 ? [{ id: 'add-arrow', label: 'Arrow Between Selection' }] : []),
       )
       const id = await window.electronAPI.showContextMenu(items)
       if (cancelled) return
@@ -579,6 +613,48 @@ const Canvas: React.FC<CanvasProps> = ({ children, onCreateAtPoint, panelId }) =
           break
         case 'zoom-to-fit':
           canvasApi.getState().zoomToFit()
+          break
+        case 'save-waypoint': {
+          const name = window.prompt('Waypoint name')
+          if (name) canvasApi.getState().addWaypoint(name, point)
+          break
+        }
+        case 'add-note': {
+          const text = window.prompt('Note')
+          if (text) canvasApi.getState().addNoteDecoration(text, point)
+          break
+        }
+        case 'add-group': {
+          const label = window.prompt('Group label')
+          if (label) canvasApi.getState().addGroupDecoration(label, point)
+          break
+        }
+        case 'add-arrow': {
+          if (selectedNodes.length >= 2) {
+            const first = selectedNodes[0]
+            const last = selectedNodes[selectedNodes.length - 1]
+            canvasApi.getState().addArrowDecoration(
+              { x: first.origin.x + first.size.width / 2, y: first.origin.y + first.size.height / 2 },
+              { x: last.origin.x + last.size.width / 2, y: last.origin.y + last.size.height / 2 },
+            )
+          }
+          break
+        }
+        case 'save-layout-snapshot': {
+          const name = window.prompt('Layout snapshot name')
+          if (name) canvasApi.getState().saveLayoutSnapshot(name)
+          break
+        }
+        default:
+          if (id?.startsWith('jump-waypoint:')) {
+            canvasApi.getState().jumpToWaypoint(id.slice('jump-waypoint:'.length))
+          } else if (id?.startsWith('delete-waypoint:')) {
+            canvasApi.getState().removeWaypoint(id.slice('delete-waypoint:'.length))
+          } else if (id?.startsWith('restore-layout-snapshot:')) {
+            canvasApi.getState().restoreLayoutSnapshot(id.slice('restore-layout-snapshot:'.length))
+          } else if (id?.startsWith('delete-layout-snapshot:')) {
+            canvasApi.getState().removeLayoutSnapshot(id.slice('delete-layout-snapshot:'.length))
+          }
           break
       }
     }
@@ -648,6 +724,7 @@ const Canvas: React.FC<CanvasProps> = ({ children, onCreateAtPoint, panelId }) =
       >
         <SnapGuides />
         <AgentContextEdgesOverlay />
+        <CanvasMemoryLayer />
         {marqueeRect && (
           <div
             style={{

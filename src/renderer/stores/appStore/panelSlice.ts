@@ -4,9 +4,11 @@
 
 import log from '../../lib/logger'
 import { disambiguateTitle } from '../../lib/panelTitle'
-import type { PanelState, PanelType } from '../../../shared/types'
+import type { PanelState, PanelType, WorkspaceState } from '../../../shared/types'
 import { BROWSER_NEW_TAB_URL } from '../../../shared/types'
-import { resolvePanelSize } from '../../../shared/panels'
+import { parseLocator } from '../../../shared/runtimeLocator'
+import { pathKey } from '../../../shared/pathUtils'
+import { resolvePanelSize, type PanelSizeContext } from '../../../shared/panels'
 import { useSettingsStore } from '../settingsStore'
 import { generateId } from '../canvas/helpers'
 import type { AppSet, AppGet, AppStoreActions, PanelPlacement } from './types'
@@ -69,17 +71,31 @@ type PanelSliceActions = Pick<
   | 'bumpReloadEpoch'
 >
 
-// Stamp a canvas-bound create with the panel type's fixed default size (from
-// resolvePanelSize) so the new node opens at that size — there is no user
-// setting involved. Dock/none placements ignore size, and a placement that
-// already pins a size (layout restore) is left as-is.
-function withDefaultSize(type: PanelType, placement: PanelPlacement | undefined): PanelPlacement {
+// Stamp a canvas-bound create with the panel type's scoped preferred size (from
+// resolvePanelSize) so the new node opens at the last intentional size.
+// Dock/none placements ignore size, and a placement that already pins a size
+// (layout restore) is left as-is.
+function withDefaultSize(
+  type: PanelType,
+  placement: PanelPlacement | undefined,
+  context: PanelSizeContext,
+): PanelPlacement {
   if (placement?.target === 'dock' || placement?.target === 'none') return placement
   if (placement?.target === 'canvas' && placement.size) return placement
-  const size = resolvePanelSize(type, useSettingsStore.getState())
+  const size = resolvePanelSize(type, useSettingsStore.getState(), context)
   // Spread the placement itself (size is absent — the early return above caught
   // it) so new canvas-placement fields aren't silently dropped here.
   return { ...(placement?.target === 'canvas' ? placement : {}), target: 'canvas', size }
+}
+
+function worktreeIdForCwd(workspace: WorkspaceState | undefined, cwd: string | undefined): string | undefined {
+  if (!workspace || !cwd) return undefined
+  const cwdLocator = parseLocator(cwd)
+  return workspace.worktrees?.find((worktree) => {
+    const worktreeLocator = parseLocator(worktree.path)
+    return worktreeLocator.runtimeId === cwdLocator.runtimeId
+      && pathKey(worktreeLocator.path) === pathKey(cwdLocator.path)
+  })?.id
 }
 
 export function createPanelSlice(set: AppSet, get: AppGet): PanelSliceActions {
@@ -88,8 +104,12 @@ export function createPanelSlice(set: AppSet, get: AppGet): PanelSliceActions {
 
     createTerminal(workspaceId, initialInput?, position?, placement?, cwd?, codingAgentLaunch?) {
       const panelId = generateId()
+      const terminalPersistence = useSettingsStore.getState().terminalPersistenceMode === 'tmux'
+        ? 'tmux' as const
+        : undefined
       const missionTitle = codingAgentLaunch?.title?.trim()
-      const siblingPanels = get().workspaces.find((workspace) => workspace.id === workspaceId)?.panels ?? {}
+      const workspace = get().workspaces.find((candidate) => candidate.id === workspaceId)
+      const siblingPanels = workspace?.panels ?? {}
       // Auto-number terminal titles so `cate ask "Terminal 2"` and similar
       // inter-panel calls address each one unambiguously — unique across ALL
       // windows, including terminals detached into other windows.
@@ -101,6 +121,7 @@ export function createPanelSlice(set: AppSet, get: AppGet): PanelSliceActions {
           : nextNumberedTitle(get, workspaceId, 'terminal', 'Terminal'),
         isDirty: false,
         ...(cwd ? { cwd } : {}),
+        ...(terminalPersistence ? { terminalPersistence } : {}),
         ...(codingAgentLaunch ? {
           codingAgentLaunch,
           codingAgentRun: {
@@ -110,13 +131,25 @@ export function createPanelSlice(set: AppSet, get: AppGet): PanelSliceActions {
             title: codingAgentLaunch.title,
             ownerPanelId: codingAgentLaunch.ownerPanelId,
             prompt: codingAgentLaunch.prompt,
+            ...(codingAgentLaunch.taskId ? { taskId: codingAgentLaunch.taskId } : {}),
             ownsWorktree: codingAgentLaunch.ownsWorktree,
             background: codingAgentLaunch.background !== false,
             createdAt: Date.now(),
           },
         } : {}),
       }
-      return addAndPlacePanel(set, get, workspaceId, panel, withDefaultSize('terminal', placement), position)
+      return addAndPlacePanel(
+        set,
+        get,
+        workspaceId,
+        panel,
+        withDefaultSize('terminal', placement, {
+          workspaceId,
+          worktreeId: worktreeIdForCwd(workspace, cwd),
+          agentId: codingAgentLaunch?.agentId,
+        }),
+        position,
+      )
     },
 
     createBrowser(workspaceId, url?, position?, placement?, proxyUrl?) {
@@ -132,7 +165,7 @@ export function createPanelSlice(set: AppSet, get: AppGet): PanelSliceActions {
         activeTabId: tabId,
         ...(proxyUrl ? { proxyUrl } : {}),
       }
-      return addAndPlacePanel(set, get, workspaceId, panel, withDefaultSize('browser', placement), position)
+      return addAndPlacePanel(set, get, workspaceId, panel, withDefaultSize('browser', placement, { workspaceId }), position)
     },
 
     createEditor(workspaceId, filePath?, position?, placement?) {
@@ -146,7 +179,7 @@ export function createPanelSlice(set: AppSet, get: AppGet): PanelSliceActions {
         isDirty: false,
         filePath,
       }
-      return addAndPlacePanel(set, get, workspaceId, panel, withDefaultSize('editor', placement), position)
+      return addAndPlacePanel(set, get, workspaceId, panel, withDefaultSize('editor', placement, { workspaceId }), position)
     },
 
     createDocument(workspaceId, filePath?, documentType?, position?, placement?) {
@@ -161,7 +194,7 @@ export function createPanelSlice(set: AppSet, get: AppGet): PanelSliceActions {
         filePath,
         documentType,
       }
-      return addAndPlacePanel(set, get, workspaceId, panel, withDefaultSize('document', placement), position)
+      return addAndPlacePanel(set, get, workspaceId, panel, withDefaultSize('document', placement, { workspaceId }), position)
     },
 
     createDiffEditor(workspaceId, filePath, diffMode, position?, placement?) {
@@ -176,7 +209,7 @@ export function createPanelSlice(set: AppSet, get: AppGet): PanelSliceActions {
         filePath,
         diffMode,
       }
-      return addAndPlacePanel(set, get, workspaceId, panel, withDefaultSize('editor', placement), position)
+      return addAndPlacePanel(set, get, workspaceId, panel, withDefaultSize('editor', placement, { workspaceId }), position)
     },
 
     createCanvas(workspaceId, position?, placement?) {
@@ -198,7 +231,7 @@ export function createPanelSlice(set: AppSet, get: AppGet): PanelSliceActions {
         title: nextNumberedTitle(get, workspaceId, 'cateAgent', 'Cate Agent'),
         isDirty: false,
       }
-      return addAndPlacePanel(set, get, workspaceId, panel, withDefaultSize('cateAgent', placement), position)
+      return addAndPlacePanel(set, get, workspaceId, panel, withDefaultSize('cateAgent', placement, { workspaceId }), position)
     },
 
     createExtensionPanel(workspaceId, extensionId, extensionPanelId, position?, placement?, title?) {
@@ -212,7 +245,7 @@ export function createPanelSlice(set: AppSet, get: AppGet): PanelSliceActions {
         extensionId,
         extensionPanelId,
       }
-      return addAndPlacePanel(set, get, workspaceId, panel, withDefaultSize('extension', placement), position)
+      return addAndPlacePanel(set, get, workspaceId, panel, withDefaultSize('extension', placement, { workspaceId }), position)
     },
 
     // --- Panel management ---

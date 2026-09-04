@@ -2,13 +2,13 @@
 // Performance stress test — drives the app under load and measures the cost.
 //
 // Unlike the other specs, this launches with CATE_PERF=1 so the resource
-// profiler is active (main getAppMetrics sampler + spawn/IPC/terminal counters,
+// profiler is active (main getAppMetrics sampler + monitor-work/IPC/terminal counters,
 // renderer FPS / long-task / render counters, exposed via window.__catePerf).
 //
 // Each scenario brackets a load action with measure() and reports:
 //   - renderer FPS and long tasks (>50ms main-thread blocks = visible jank)
 //   - renders/sec for the hot components (CanvasNode, ChatThread, ...)
-//   - main-process per-process CPU/mem + terminal throughput + subprocess spawns
+//   - main-process per-process CPU/mem + terminal throughput + monitor work
 //
 // The thresholds asserted here are deliberately GENEROUS — they only catch
 // egregious regressions (multi-second freezes, sub-20fps drags, a flood that
@@ -302,6 +302,31 @@ async function mountedNodeCount(): Promise<number> {
   return page.evaluate(() => document.querySelectorAll('[data-node-id]').length)
 }
 
+async function setAppFocus(focused: boolean): Promise<void> {
+  await app.evaluate(({ BrowserWindow }, shouldFocus) => {
+    const windows = BrowserWindow.getAllWindows().filter((win) => !win.isDestroyed())
+    if (!shouldFocus) {
+      for (const win of windows) win.blur()
+      return
+    }
+    const win = windows[0]
+    if (!win) throw new Error('No Electron window available for focus measurement')
+    win.show()
+    // Performance E2E windows are shown without stealing focus by default.
+    // Force focus only for the focused-cadence sample, then release the
+    // temporary topmost flag.
+    win.setAlwaysOnTop(true)
+    win.focus()
+    win.setAlwaysOnTop(false)
+  }, focused)
+  await expect.poll(
+    () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some(
+      (win) => !win.isDestroyed() && win.isFocused(),
+    )),
+    { timeout: 5_000 },
+  ).toBe(focused)
+}
+
 /** Seed terminals (spread on a grid) until the canvas holds at least `total`. */
 async function seedToTotal(total: number): Promise<void> {
   let have = await page.evaluate(() => window.__cateE2E!.nodes().length)
@@ -325,7 +350,7 @@ interface PeakSample {
   renders: Record<string, number>
   perProcCpu: Record<string, number> // peak cpu per process type
   peakTerminalKbPerSec: number
-  peakSpawnsTotal: number
+  peakMonitorWorkTotal: number
 }
 
 /** Run an action while polling the snapshot for peak per-process CPU. */
@@ -337,7 +362,7 @@ async function measurePeak(durationMs: number, action?: () => Promise<void>): Pr
 
   const perProcCpu: Record<string, number> = {}
   let peakTerminalKbPerSec = 0
-  let peakSpawnsTotal = 0
+  let peakMonitorWorkTotal = 0
   const actionP = action ? action() : Promise.resolve()
 
   const polls = Math.max(1, Math.round(durationMs / 400))
@@ -347,8 +372,8 @@ async function measurePeak(durationMs: number, action?: () => Promise<void>): Pr
     if (!snap) continue
     for (const p of snap.procs) perProcCpu[p.type] = Math.max(perProcCpu[p.type] ?? 0, p.cpu)
     peakTerminalKbPerSec = Math.max(peakTerminalKbPerSec, snap.terminal.kbPerSec)
-    const spawns = Object.values(snap.spawnsPerSec).reduce((a, b) => a + b, 0)
-    peakSpawnsTotal = Math.max(peakSpawnsTotal, spawns)
+    const monitorWork = Object.values(snap.monitorWorkPerSec).reduce((a, b) => a + b, 0)
+    peakMonitorWorkTotal = Math.max(peakMonitorWorkTotal, monitorWork)
   }
   await actionP
 
@@ -369,7 +394,7 @@ async function measurePeak(durationMs: number, action?: () => Promise<void>): Pr
     renders: perSec(before.renders, after.renders),
     perProcCpu,
     peakTerminalKbPerSec,
-    peakSpawnsTotal,
+    peakMonitorWorkTotal,
   }
 }
 
@@ -383,7 +408,7 @@ function reportPeak(label: string, mounted: number, s: PeakSample): void {
     `──────── PERF: ${label}  (${mounted} mounted nodes) ────────`,
     `  fps: ${s.fps}    longtasks: ${s.longTasks.count} (max ${Math.round(s.longTasks.maxMs)}ms)`,
     `  peak cpu by process:  ${procs}`,
-    `  terminal: ${s.peakTerminalKbPerSec} KB/s    spawns: ${s.peakSpawnsTotal}/s`,
+    `  terminal: ${s.peakTerminalKbPerSec} KB/s    monitor work: ${s.peakMonitorWorkTotal}/s`,
     `  renders/s:  ${top(s.renders)}`,
     '────────────────────────────────────────────',
   ].join('\n'))
@@ -446,68 +471,140 @@ test('big canvas pan with 9 nodes visible', async () => {
 // =============================================================================
 // Battery scenarios — the cost the app pays just for being open. These guard
 // the "lightweight, not battery-draining" goal: idle/background CPU is the
-// number a laptop user actually feels. The dominant lever is subprocess spawns
-// (pgrep/ps/lsof) from the terminal process-monitor, so these assert on the
-// spawn rate the main profiler counts.
+// number a laptop user actually feels. The dominant lever is process-monitor
+// scan work, which may run in the daemon or read /proc, so these assert on the
+// logical scan rate exposed by the main profiler.
 // =============================================================================
 
-test('idle spawn budget — 9 terminals, app focused', async () => {
+test('idle monitor-work budget — 9 terminals, app focused', async () => {
   await seedToTotal(9)
   await page.evaluate(() => { window.__cateE2E!.setZoom(0.5); window.__cateE2E!.resetViewport() })
   await page.waitForTimeout(800)
   const mounted = await mountedNodeCount()
-  // Sit idle and watch what the monitor spawns. With the 1s activity scan +
-  // 5s lsof scan, the steady state for plain shells is a handful of pgrep/ps
-  // per terminal per second; nothing should runaway.
+  // Sit idle and watch logical monitor work. With the 1s activity scan + 5s
+  // lsof scan, the steady state should remain bounded; nothing should runaway.
   const s = await measurePeak(4000)
-  reportPeak('9 terminals · idle spawn budget', mounted, s)
-  // With the batched single-`ps`-snapshot scan, idle steady state is ~1 ps/s
-  // (activity) plus the 5s lsof cycle (ports + per-terminal cwd). The peak in
-  // any 2s sampler window is well under 15; the old per-PID fan-out sat at
-  // ~18/s for 9 terminals, so this ceiling guards against regressing to it.
-  expect(s.peakSpawnsTotal).toBeLessThan(15)
+  reportPeak('9 terminals · idle monitor-work budget', mounted, s)
+  // The peak in any 2s sampler window is well under 15; this ceiling guards
+  // against regressing to an unbounded monitor cadence.
+  expect(s.peakMonitorWorkTotal).toBeLessThan(15)
 })
 
-test('backgrounded battery — spawns collapse when the app is unfocused', async () => {
+test('backgrounded battery — monitor work collapses when the app is unfocused', async () => {
+  test.skip(
+    process.platform === 'win32',
+    'runtime process scans are POSIX-only; measure focus cadence on a POSIX host',
+  )
   await seedToTotal(9)
   await page.evaluate(() => { window.__cateE2E!.setZoom(0.5); window.__cateE2E!.resetViewport() })
   await page.waitForTimeout(800)
   const mounted = await mountedNodeCount()
 
-  // Baseline: focused. The 1s activity scan forks pgrep (and ps for children)
-  // per terminal, so a populated canvas spawns steadily here.
+  // Baseline: focused. The process monitor runs at its normal foreground
+  // cadence, so a populated canvas produces measurable work here.
+  await setAppFocus(true)
+  await page.waitForTimeout(800)
   const focused = await measurePeak(3000)
 
   // Blur every app window — mirrors minimizing / switching to another app.
   // app.evaluate runs in the MAIN process where the shell monitor lives, so
   // this drives the very focus state (anyWindowFocused) the cadence keys off.
-  await app.evaluate(({ BrowserWindow }) => {
-    for (const w of BrowserWindow.getAllWindows()) w.blur()
-  })
+  await setAppFocus(false)
   // Let the focused-cadence timer that was already armed drain, then sample the
   // backed-off cadence (activity 1s→5s, lsof 5s→15s).
   await page.waitForTimeout(1500)
   const unfocused = await measurePeak(6000)
 
   // Restore focus so later state (and a human watching) isn't left blurred.
-  await app.evaluate(({ BrowserWindow }) => {
-    const w = BrowserWindow.getAllWindows()[0]
-    if (w) w.focus()
-  })
+  await setAppFocus(true)
 
   // eslint-disable-next-line no-console
   console.log(`\n──────── PERF: background battery (${mounted} terminals) ────────`)
   // eslint-disable-next-line no-console
-  console.log(`  focused spawns: ${focused.peakSpawnsTotal}/s    unfocused spawns: ${unfocused.peakSpawnsTotal}/s`)
+  console.log(`  focused monitor work: ${focused.peakMonitorWorkTotal}/s    unfocused monitor work: ${unfocused.peakMonitorWorkTotal}/s`)
   // eslint-disable-next-line no-console
   console.log('────────────────────────────────────────────')
 
-  // The focused baseline must have actually been spawning (proves the path is
-  // live and the assertion is meaningful)…
-  expect(focused.peakSpawnsTotal).toBeGreaterThan(0)
-  // …and backgrounding must cut the spawn rate. The 5× cadence back-off means
+  // The focused baseline must have produced work (proves the path is live and
+  // the assertion is meaningful)…
+  expect(focused.peakMonitorWorkTotal).toBeGreaterThan(0)
+  // …and backgrounding must cut the work rate. The 5× cadence back-off means
   // unfocused should sit well below focused; assert a conservative ≤60%.
-  expect(unfocused.peakSpawnsTotal).toBeLessThan(Math.max(2, focused.peakSpawnsTotal * 0.6))
+  expect(unfocused.peakMonitorWorkTotal).toBeLessThan(Math.max(2, focused.peakMonitorWorkTotal * 0.6))
+})
+
+// This is intentionally opt-in: 50 real PTYs are useful for a performance
+// audit but too expensive for the ordinary E2E gate on hosted runners.
+test('many terminals (50+) with live PTYs and concurrent output', async () => {
+  test.skip(process.env.CATE_PERF_50 !== '1', 'set CATE_PERF_50=1 for the live-PTY stress run')
+  test.setTimeout(120_000)
+
+  await seedToTotal(50)
+  await page.evaluate(() => { window.__cateE2E!.setZoom(0.35); window.__cateE2E!.resetViewport() })
+  const ids = await page.evaluate(() => window.__cateE2E!.nodes().map((n) => n.id))
+  expect(ids.length).toBeGreaterThanOrEqual(50)
+
+  // Do not count node creation as proof of a live PTY: wait for every terminal
+  // to report its actual runtime pty id before measuring the steady state.
+  await Promise.all(ids.map((id) => page.waitForFunction(
+    (x) => !!window.__cateE2E!.terminalPtyId(x),
+    id,
+    { timeout: 15_000 },
+  )))
+  const mounted = await mountedNodeCount()
+
+  const activeIds = ids.slice(0, 8)
+  const s = await measurePeak(6000, async () => {
+    for (const id of activeIds) {
+      await page.evaluate(
+        (x) => window.__cateE2E!.writeTerminal(x, 'yes 0123456789ABCDEFGHIJKLMNOP | head -n 450000\n'),
+        id,
+      )
+    }
+    const pt = await emptyCanvasPoint()
+    await page.mouse.move(pt.x, pt.y)
+    for (let i = 0; i < 100; i++) {
+      await page.mouse.wheel((i % 14) - 7, 4 + (i % 4))
+      if (i % 10 === 0) await page.waitForTimeout(6)
+    }
+  })
+
+  for (const id of activeIds) await page.evaluate((x) => window.__cateE2E!.writeTerminal(x, '\x03'), id)
+  reportPeak('50+ terminals · 8 output · pan', mounted, s)
+  expect(s.longTasks.maxMs).toBeLessThan(3000)
+})
+
+// Resizing is intentionally a separate scenario: it exercises the geometry
+// store, world transform, and every mounted panel's layout path rather than
+// only terminal output. Keep it opt-in because the result is hardware-sensitive.
+test('many nodes with concurrent resize', async () => {
+  test.skip(process.env.CATE_PERF_50 !== '1', 'set CATE_PERF_50=1 for the live resize stress run')
+  test.setTimeout(90_000)
+
+  await seedToTotal(24)
+  await page.evaluate(() => { window.__cateE2E!.setZoom(0.45); window.__cateE2E!.resetViewport() })
+  const ids = await page.evaluate(() => window.__cateE2E!.nodes().map((n) => n.id))
+  const mounted = await mountedNodeCount()
+
+  const s = await measurePeak(4500, async () => {
+    await page.evaluate(async (nodeIds) => {
+      const h = window.__cateE2E!
+      const raf = () => new Promise((resolve) => requestAnimationFrame(resolve))
+      for (let frame = 0; frame < 90; frame++) {
+        for (const [index, id] of nodeIds.entries()) {
+          h.resizeNode(id, {
+            width: 260 + ((frame + index) % 7) * 12,
+            height: 180 + ((frame * 2 + index) % 5) * 10,
+          })
+        }
+        await raf()
+      }
+    }, ids)
+  })
+
+  reportPeak('24 nodes · concurrent resize', mounted, s)
+  expect(s.fps).toBeGreaterThan(20)
+  expect(s.longTasks.maxMs).toBeLessThan(3000)
 })
 
 // =============================================================================

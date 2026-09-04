@@ -27,6 +27,12 @@ const PROVIDER_ID_PATTERN = /^custom-openai(?:-[a-z0-9]+(?:-[a-z0-9]+)*)?$/
 type ModelEntry = { id?: unknown } & Record<string, unknown>
 type ProviderEntry = Record<string, unknown> & { models?: unknown }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
+
 function isManagedProviderId(id: string): boolean {
   return PROVIDER_ID_PATTERN.test(id)
 }
@@ -46,8 +52,8 @@ export function sharedModelsPath(): string {
  * addressable under the same id so persisted model references keep working. */
 export async function readCustomOpenAIProviders(): Promise<CustomOpenAIProvider[]> {
   const data = await readCodingConfigFile(sharedModelsPath())
-  const providers = data?.providers
-  if (!providers || typeof providers !== 'object') return []
+  const providers = asRecord(data?.providers)
+  if (!providers) return []
 
   const result: CustomOpenAIProvider[] = []
   for (const [id, value] of Object.entries(providers)) {
@@ -86,8 +92,9 @@ export async function saveCustomOpenAIProvider(cfg: CustomOpenAIProvider): Promi
   if (models.length === 0) throw new Error('Custom provider needs at least one model')
 
   await updateCodingConfigFile(sharedModelsPath(), (data) => {
-    if (!data.providers || typeof data.providers !== 'object') data.providers = {}
-    const existing = data.providers[cfg.id]
+    const providers = asRecord(data.providers) ?? {}
+    data.providers = providers
+    const existing = providers[cfg.id]
     const existingEntry = existing && typeof existing === 'object'
       ? existing as ProviderEntry
       : {}
@@ -100,7 +107,7 @@ export async function saveCustomOpenAIProvider(cfg: CustomOpenAIProvider): Promi
       }
     }
 
-    data.providers[cfg.id] = {
+    providers[cfg.id] = {
       ...existingEntry,
       name,
       baseUrl,
@@ -119,9 +126,8 @@ export async function saveCustomOpenAIProvider(cfg: CustomOpenAIProvider): Promi
 export async function deleteCustomOpenAIProvider(providerId: string): Promise<void> {
   requireManagedProviderId(providerId)
   await updateCodingConfigFile(sharedModelsPath(), (data) => {
-    if (data.providers && typeof data.providers === 'object') {
-      delete data.providers[providerId]
-    }
+    const providers = asRecord(data.providers)
+    if (providers) delete providers[providerId]
     return data
   })
 }

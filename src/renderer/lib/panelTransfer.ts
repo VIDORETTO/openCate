@@ -80,6 +80,9 @@ export function createTransferSnapshot(
       zoomLevel: state.zoomLevel,
       childPanels,
       childTerminals,
+      waypoints: state.waypoints,
+      decorations: state.decorations,
+      layoutHistory: state.layoutHistory,
     }
   }
 
@@ -136,7 +139,11 @@ export function hydrateCanvasState(
   canvasState: NonNullable<PanelTransferSnapshot['canvasState']>,
 ): void {
   const store = getOrCreateCanvasStoreForPanel(canvasPanelId)
-  store.getState().loadWorkspaceCanvas(canvasState.nodes, canvasState.viewportOffset, canvasState.zoomLevel)
+  store.getState().loadWorkspaceCanvas(canvasState.nodes, canvasState.viewportOffset, canvasState.zoomLevel, {
+    waypoints: canvasState.waypoints,
+    decorations: canvasState.decorations,
+    layoutHistory: canvasState.layoutHistory,
+  })
   applyCanvasChildPanels(wsId, canvasState.childPanels ?? {})
   depositCanvasChildTransfers(canvasState)
 }

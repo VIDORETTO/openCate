@@ -1,7 +1,7 @@
 // =============================================================================
 // WelcomeDialog — first-run welcome + telemetry notice. Shows until the current
 // TELEMETRY_NOTICE_VERSION is acknowledged; Continue records the acknowledgement
-// (informational only — there is no opt-in/opt-out choice).
+// and the notice exposes the explicit telemetry opt-in.
 // =============================================================================
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -38,7 +38,7 @@ beforeEach(() => {
     trackLinkClick: vi.fn(),
     openExternalUrl: vi.fn(),
   }
-  useSettingsStore.setState({ _loaded: true, telemetryNoticeAcknowledgedVersion: 0 } as never)
+  useSettingsStore.setState({ _loaded: true, telemetryEnabled: false, telemetryNoticeAcknowledgedVersion: 0 } as never)
 })
 
 afterEach(() => {
@@ -58,8 +58,14 @@ describe('WelcomeDialog', () => {
     act(() => root.render(<WelcomeDialog />))
     expect(host.textContent).toContain('Welcome to Cate')
     expect(host.textContent).toContain('Privacy Policy')
-    // No opt-in choice anymore.
-    expect(host.querySelector('[role="switch"]')).toBeNull()
+    expect(host.querySelector('[role="switch"]')).not.toBeNull()
+    expect(useSettingsStore.getState().telemetryEnabled).toBe(false)
+  })
+
+  it('lets the user opt in before continuing', () => {
+    act(() => root.render(<WelcomeDialog />))
+    clickButton((b) => b.getAttribute('role') === 'switch')
+    expect(useSettingsStore.getState().telemetryEnabled).toBe(true)
   })
 
   it('Continue acknowledges the notice and dismisses after the fade', () => {

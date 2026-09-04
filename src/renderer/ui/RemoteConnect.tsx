@@ -17,7 +17,7 @@ import { btn, inputCls, SEGMENT } from './Modal'
 // into the pieces. A saved-host picker prefills it from ~/.ssh/config, and the
 // rarely-touched auth knobs (agent / key / passphrase) live under "Advanced".
 
-type Kind = 'server' | 'wsl'
+type Kind = 'server' | 'wsl' | 'container'
 
 export interface RemoteConnectFields {
   host: string
@@ -29,6 +29,16 @@ export interface RemoteConnectFields {
   useAgent: boolean
   distro: string
   distroPath: string
+  image?: string
+  hostPath?: string
+  containerPath?: string
+  engine?: 'docker' | 'podman'
+  workspaceReadOnly?: boolean
+  networkMode?: 'none' | 'bridge'
+}
+
+function isAbsoluteHostPath(value: string): boolean {
+  return value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value) || value.startsWith('\\\\')
 }
 
 /** Pure: assemble a validated RemoteConnectSpec from raw form fields. */
@@ -37,6 +47,23 @@ export function buildConnectSpec(kind: Kind, f: RemoteConnectFields): RemoteConn
     const distroPath = f.distroPath.trim()
     assertAbsoluteRuntimePath(distroPath)
     return { kind: 'wsl', distro: f.distro.trim(), distroPath }
+  }
+  if (kind === 'container') {
+    const image = f.image?.trim() ?? ''
+    const hostPath = f.hostPath?.trim() ?? ''
+    const containerPath = f.containerPath?.trim() ?? ''
+    if (!image) throw new Error('Container image is required')
+    if (!isAbsoluteHostPath(hostPath)) throw new Error('Container workspace host path must be absolute')
+    assertAbsoluteRuntimePath(containerPath)
+    return {
+      kind: 'container',
+      image,
+      hostPath,
+      containerPath,
+      engine: f.engine ?? 'docker',
+      workspaceReadOnly: f.workspaceReadOnly === true,
+      networkMode: f.networkMode ?? 'none',
+    }
   }
   const remotePath = f.remotePath.trim()
   assertAbsoluteRuntimePath(remotePath)
@@ -102,6 +129,12 @@ export interface RemoteConnectInitial {
   remotePath?: string
   distro?: string
   distroPath?: string
+  image?: string
+  hostPath?: string
+  containerPath?: string
+  engine?: 'docker' | 'podman'
+  workspaceReadOnly?: boolean
+  networkMode?: 'none' | 'bridge'
 }
 
 export function RemoteConnect({
@@ -134,6 +167,13 @@ export function RemoteConnect({
   // wsl fields
   const [distro, setDistro] = useState(initial?.distro ?? '')
   const [distroPath, setDistroPath] = useState(initial?.distroPath ?? '')
+  // container fields
+  const [image, setImage] = useState(initial?.image ?? '')
+  const [hostPath, setHostPath] = useState(initial?.hostPath ?? '')
+  const [containerPath, setContainerPath] = useState(initial?.containerPath ?? '/workspace')
+  const [engine, setEngine] = useState<'docker' | 'podman'>(initial?.engine ?? 'docker')
+  const [workspaceReadOnly, setWorkspaceReadOnly] = useState(initial?.workspaceReadOnly ?? false)
+  const [networkMode, setNetworkMode] = useState<'none' | 'bridge'>(initial?.networkMode ?? 'none')
   // Installed distros for the picker; null = not loaded yet. Empty (non-Windows /
   // no WSL / probe failed) falls back to a free-text input.
   const [distros, setDistros] = useState<string[] | null>(null)
@@ -169,14 +209,20 @@ export function RemoteConnect({
   }
 
   const parsed = parseSshTarget(target)
-  const activePath = (kind === 'server' ? remotePath : distroPath).trim()
+  const activePath = (kind === 'server' ? remotePath : kind === 'wsl' ? distroPath : containerPath).trim()
   const pathError = activePath && !isAbsoluteRuntimePath(activePath)
     ? ABSOLUTE_RUNTIME_PATH_ERROR
+    : null
+  const hostPathError = kind === 'container' && hostPath.trim() && !isAbsoluteHostPath(hostPath.trim())
+    ? 'Container workspace host path must be absolute'
     : null
   const canSubmit =
     !pending &&
     !pathError &&
-    (kind === 'server'
+    !hostPathError &&
+    (kind === 'container'
+      ? !!image.trim() && !!hostPath.trim() && !!containerPath.trim()
+      : kind === 'server'
       ? !!parsed.host && !!remotePath.trim()
       : (distros?.length ?? 0) > 0 && distro.trim() && distroPath.trim())
 
@@ -193,6 +239,12 @@ export function RemoteConnect({
         useAgent,
         distro,
         distroPath,
+        image,
+        hostPath,
+        containerPath,
+        engine,
+        workspaceReadOnly,
+        networkMode,
       }),
     )
   }
@@ -206,9 +258,9 @@ export function RemoteConnect({
     <div className="flex flex-col gap-3 px-4 py-4" onKeyDown={onKeyDown}>
       {/* Kind toggle — segmented control */}
       <div className={SEGMENT.group}>
-        {(['server', 'wsl'] as const).map((k) => (
+        {(['server', 'wsl', 'container'] as const).map((k) => (
           <button key={k} type="button" className={SEGMENT.seg(kind === k)} onClick={() => setKind(k)}>
-            {k === 'server' ? 'SSH server' : 'WSL'}
+            {k === 'server' ? 'SSH server' : k === 'wsl' ? 'WSL' : 'Container'}
           </button>
         ))}
       </div>
@@ -290,7 +342,7 @@ export function RemoteConnect({
             </div>
           )}
         </>
-      ) : (
+      ) : kind === 'wsl' ? (
         <>
           {distros === null ? (
             <div className="text-[12px] text-muted px-0.5 py-1">Looking for WSL distros…</div>
@@ -313,6 +365,50 @@ export function RemoteConnect({
             aria-invalid={!!pathError}
           />
           {pathError && <div className="text-[12px] text-red-400 px-0.5">{pathError}</div>}
+        </>
+      ) : (
+        <>
+          <input
+            className={inputCls}
+            value={image}
+            onChange={(e) => setImage(e.target.value)}
+            placeholder="Container image (e.g. ghcr.io/acme/cate:stable)"
+            autoFocus
+          />
+          <input
+            className={inputCls}
+            value={hostPath}
+            onChange={(e) => setHostPath(e.target.value)}
+            placeholder="Host workspace path"
+            aria-invalid={!!hostPathError}
+          />
+          {hostPathError && <div className="text-[12px] text-red-400 px-0.5">{hostPathError}</div>}
+          <input
+            className={inputCls}
+            value={containerPath}
+            onChange={(e) => setContainerPath(e.target.value)}
+            placeholder="Workspace path in container"
+            aria-invalid={!!pathError}
+          />
+          {pathError && <div className="text-[12px] text-red-400 px-0.5">{pathError}</div>}
+          <div className="flex items-center gap-2">
+            <label className="text-[12px] text-secondary">Engine</label>
+            <select className={`${inputCls} flex-1 cursor-pointer`} value={engine} onChange={(e) => setEngine(e.target.value === 'podman' ? 'podman' : 'docker')}>
+              <option value="docker" className="bg-surface-5 text-primary">Docker</option>
+              <option value="podman" className="bg-surface-5 text-primary">Podman</option>
+            </select>
+          </div>
+          <label className="flex items-center gap-2 text-[12px] text-secondary cursor-pointer">
+            <input type="checkbox" checked={workspaceReadOnly} onChange={(e) => setWorkspaceReadOnly(e.target.checked)} className="accent-focus-blue" />
+            Mount workspace read-only
+          </label>
+          <label className="flex items-center gap-2 text-[12px] text-secondary cursor-pointer">
+            <input type="checkbox" checked={networkMode === 'bridge'} onChange={(e) => setNetworkMode(e.target.checked ? 'bridge' : 'none')} className="accent-focus-blue" />
+            Enable container network
+          </label>
+          <div className="text-[11px] text-muted">
+            The image must contain Cate runtime files. No host environment variables are forwarded by default.
+          </div>
         </>
       )}
 

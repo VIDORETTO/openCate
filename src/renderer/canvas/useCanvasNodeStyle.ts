@@ -27,6 +27,10 @@ const FOCUS_GLOW = `0 0 20px 1px rgba(255,255,255,0.025), 0 0 8px rgba(255,255,2
 // without the active-pane halo. Distinct from the focus glow above.
 const SELECTION_RING = `0 0 0 2px var(--focus-blue), 0 0 14px -2px var(--focus-blue)`
 
+type CanvasNodeStyle = React.CSSProperties & {
+  [key: `--${string}`]: string | undefined
+}
+
 function boxShadow(hovered: boolean): string {
   if (hovered) return SHADOW_HOVERED
   return SHADOW_UNFOCUSED
@@ -77,7 +81,7 @@ export function useCanvasNodeStyle(args: StyleArgs) {
     worktreeDim,
   } = args
 
-  const containerStyle = useMemo<React.CSSProperties>(() => {
+  const containerStyle = useMemo<CanvasNodeStyle>(() => {
     if (!node) return { display: 'none' }
 
     const isPulsing = activityState?.type === 'agentWaitingForInput'
@@ -109,11 +113,11 @@ export function useCanvasNodeStyle(args: StyleArgs) {
       outlineOffset: -1,
       animation: isPulsing ? 'pulseActivity 1s ease-in-out infinite alternate' : undefined,
       backgroundColor: chromeTint?.background ?? 'var(--node-bg-active)',
-      ['--node-chrome-bg' as any]: chromeTint?.background ?? 'var(--surface-1)',
-      ['--node-chrome-active-bg' as any]: chromeTint
+      '--node-chrome-bg': chromeTint?.background ?? 'var(--surface-1)',
+      '--node-chrome-active-bg': chromeTint
         ? `color-mix(in srgb, ${chromeTint.background} 86%, white 14%)`
         : 'var(--surface-3)',
-      ['--node-chrome-accent' as any]: chromeTint?.accent ?? 'var(--focus-blue)',
+      '--node-chrome-accent': chromeTint?.accent ?? 'var(--focus-blue)',
       transition: baseTransition + layoutTransition,
       filter: worktreeDim ? 'saturate(0.4)' : undefined,
       transform: isEntering ? 'scale(0.85)' : isExiting ? 'scale(0.9)' : 'scale(1)',
@@ -121,7 +125,7 @@ export function useCanvasNodeStyle(args: StyleArgs) {
       pointerEvents: isExiting || isWholeNodeDragSource ? 'none' : undefined,
       userSelect: 'none',
     }
-  }, [node, isFocused, isSelected, activityState, isAnimatingLayout, isHovered, chromeTint, isWholeNodeDragSource, worktreeDim])
+  }, [node, activityState, isAnimatingLayout, isHovered, chromeTint, isWholeNodeDragSource, worktreeDim])
 
   const glowStyle = useMemo<React.CSSProperties | null>(() => {
     if (!node) return null

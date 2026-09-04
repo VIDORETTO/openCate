@@ -141,6 +141,7 @@ export const Methods = {
   vcsWorktreePrune: 'vcs.worktreePrune',
   vcsWorktreeStatus: 'vcs.worktreeStatus',
   vcsWorktreeReview: 'vcs.worktreeReview',
+  vcsWorktreeApplySelection: 'vcs.worktreeApplySelection',
   vcsWorktreeMergeTo: 'vcs.worktreeMergeTo',
   vcsWorktreeUpdateFrom: 'vcs.worktreeUpdateFrom',
   vcsCreatePr: 'vcs.createPr',

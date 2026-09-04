@@ -52,6 +52,29 @@ describe('runtimeConnection', () => {
     })
   })
 
+  test('round-trips container mount and isolation policy', () => {
+    const connection = runtimeConnectionFromSpec('ctr_1', {
+      kind: 'container',
+      engine: 'docker',
+      image: 'ghcr.io/cate/runtime:stable',
+      hostPath: 'C:/projects/cate',
+      containerPath: '/workspace',
+      workspaceReadOnly: true,
+      networkMode: 'none',
+    })
+    expect(runtimeConnectionPath(connection)).toBe('/workspace')
+    expect(runtimeConnectionLabel(connection)).toBe('docker:ghcr.io/cate/runtime:stable')
+    expect(remoteConnectSpecFromConnection(connection)).toEqual({
+      kind: 'container',
+      engine: 'docker',
+      image: 'ghcr.io/cate/runtime:stable',
+      hostPath: 'C:/projects/cate',
+      containerPath: '/workspace',
+      workspaceReadOnly: true,
+      networkMode: 'none',
+    })
+  })
+
   test('labels a config-owned user without a leading @', () => {
     expect(runtimeConnectionLabel({
       kind: 'server',

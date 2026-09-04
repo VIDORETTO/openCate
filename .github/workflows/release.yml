@@ -72,6 +72,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify repository boundaries
+        run: npm run verify:repository-boundaries
+
+      - name: Verify companion deployment examples
+        run: npm run verify:companion-deployment
+
+      - name: Verify release workflow contract
+        run: npm run verify:release-workflow
+
       - name: Generate icons
         run: npm run icons
 
@@ -93,6 +102,10 @@ jobs:
         run: npm run build
         env:
           NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Build companion web (Linux release asset)
+        if: matrix.platform == 'linux'
+        run: npm run build:companion
 
       # The runtime tarball stages node-pty's native binary from build/Release.
       # On macOS/Windows `npm install` satisfies node-pty from a shipped prebuild
@@ -213,6 +226,21 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.WINDOWS_CERTS }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTS_PASSWORD }}
+
+      - name: Verify release metadata and checksums
+        run: npm run verify:release-metadata
+
+      - name: Packaged telemetry consent smoke (Windows)
+        if: matrix.platform == 'win'
+        run: npm run test:smoke:telemetry
+
+      - name: Packaged session restore smoke (Windows)
+        if: matrix.platform == 'win'
+        run: npm run test:smoke:packaged-restore
+
+      - name: Package companion web asset
+        if: matrix.platform == 'linux'
+        run: npm run package:companion
 
       - name: Upload release assets
         shell: bash

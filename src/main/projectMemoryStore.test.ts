@@ -34,7 +34,13 @@ vi.mock('./runtime/runtimeManager', () => ({
   },
 }))
 
-import { loadMemory, saveMemory } from './projectMemoryStore'
+import {
+  createProjectMemoryNote,
+  deleteProjectMemoryNote,
+  loadMemory,
+  saveMemory,
+  updateProjectMemoryNote,
+} from './projectMemoryStore'
 import type { ProjectMemoryNote } from '../shared/projectMemory'
 
 let root: string
@@ -49,6 +55,22 @@ const note: ProjectMemoryNote = {
   updatedAt: 2,
 }
 
+const legacyMemoryJson = `{
+  "version": 1,
+  "notes": [
+    {
+      "id": "legacy-note",
+      "scope": { "kind": "project" },
+      "title": "Legacy decision",
+      "content": "Keep the workspace stable.",
+      "citations": [{ "kind": "manual", "label": "decision", "locator": "README.md" }],
+      "createdAt": 1,
+      "updatedAt": 1
+    }
+  ]
+}
+`
+
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(tmpdir(), 'cate-memory-'))
   hostFiles.clear()
@@ -59,6 +81,23 @@ afterEach(async () => {
 })
 
 describe('projectMemoryStore', () => {
+  it('loads a literal version-1 file without rewriting optional fields', async () => {
+    const file = path.join(root, '.cate', 'memory.json')
+    await fs.mkdir(path.dirname(file), { recursive: true })
+    await fs.writeFile(file, legacyMemoryJson, 'utf8')
+
+    await expect(loadMemory(root)).resolves.toEqual([{
+      id: 'legacy-note',
+      scope: { kind: 'project' },
+      title: 'Legacy decision',
+      content: 'Keep the workspace stable.',
+      citations: [{ kind: 'manual', label: 'decision', locator: 'README.md' }],
+      createdAt: 1,
+      updatedAt: 1,
+    }])
+    await expect(fs.readFile(file, 'utf8')).resolves.toBe(legacyMemoryJson)
+  })
+
   it('round-trips project and worktree notes locally', async () => {
     const worktreeNote: ProjectMemoryNote = {
       ...note,
@@ -86,6 +125,26 @@ describe('projectMemoryStore', () => {
     const files = await fs.readdir(path.join(root, '.cate'))
     expect(files.some((file) => file.startsWith('memory.json.corrupt-'))).toBe(true)
   })
+
+  it('serializes public API mutations and keeps note identity on update', async () => {
+    const created = await createProjectMemoryNote(root, {
+      scope: { kind: 'project' },
+      title: 'API decision',
+      content: 'Expose curated context only.',
+      citations: [{ kind: 'manual', label: 'test', locator: 'test' }],
+    })
+    expect(created).toMatchObject({ title: 'API decision', scope: { kind: 'project' } })
+    const updated = await updateProjectMemoryNote(root, created!.id, { title: 'Updated decision' })
+    expect(updated).toMatchObject({
+      id: created!.id,
+      createdAt: created!.createdAt,
+      title: 'Updated decision',
+    })
+    await expect(loadMemory(root)).resolves.toEqual([updated])
+    await expect(deleteProjectMemoryNote(root, created!.id)).resolves.toBe(true)
+    await expect(deleteProjectMemoryNote(root, created!.id)).resolves.toBe(false)
+    await expect(loadMemory(root)).resolves.toEqual([])
+  })
 })
 
 describe('projectMemoryStore — remote roots', () => {
@@ -110,4 +169,3 @@ describe('projectMemoryStore — remote roots', () => {
     expect(await loadMemory(remoteRoot)).toEqual([])
   })
 })
-

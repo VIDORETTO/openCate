@@ -90,6 +90,21 @@ describe('decideQuitPrompt', () => {
 })
 
 describe('guardQuit', () => {
+  it('does not open an unanswerable native prompt in the isolated E2E app', () => {
+    const previous = process.env.CATE_E2E
+    process.env.CATE_E2E = '1'
+    state.warnBeforeQuit = true
+    state.running = [{ processName: 'claude' }]
+
+    try {
+      expect(guardQuit({ preventDefault: vi.fn() }, fakeWin, vi.fn())).toBe('proceed')
+      expect(state.shown).toHaveLength(0)
+    } finally {
+      if (previous === undefined) delete process.env.CATE_E2E
+      else process.env.CATE_E2E = previous
+    }
+  })
+
   it('proceeds without a dialog when there is nothing to confirm', () => {
     const event = { preventDefault: vi.fn() }
     const onConfirm = vi.fn()

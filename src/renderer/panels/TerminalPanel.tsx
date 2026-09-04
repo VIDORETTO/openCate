@@ -36,6 +36,8 @@ import { CATE_FILE_MIME, hasChatDrag, readCateFileLocation, readCateFilePaths } 
 import { parseLocator } from '../../shared/runtimeLocator'
 import { isRemoteRuntimeConnection } from '../../shared/runtimeConnection'
 
+const intersectionObservers = new WeakMap<HTMLElement, IntersectionObserver>()
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -46,6 +48,7 @@ export default function TerminalPanel({
   nodeId,
   initialInput,
   codingAgentLaunch,
+  terminalPersistence,
 }: TerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const renderBoxRef = useRef<HTMLDivElement>(null)
@@ -427,6 +430,7 @@ export default function TerminalPanel({
         cwd: rootPathRef.current || undefined,
         initialInput,
         codingAgentLaunch,
+        terminalPersistence,
         resumeCommand,
         placementGroupId,
       })
@@ -455,7 +459,7 @@ export default function TerminalPanel({
           { threshold: 0 },
         )
         intersectionObserver.observe(renderBox!)
-        ;(renderBox as any).__intersectionObserver = intersectionObserver
+        intersectionObservers.set(renderBox, intersectionObserver)
       })
       .catch(() => {
         // getOrCreate writes its own error message into the terminal; nothing
@@ -466,15 +470,15 @@ export default function TerminalPanel({
     return () => {
       cancelled = true
 
-      const io = (renderBox as any).__intersectionObserver as IntersectionObserver | undefined
+      const io = renderBox ? intersectionObservers.get(renderBox) : undefined
       if (io) {
         io.disconnect()
-        delete (renderBox as any).__intersectionObserver
+        if (renderBox) intersectionObservers.delete(renderBox)
       }
 
       detachAndDisconnect()
     }
-  }, [panelId, workspaceId, nodeId, initialInput, codingAgentLaunch, placementGroupId, retryKey, ptyEpoch, runtimePhase])
+  }, [panelId, workspaceId, nodeId, initialInput, codingAgentLaunch, terminalPersistence, placementGroupId, retryKey, ptyEpoch, runtimePhase])
 
   // -------------------------------------------------------------------------
   // Focus xterm when this node becomes the focused node
@@ -555,10 +559,17 @@ export default function TerminalPanel({
 
     // Becoming the active pane of a focused split node: take DOM focus. Covers
     // a press that lands on pane chrome rather than the xterm element itself
-    // (xterm focuses its own textarea on a direct mousedown).
+    // (xterm focuses its own textarea on a direct mousedown). Cancel the old
+    // pane's retry loop as soon as the active pane changes; otherwise a tick
+    // already queued by the previous pane can steal focus back after xterm has
+    // focused the pane the user just pressed.
     const unsubscribeActive = useActivePanelStore.subscribe((s, prev) => {
       if (s.activePanelId === prev.activePanelId) return
-      if (s.activePanelId !== panelId) return
+      if (s.activePanelId !== panelId) {
+        stopRun?.()
+        stopRun = undefined
+        return
+      }
       const state = canvasApi?.getState()
       if (state && nodeId && focusedNodeId(state) !== nodeId) return
       stopRun?.()

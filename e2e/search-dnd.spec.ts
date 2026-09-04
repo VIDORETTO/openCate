@@ -25,8 +25,20 @@ async function openSearch(page: Page) {
   ).toBe('done')
 }
 
+async function activateCanvas(page: Page) {
+  const canvasTab = page.locator('[data-tab-panel-id]').filter({ hasText: /^Canvas$/ }).first()
+  await canvasTab.waitFor({ state: 'visible', timeout: 30_000 })
+  await canvasTab.click()
+  await page.waitForSelector('[data-canvas-container]', { state: 'attached', timeout: 30_000 })
+}
+
 /** Dispatch dragstart on a Search row, then drop it on a target selector. */
 async function dragRowToTarget(page: Page, rowTestId: string, targetSelector: string) {
+  // Search completion and the canvas remount are independent commits when the
+  // workspace root changes. Wait for both sides of the drag contract before
+  // dispatching the in-page drag sequence.
+  await page.waitForSelector(`[data-testid="${rowTestId}"]`, { state: 'attached', timeout: 30_000 })
+  await page.waitForSelector(targetSelector, { state: 'attached', timeout: 30_000 })
   await page.evaluate(
     ({ rowTestId, targetSelector }) => {
       const row = document.querySelector(`[data-testid="${rowTestId}"]`)
@@ -62,9 +74,10 @@ test.describe('search drag & drop', () => {
   test('dragging a file result onto the canvas opens a floating editor', async () => {
     const page = app.mainWindow
     await openSearch(page)
+    await activateCanvas(page)
     const before = await page.evaluate(() => window.__cateE2E!.nodes().length)
 
-    await dragRowToTarget(page, 'search-file', '[data-canvas-panel-id]')
+    await dragRowToTarget(page, 'search-file', '[data-canvas-container]')
 
     await expect
       .poll(async () => page.evaluate(() => window.__cateE2E!.nodes().length), { timeout: 30_000 })
@@ -74,12 +87,13 @@ test.describe('search drag & drop', () => {
   test('dragging a match line onto the canvas opens it at that line', async () => {
     const page = app.mainWindow
     await openSearch(page)
+    await activateCanvas(page)
     const lineNo = Number(
       await page.locator('[data-testid="search-line"]').first().getAttribute('data-line'),
     )
     expect(lineNo).toBeGreaterThan(0)
 
-    await dragRowToTarget(page, 'search-line', '[data-canvas-panel-id]')
+    await dragRowToTarget(page, 'search-line', '[data-canvas-container]')
 
     await expect
       .poll(async () => page.evaluate(() => window.__cateE2E!.lastEditorReveal()?.line ?? 0), { timeout: 30_000 })

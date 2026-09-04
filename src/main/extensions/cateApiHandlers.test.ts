@@ -51,6 +51,8 @@ const { showOsNotification, settings } = vi.hoisted(() => ({
     cliPanelControlEnabled: true,
     cliEditorReadEnabled: true,
     cliEditorControlEnabled: true,
+    cliProjectReadEnabled: true,
+    cliProjectControlEnabled: true,
     cliNotifyEnabled: true,
     cliAgentReadEnabled: true,
     cliAgentControlEnabled: true,
@@ -183,6 +185,8 @@ beforeEach(() => {
   settings.cliPanelControlEnabled = true
   settings.cliEditorReadEnabled = true
   settings.cliEditorControlEnabled = true
+  settings.cliProjectReadEnabled = true
+  settings.cliProjectControlEnabled = true
   settings.cliNotifyEnabled = true
   settings.cliAgentReadEnabled = true
   settings.cliAgentControlEnabled = true
@@ -209,7 +213,7 @@ beforeEach(() => {
 
 describe('dispatchCateInvoke — Kitchen Sink reverse API', () => {
   it('reports the API version for feature detection', async () => {
-    expect(await dispatchCateInvoke(scope(), 'cate.version', undefined)).toBe(7)
+    expect(await dispatchCateInvoke(scope(), 'cate.version', undefined)).toBe(8)
   })
 
   it('resolves the workspace root from the locator', async () => {
@@ -345,11 +349,50 @@ describe('dispatchCateInvoke — Kitchen Sink reverse API', () => {
     // panel.* stay allowed (feature detection + panel self-control).
     state.scopes = undefined
     const forward = vi.fn()
-    expect(await dispatchCateInvoke(scope(forward), 'cate.version', undefined)).toBe(7)
+    expect(await dispatchCateInvoke(scope(forward), 'cate.version', undefined)).toBe(8)
     expect(await dispatchCateInvoke(scope(forward), 'cate.storage.get', { key: 'k' })).toEqual({ error: 'scope-denied', method: 'cate.storage.get' })
     expect(await dispatchCateInvoke(scope(forward), 'cate.editor.openFile', { path: 'x' })).toEqual({ error: 'scope-denied', method: 'cate.editor.openFile' })
     expect(await dispatchCateInvoke(scope(forward), 'cate.theme.get', undefined)).toEqual({ error: 'scope-denied', method: 'cate.theme.get' })
     expect(forward).not.toHaveBeenCalled()
+  })
+
+  it('keeps project data first-party-only and gates its read/control halves', async () => {
+    expect(requiredScopeFor('cate.project.get')).toBe('project.read')
+    expect(requiredScopeFor('cate.tasks.create')).toBe('project.write')
+    const forward = vi.fn()
+    expect(await dispatchCateInvoke(scope(forward), 'cate.project.get', {})).toEqual({
+      error: 'first-party-only',
+      method: 'cate.project.get',
+    })
+    expect(forward).not.toHaveBeenCalled()
+
+    const firstParty: InvokeScope = {
+      extensionId: 'cate.terminal',
+      workspaceId: WS,
+      panelId: '',
+      caller: 'first-party',
+      grantedScopes: [...GRANTED_SCOPES],
+      forward,
+    }
+    settings.cliProjectReadEnabled = false
+    expect(await dispatchCateInvoke(firstParty, 'cate.project.get', {})).toEqual({
+      error: cliPermissionDenied(cliPermissionCellByKey('cliProjectReadEnabled')),
+      method: 'cate.project.get',
+    })
+    settings.cliProjectReadEnabled = true
+    await expect(dispatchCateInvoke(firstParty, 'cate.project.get', {})).resolves.toEqual({
+      id: WS,
+      rootPath: '/ws/root',
+      branch: null,
+      worktree: null,
+    })
+    settings.cliProjectControlEnabled = false
+    expect(await dispatchCateInvoke(firstParty, 'cate.tasks.create', {
+      draft: { objective: 'nope' },
+    })).toEqual({
+      error: cliPermissionDenied(cliPermissionCellByKey('cliProjectControlEnabled')),
+      method: 'cate.tasks.create',
+    })
   })
 
   it('accepts a bare namespace scope for a more specific method (editor grants editor.write)', async () => {
@@ -415,6 +458,8 @@ describe('dispatchCateInvoke — Cate Agent orchestration boundary', () => {
 
   it('allows a long monitor call without extending unrelated host actions', () => {
     expect(forwardTimeoutMs('cate.codingAgent.wait')).toBe(65_000)
+    expect(forwardTimeoutMs('cate.browser.wait')).toBe(35_000)
+    expect(forwardTimeoutMs('cate.browser.snapshot')).toBe(35_000)
     expect(forwardTimeoutMs('cate.codingAgent.apply')).toBe(10_000)
     expect(forwardTimeoutMs('cate.codingAgent.discard')).toBe(10_000)
     expect(forwardTimeoutMs('cate.editor.openFile')).toBe(10_000)

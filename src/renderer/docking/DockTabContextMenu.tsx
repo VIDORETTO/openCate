@@ -6,11 +6,16 @@
 
 import React from 'react'
 import { createPortal } from 'react-dom'
+import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
 import type { PanelType } from '../../shared/types'
 import { SPLIT_MENU_PANEL_TYPES } from '../../shared/panels'
 import { PANEL_REGISTRY } from '../panels/registry'
 
-export type SplitMenuItem = { type: PanelType; label: string; Icon: React.ComponentType<any> }
+export type SplitMenuItem = {
+  type: PanelType
+  label: string
+  Icon: PhosphorIcon | React.ComponentType<{ size?: number; className?: string }>
+}
 
 // Items shown in the long-press split menu (order = display order).
 export const SPLIT_MENU_ITEMS: SplitMenuItem[] = [

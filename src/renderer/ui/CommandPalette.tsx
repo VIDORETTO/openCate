@@ -389,7 +389,7 @@ export const CommandPalette: React.FC = () => {
       })
     }
     return results
-  }, [orderedPanels, otherWindowPanels, query])
+  }, [orderedPanels, otherWindowPanels, stashedPanels, query])
 
   // With a query, search workspace files by name (debounced). With an empty box,
   // skip the filesystem walk and show recently-opened files instead.

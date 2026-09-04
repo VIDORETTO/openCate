@@ -35,10 +35,11 @@
 // (e.g. a Mac) for local end-to-end testing before CI exists.
 // =============================================================================
 
-import { existsSync, mkdirSync, cpSync, rmSync, chmodSync, readFileSync, renameSync, readdirSync, openSync, readSync, closeSync } from 'node:fs'
+import { existsSync, mkdirSync, cpSync, rmSync, chmodSync, readFileSync, writeFileSync, renameSync, readdirSync, openSync, readSync, closeSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
+import { gunzipSync, gzipSync } from 'node:zlib'
 import path from 'node:path'
 import os from 'node:os'
 import { fileURLToPath } from 'node:url'
@@ -75,6 +76,13 @@ const fwd = (from, to) => path.relative(from, to).split(path.sep).join('/') || '
 
 const args = process.argv.slice(2)
 const useDocker = args.includes('--docker')
+// `execFileSync` cannot execute Windows `.cmd` shims without a shell. Invoke
+// npm's JS entrypoint through the current Node process instead, keeping every
+// package argument separate on both Windows and POSIX hosts.
+const npmCommand = process.platform === 'win32' ? process.execPath : 'npm'
+const npmPrefixArgs = process.platform === 'win32'
+  ? [process.env.npm_execpath ?? path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js')]
+  : []
 const targetArg = valueOf('--target') ?? `${plat(process.platform)}-${process.arch}`
 const SUPPORTED = ['linux-x64', 'linux-arm64', 'darwin-x64', 'darwin-arm64', 'win32-x64']
 if (!SUPPORTED.includes(targetArg)) {
@@ -136,7 +144,7 @@ if (missing.length) throw new Error(`[runtime] incomplete stage for ${targetArg}
 // caught `tar -czf` mid-stream would hit "truncated gzip input" and cache a
 // corrupt install. rename(2) within the same dir is atomic.
 const tmpTar = `${path.basename(outTar)}.partial`
-execFileSync('tar', ['--no-xattrs', '-czf', tmpTar, '-C', fwd(dist, stageDir), '.'], { stdio: 'inherit', cwd: dist })
+writeTarball(tmpTar, stageDir)
 renameSync(path.join(dist, tmpTar), outTar)
 console.log(`[runtime] wrote ${path.relative(repoRoot, outTar)}`)
 
@@ -147,6 +155,55 @@ async function buildBundle() {
   await build(runtimeBuildOptions)
   if (!existsSync(path.join(dist, 'runtime.cjs'))) throw new Error('esbuild did not produce runtime.cjs')
   return v
+}
+
+/** Create a target archive with executable POSIX modes intact. Windows NTFS
+ * does not preserve Unix execute bits, so a host-side bsdtar archive produced
+ * after a cross-build extracts to WSL with `runtime/bin/node` non-executable.
+ * Patch only the small, explicit executable surface in the tar headers; this
+ * keeps the archive portable without requiring a second filesystem or engine. */
+function writeTarball(tmpTar, stageDir) {
+  execFileSync('tar', ['--no-xattrs', '-czf', tmpTar, '-C', fwd(dist, stageDir), '.'], { stdio: 'inherit', cwd: dist })
+  if (targetPlatform !== 'win32') normalizeArchiveModes(path.join(dist, tmpTar))
+}
+
+function normalizeArchiveModes(archivePath) {
+  const archive = gunzipSync(readFileSync(archivePath))
+  let changed = 0
+  for (let offset = 0; offset + 512 <= archive.length;) {
+    const header = archive.subarray(offset, offset + 512)
+    if (header.every((byte) => byte === 0)) break
+    const type = header[156]
+    const size = tarNumber(header, 124, 12)
+    const name = tarString(header, 0, 100)
+    const prefix = tarString(header, 345, 155)
+    const entryPath = `${prefix ? `${prefix}/` : ''}${name}`.replace(/^\.\//u, '')
+    const executable = type === 0 || type === 0x30
+      ? entryPath === 'runtime/bin/node' ||
+        entryPath === 'runtime/bin/rg' ||
+        entryPath === 'cate/bin/cate' ||
+        /^node_modules\/node-pty\/prebuilds\/[^/]+\/spawn-helper$/u.test(entryPath)
+      : false
+    offset += 512 + Math.ceil(size / 512) * 512
+    if (!executable) continue
+    header.write('0000755\0', 100, 8, 'ascii')
+    header.fill(0x20, 148, 156)
+    const checksum = header.reduce((sum, byte) => sum + byte, 0)
+    header.write(`${checksum.toString(8).padStart(6, '0')}\0 `, 148, 8, 'ascii')
+    changed += 1
+  }
+  if (changed === 0) throw new Error(`[runtime] archive did not contain expected executable entries: ${archivePath}`)
+  writeFileSync(archivePath, gzipSync(archive))
+}
+
+function tarNumber(buffer, start, length) {
+  const raw = buffer.toString('ascii', start, start + length).replace(/\0.*$/u, '').trim()
+  return raw ? Number.parseInt(raw, 8) : 0
+}
+
+function tarString(buffer, start, length) {
+  const end = buffer.indexOf(0, start)
+  return buffer.toString('utf8', start, end >= start && end < start + length ? end : start + length)
 }
 
 /** Stage node-pty with only the target's native binary under prebuilds/<target>/. */
@@ -296,7 +353,7 @@ async function npmPackInto(spec, destDir) {
   rmSync(tmp, { recursive: true, force: true })
   mkdirSync(tmp, { recursive: true })
   console.log(`[runtime] npm pack ${spec} (cross-target prebuilt)…`)
-  const out = execFileSync('npm', ['pack', spec, '--silent'], { cwd: tmp, encoding: 'utf-8' })
+  const out = execFileSync(npmCommand, [...npmPrefixArgs, 'pack', spec, '--silent'], { cwd: tmp, encoding: 'utf-8' })
   const tgz = out.trim().split('\n').pop().trim()
   execFileSync('tar', ['-xzf', tgz, '-C', tmp], { stdio: 'ignore', cwd: tmp })
   mkdirSync(destDir, { recursive: true })

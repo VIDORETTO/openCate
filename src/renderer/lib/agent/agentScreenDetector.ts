@@ -52,6 +52,8 @@ export interface DetectorSignals {
   stalled?: boolean
 }
 
+export type AgentCompletionOutcome = 'finished' | 'failed'
+
 export function resolveAgentState(s: DetectorSignals): AgentState {
   return terminalStateForLifecycle(resolveAgentLifecycleState(s))
 }
@@ -144,19 +146,27 @@ function workspaceFor(terminalId: string): string | undefined {
 }
 
 /** Apply a resolved state to the store + mirror it to other windows. `notify`
- *  fires the OS notification; hook turn-end and permission-wait pass true.
- *  `permissionBody` switches the text to the "needs permission" variant
- *  carrying what the agent is blocked on. The agent name is read from
- *  statusStore (its single home) at commit time — the tracker doesn't cache a
- *  parallel copy. Notification is transition-gated: commit no-ops when the
- *  state didn't change, so a repeated permission-wait without an intervening
- *  resume cannot re-notify. */
-function commit(terminalId: string, state: AgentState, notify: boolean, permissionBody?: string): void {
+ *  fires the OS notification for hook turn-end/permission-wait; `completion`
+ *  supplies the known PTY outcome for the finished edge. `permissionBody`
+ *  switches the text to the "needs permission" variant carrying what the
+ *  agent is blocked on. The agent name is read from statusStore (its single
+ *  home) at commit time — the tracker doesn't cache a parallel copy.
+ *  Notification is transition-gated: commit no-ops when the state didn't
+ *  change, so repeated permission-wait or completion observations cannot
+ *  re-notify. */
+function commit(
+  terminalId: string,
+  state: AgentState,
+  notify: boolean,
+  permissionBody?: string,
+  completion?: AgentCompletionOutcome,
+): boolean {
   const t = trackers.get(terminalId)
-  if (!t || t.state === state) return
+  if (!t || t.state === state) return false
   const workspaceId = workspaceFor(terminalId)
-  if (!workspaceId) return
+  if (!workspaceId) return false
 
+  const previousState = t.state
   t.state = state
   const status = useStatusStore.getState()
   const agentName =
@@ -175,6 +185,28 @@ function commit(terminalId: string, state: AgentState, notify: boolean, permissi
       action: { type: 'focusTerminal', workspaceId, terminalId },
     })
   }
+
+  // A process-presence falling edge is the only truthful completion signal for
+  // agents whose hooks do not expose a final event. An explicit outcome is
+  // supplied by the PTY exit path when its exit code is known. The transition
+  // gate above keeps repeated monitor ticks and late exit events quiet.
+  if (
+    state === 'finished' &&
+    previousState !== 'notRunning' &&
+    previousState !== 'finished'
+  ) {
+    const outcome = completion ?? 'finished'
+    const displayName = agentName ?? 'Agent'
+    sendOsNotification({
+      title: `${displayName} ${outcome}`,
+      body: outcome === 'failed'
+        ? `${displayName} failed. Open the terminal to inspect the output.`
+        : `${displayName} finished.`,
+      action: { type: 'focusTerminal', workspaceId, terminalId },
+    })
+    return true
+  }
+  return false
 }
 
 /** Short human line for the permission notification: WHAT the agent wants,
@@ -202,16 +234,21 @@ function permissionBodyFor(event: AgentHookEvent): string {
  *  immediately (commit no-ops when the state didn't actually change, so only
  *  the running→waiting edge fires). `permissionBody` rides along for the
  *  permission variant. */
-function recompute(terminalId: string, notifyOnIdle = false, permissionBody?: string): void {
+function recompute(
+  terminalId: string,
+  notifyOnIdle = false,
+  permissionBody?: string,
+  completion?: AgentCompletionOutcome,
+): boolean {
   const t = trackers.get(terminalId)
-  if (!t || !started) return
+  if (!t || !started) return false
 
   const raw = resolveAgentState({
     present: t.present,
     wasPresent: t.wasPresent,
     active: effectiveActive(t),
   })
-  commit(terminalId, raw, notifyOnIdle, permissionBody)
+  return commit(terminalId, raw, notifyOnIdle, permissionBody, completion)
 }
 
 /** A normalized agent-hook event arrived for a terminal this window owns. */
@@ -318,6 +355,29 @@ export function noteAgentProcess(terminalId: string, agentId: AgentId | null): v
   t.fallbackPresent = nextAgentId !== null
   reconcilePresence(t)
   recompute(terminalId)
+}
+
+/**
+ * Mark a known agent process as complete from the PTY exit path. This keeps a
+ * non-zero exit code from being flattened into the generic presence-finished
+ * notification, while still sharing the same state transition and dedupe gate.
+ * Returns true when the detector emitted the completion notification.
+ */
+export function noteAgentCompletion(
+  terminalId: string,
+  outcome: AgentCompletionOutcome,
+): boolean {
+  const t = trackerFor(terminalId)
+  const hadAgent = t.present || t.wasPresent || t.state === 'running' || t.state === 'waitingForInput'
+  t.hookPresent = false
+  t.fallbackPresent = false
+  t.fallbackAgentId = null
+  t.fallbackScreenState = null
+  t.wasPresent = hadAgent
+  t.present = false
+  t.hookTurnActive = false
+  t.hookPermissionWait = false
+  return recompute(terminalId, false, undefined, outcome)
 }
 
 /** Feed a status-only sample from the active xterm viewport into the fallback. */

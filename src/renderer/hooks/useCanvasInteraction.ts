@@ -195,7 +195,7 @@ export function useCanvasInteraction(
     })
 
     zoomRafId.current = requestAnimationFrame(smoothZoomTick)
-  }, [])
+  }, [canvasStoreApi])
 
   // ---------------------------------------------------------------------------
   // Wheel zoom — anchored at the cursor. Called for explicit zoom intent
@@ -246,7 +246,7 @@ export function useCanvasInteraction(
         zoomRafId.current = requestAnimationFrame(smoothZoomTick)
       }
     },
-    [canvasRef, smoothZoomTick],
+    [canvasRef, smoothZoomTick, canvasStoreApi],
   )
 
   // ---------------------------------------------------------------------------
@@ -374,7 +374,7 @@ export function useCanvasInteraction(
         })
       }
     },
-    [canvasRef, applyWheelZoom],
+    [applyWheelZoom, canvasStoreApi],
   )
 
   // ---------------------------------------------------------------------------
@@ -615,7 +615,7 @@ export function useCanvasInteraction(
         }
       }
     },
-    [canvasRef, startPanDrag, cancelAllAnimations],
+    [canvasRef, startPanDrag, cancelAllAnimations, canvasStoreApi],
   )
 
   const handleMouseMove = useCallback(
@@ -651,7 +651,7 @@ export function useCanvasInteraction(
         if (velocityCount.current < 5) velocityCount.current++
       }
     },
-    [],
+    [canvasStoreApi],
   )
 
   const handleMouseUp = useCallback(
@@ -758,7 +758,7 @@ export function useCanvasInteraction(
         velocityCount.current = 0
       }
     },
-    [canvasRef, endPanDrag],
+    [canvasRef, endPanDrag, canvasStoreApi],
   )
 
   // ---------------------------------------------------------------------------

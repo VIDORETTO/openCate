@@ -24,6 +24,7 @@ vi.mock('../../stores/gitStatusStore', () => ({
 
 import {
   applyCodingAgentWorktree,
+  applyCodingAgentWorktreeSelection,
   discardCodingAgentWorktree,
   keepCodingAgentWorktree,
   reviewCodingAgentWorktree,
@@ -40,6 +41,18 @@ describe('coding-agent worktree integration', () => {
     workingFiles: [],
     diff: 'diff',
     truncated: false,
+    hunks: [{
+      id: 'api.ts\0h1',
+      path: 'api.ts',
+      header: '@@ -1 +1 @@',
+      lines: ['-old', '+new'],
+      additions: 1,
+      deletions: 1,
+      oldStart: 1,
+      oldCount: 1,
+      newStart: 1,
+      newCount: 1,
+    }],
   }
 
   beforeEach(() => {
@@ -68,6 +81,7 @@ describe('coding-agent worktree integration', () => {
       electronAPI: {
         gitStatus: vi.fn(async () => ({ current: 'main' })),
         gitWorktreeReview: vi.fn(async () => review),
+        gitWorktreeApplySelection: vi.fn(async () => ({ ok: true, result: { staged: true } })),
         gitWorktreeMergeTo: vi.fn(async () => ({ ok: true, result: {} })),
         gitWorktreeStatus: vi.fn(async () => ({ branch: 'agent/api', dirty: false })),
         gitWorktreeRemove: vi.fn(async () => {}),
@@ -105,6 +119,31 @@ describe('coding-agent worktree integration', () => {
     await expect(applyCodingAgentWorktree('ws', 'worker'))
       .resolves.toEqual({ ok: false, message: 'Commit first.' })
     expect(window.electronAPI.gitWorktreeMergeTo).not.toHaveBeenCalled()
+  })
+
+  it('stages only explicitly approved hunks and records the approval', async () => {
+    await expect(applyCodingAgentWorktreeSelection('ws', 'worker', ['api.ts\0h1'])).resolves.toEqual({
+      ok: true,
+      branch: 'main',
+      hunkIds: ['api.ts\0h1'],
+    })
+
+    expect(window.electronAPI.gitWorktreeApplySelection).toHaveBeenCalledWith(
+      '/repo',
+      'agent/api',
+      'main',
+      ['api.ts\0h1'],
+      'ws',
+    )
+    expect(state.setPanelCodingAgentRun).toHaveBeenCalledWith(
+      'ws',
+      'worker',
+      expect.objectContaining({
+        approvedHunkIds: ['api.ts\0h1'],
+        approvedToBranch: 'main',
+        approvedAt: expect.any(Number),
+      }),
+    )
   })
 
   it('requires another review when the user switches target branches', async () => {

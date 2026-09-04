@@ -8,13 +8,15 @@ import {
   mergeCodingAgentUsage,
   mergeCodingAgentActivity,
   normalizeCodingAgentUsage,
+  type CodingAgentRun,
 } from '../../../shared/codingAgentRuns'
 import { useAppStore } from '../../stores/appStore'
+import { useProjectTaskStore } from '../../stores/projectTaskStore'
 import { terminalRegistry } from '../terminal/terminalRegistry'
 
 function applyCodingAgentHookObservation(
   event: AgentHookEvent,
-  apply: (run: any, observedAt: number) => any,
+  apply: (run: CodingAgentRun, observedAt: number) => Partial<CodingAgentRun> | null | undefined,
 ): void {
   const panelId = terminalRegistry.panelIdForPty(event.terminalId)
   if (!panelId) return
@@ -25,7 +27,13 @@ function applyCodingAgentHookObservation(
     const run = panel?.codingAgentRun
     if (!run || run.agentId !== event.agentId) continue
     const next = apply(run, Date.now())
-    if (next) state.setPanelCodingAgentRun(workspace.id, panelId, { ...run, ...next })
+    if (next) {
+      const updatedRun = { ...run, ...next }
+      state.setPanelCodingAgentRun(workspace.id, panelId, updatedRun)
+      if (updatedRun.taskId) {
+        useProjectTaskStore.getState().syncTaskWithRun(workspace.rootPath, updatedRun, 'in-progress')
+      }
+    }
     return
   }
 }

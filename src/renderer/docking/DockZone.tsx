@@ -6,7 +6,7 @@
 
 import React, { useCallback, useEffect, useRef } from 'react'
 import { useDockStoreContext } from '../stores/DockStoreContext'
-import type { DockZonePosition, PanelState } from '../../shared/types'
+import type { DockLayoutNode, DockZonePosition, PanelState } from '../../shared/types'
 import DockTabStack from './DockTabStack'
 import DockLayoutRenderer from './DockLayoutRenderer'
 import { registerDropZone } from '../drag'
@@ -115,7 +115,7 @@ export default function DockZone({ position, renderPanel, getPanelTitle, onClose
   )
 
   const renderTabs = useCallback(
-    (node: Extract<NonNullable<typeof zone.layout>, { type: 'tabs' }>): React.ReactNode => (
+    (node: Extract<DockLayoutNode, { type: 'tabs' }>): React.ReactNode => (
           <DockTabStack
             key={node.id}
             stack={node}

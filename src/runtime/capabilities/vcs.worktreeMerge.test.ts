@@ -62,6 +62,7 @@ describe('vcs.worktreeMergeTo', () => {
       canApply: true,
       commits: [{ message: 'feature change' }],
       files: [{ status: 'M', path: 'shared.txt' }],
+      hunks: [expect.objectContaining({ path: 'shared.txt', additions: 1 })],
     })
     expect(committed.diff).toContain('+feature')
 
@@ -72,6 +73,53 @@ describe('vcs.worktreeMergeTo', () => {
     expect(dirty.dirty).toBe(true)
     expect(dirty.workingFiles).toContain('uncommitted.txt')
     expect(dirty.message).toContain('Commit or discard')
+  })
+
+  test('stages only the selected worker hunk in the clean base checkout', async () => {
+    const git = simpleGit(root)
+    await git.checkout('feature')
+    await fs.writeFile(path.join(root, 'first.txt'), 'first\n')
+    await fs.writeFile(path.join(root, 'second.txt'), 'second\n')
+    await git.add(['first.txt', 'second.txt'])
+    await git.commit('add independent files')
+
+    const review = await vcs().worktreeReview(root, primaryBranch, access)
+    const firstHunk = review.hunks?.find((hunk) => hunk.path === 'first.txt')
+    expect(firstHunk).toBeDefined()
+    await git.checkout(primaryBranch)
+
+    const result = await vcs().worktreeApplySelection(
+      root,
+      'feature',
+      primaryBranch,
+      [firstHunk!.id],
+      access,
+    )
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: { branch: 'feature', baseBranch: primaryBranch, staged: true },
+    })
+    const staged = await git.diff(['--cached', '--name-only'])
+    expect(staged.trim().split('\n')).toEqual(['first.txt'])
+  })
+
+  test('refuses selected approval when the base checkout is dirty', async () => {
+    await fs.writeFile(path.join(root, 'local.txt'), 'uncommitted\n')
+
+    const result = await vcs().worktreeApplySelection(
+      root,
+      'feature',
+      primaryBranch,
+      ['any-hunk'],
+      access,
+    )
+
+    expect(result).toEqual({
+      ok: false,
+      conflict: false,
+      message: `Commit or stash changes in ${primaryBranch} before applying a selection.`,
+    })
   })
 
   test('does not offer to apply a detached worktree', async () => {

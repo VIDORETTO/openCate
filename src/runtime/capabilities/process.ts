@@ -11,13 +11,17 @@
 
 import type { IPty } from 'node-pty'
 import os from 'os'
-import { execFile } from 'child_process'
+import path from 'path'
+import { existsSync, readFileSync } from 'fs'
+import childProcess, { execFile, type ChildProcess } from 'child_process'
 import type { ProcessHost, PtyCreateOptions, PtyHandle, PtyActivity } from '../../main/runtime/types'
 import type { TerminalActivity } from '../../shared/types'
 import { matchAgentDef } from '../../shared/agents'
 import type { AgentPresenceTracker } from './agentPresence'
 import type { AgentHookConfig } from '../../shared/agentHooks'
+import type { TerminalDurability } from '../../shared/terminalDurability'
 import { catePathEnv } from '../cateCli'
+import { assertTmuxSessionName, buildTmuxAttachArgs, buildTmuxKillArgs } from './tmux'
 import {
   type ProcTree,
   snapshotProcessTreeProc,
@@ -145,9 +149,72 @@ function activityForPid(shellPid: number, tree: ProcTree): TerminalActivity {
 // error, instead of the whole daemon crashing on import.
 type PtySpawn = typeof import('node-pty').spawn
 let cachedSpawn: PtySpawn | null = null
+
+// node-pty's Windows ConPTY kill path forks a short-lived
+// `conpty_console_list_agent` to enumerate the console process tree. The
+// library does not expose that child or await it, so a daemon that exits as
+// soon as the PTY's onExit fires can orphan the helper. Track only those
+// library-owned children so shutdown can finish them before process.exit().
+const conptyAgents = new Set<ChildProcess>()
+let conptyForkTrackingInstalled = false
+
+function installConptyForkTracking(): void {
+  if (process.platform !== 'win32' || conptyForkTrackingInstalled) return
+  conptyForkTrackingInstalled = true
+  const originalFork = childProcess.fork.bind(childProcess)
+  childProcess.fork = ((...args: Parameters<typeof childProcess.fork>) => {
+    const child = originalFork(...args)
+    const modulePath = String(args[0])
+    if (modulePath.includes('conpty_console_list_agent')) {
+      conptyAgents.add(child)
+      const forget = (): void => { conptyAgents.delete(child) }
+      child.once('close', forget)
+      child.once('error', forget)
+      child.once('exit', forget)
+    }
+    return child
+  }) as typeof childProcess.fork
+}
+
+function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve()
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      child.off('close', finish)
+      child.off('error', finish)
+      child.off('exit', finish)
+      resolve()
+    }
+    const timer = setTimeout(finish, timeoutMs)
+    child.once('close', finish)
+    child.once('error', finish)
+    child.once('exit', finish)
+  })
+}
+
+async function reapConptyAgents(): Promise<void> {
+  // A not-yet-ready node-pty queues kill() until its first data turn, so a
+  // single snapshot immediately after kill() can miss a helper that is about
+  // to be forked. Keep a short polling window open to catch those late forks.
+  const deadline = Date.now() + 1_000
+  while (Date.now() < deadline) {
+    await new Promise<void>((resolve) => setTimeout(resolve, Math.min(50, deadline - Date.now())))
+  }
+  const lingering = [...conptyAgents].filter((agent) => agent.exitCode === null && agent.signalCode === null)
+  for (const agent of lingering) {
+    try { agent.kill() } catch { /* already gone */ }
+  }
+  await Promise.all(lingering.map((agent) => waitForChildExit(agent, 250)))
+}
+
 async function getPtySpawn(): Promise<PtySpawn> {
   if (cachedSpawn) return cachedSpawn
   try {
+    installConptyForkTracking()
     const mod = await import('node-pty')
     cachedSpawn = mod.spawn
     return cachedSpawn
@@ -156,6 +223,201 @@ async function getPtySpawn(): Promise<PtySpawn> {
       `Terminals are unavailable on this host: failed to load node-pty (${err instanceof Error ? err.message : String(err)}). ` +
         'A platform-matched node-pty native binary must be staged for this target.',
     )
+  }
+}
+
+function probeTmux(): Promise<boolean> {
+  return new Promise((resolve) => {
+    execFile('tmux', ['-V'], { encoding: 'utf-8', timeout: 2000 }, (error) => {
+      resolve(!error)
+    })
+  })
+}
+
+function terminateTmuxSession(sessionName: string): void {
+  try {
+    execFile('tmux', buildTmuxKillArgs(sessionName), { timeout: 2000 }, () => {})
+  } catch {
+    // A session that already disappeared is already in the desired state.
+  }
+}
+
+/** Resolve a Windows command shim before handing it to node-pty. `CreateProcess`
+ * does not apply PATHEXT when the executable is passed directly, so a command
+ * such as `codex` can fail even though `codex.cmd` is on PATH. Keep the original
+ * spelling when no candidate exists so the native error remains authoritative. */
+export function resolveWindowsExecutable(
+  executable: string,
+  env: Record<string, string>,
+  exists: (candidate: string) => boolean = existsSync,
+): string {
+  const pathKey = Object.keys(env).find((key) => key.toUpperCase() === 'PATH')
+  const pathValue = pathKey ? env[pathKey] : ''
+  const pathextKey = Object.keys(env).find((key) => key.toUpperCase() === 'PATHEXT')
+  const extensions = (pathextKey ? env[pathextKey] : '.COM;.EXE;.BAT;.CMD')
+    .split(';')
+    .map((extension) => extension.trim())
+    .filter((extension) => /^\.[A-Za-z0-9]+$/.test(extension))
+  if (extensions.length === 0) return executable
+
+  const hasDirectory = executable.includes('\\') || executable.includes('/')
+  const hasExtension = Boolean(path.extname(executable))
+  const directories = hasDirectory ? [''] : pathValue.split(path.delimiter).filter(Boolean)
+  for (const directory of directories) {
+    const candidates = hasExtension
+      ? [executable]
+      : extensions.map((extension) => executable + extension)
+    for (const candidateName of candidates) {
+      const candidate = directory ? path.join(directory, candidateName) : candidateName
+      if (exists(candidate)) return candidate
+    }
+  }
+  return executable
+}
+
+interface WindowsCommandResolution {
+  executable: string
+  args: string[]
+}
+
+type WindowsShimReader = (filePath: string) => string
+
+/** Split the one command invocation in a simple Windows launcher without
+ * asking cmd.exe to reinterpret the caller's arguments. This intentionally
+ * accepts only argv-like tokens; wrappers that need arbitrary batch syntax
+ * fall back to the original shim and retain its native behavior. */
+function parseWindowsShimInvocation(line: string): string[] | null {
+  let lastAmpersand = -1
+  let quoted = false
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i]
+    if (char === '"') quoted = !quoted
+    else if (char === '&' && !quoted) lastAmpersand = i
+  }
+  const command = line.slice(lastAmpersand + 1).replace(/^\s*@?\s*/, '').trim()
+  if (!command || /^::|^rem\b/i.test(command)) return null
+
+  const tokens: string[] = []
+  let token = ''
+  let started = false
+  quoted = false
+  for (const char of command) {
+    if (char === '"') {
+      quoted = !quoted
+      started = true
+    } else if (/\s/.test(char) && !quoted) {
+      if (started) {
+        tokens.push(token)
+        token = ''
+        started = false
+      }
+    } else {
+      if (!quoted && /[|<>]/.test(char)) return null
+      token += char
+      started = true
+    }
+  }
+  if (quoted) return null
+  if (started) tokens.push(token)
+  if (tokens.at(-1) !== '%*') return null
+  if (tokens[0]?.toLowerCase() === 'call') tokens.shift()
+  return tokens.length > 1 ? tokens : null
+}
+
+/** Expand the small, path-only variable vocabulary used by npm's generated
+ * Windows shims. No general batch expansion is attempted: unknown variables
+ * make the wrapper ineligible for direct spawning. */
+function expandWindowsShimToken(
+  token: string,
+  shimDir: string,
+  program: string | null,
+): string | null {
+  const dp0 = `${shimDir}${path.sep}`
+  let expanded = token
+    .replace(/%~dp0/gi, dp0)
+    .replace(/%dp0%/gi, dp0)
+  if (/%_prog%/i.test(expanded)) {
+    if (!program) return null
+    expanded = expanded.replace(/%_prog%/gi, program)
+  }
+  return /%[^%]+%/.test(expanded) ? null : expanded
+}
+
+/** Translate the safe subset of npm-style `.cmd`/`.bat` shims to a direct
+ * executable + argv. The important property is that multiline prompts remain
+ * one argv element: node-pty can start the real executable directly, whereas
+ * `%*` expansion through cmd.exe treats embedded newlines as batch syntax. */
+function resolveWindowsShim(
+  shimPath: string,
+  requestedArgs: string[],
+  env: Record<string, string>,
+  exists: (candidate: string) => boolean,
+  read: WindowsShimReader,
+): WindowsCommandResolution | null {
+  let source: string
+  try {
+    source = read(shimPath)
+  } catch {
+    return null
+  }
+
+  const shimDir = path.dirname(shimPath)
+  const programs: string[] = []
+  for (const line of source.split(/\r?\n/)) {
+    const assignment = line.match(/^\s*set\s+"_prog=(.*)"\s*$/i)
+    if (!assignment) continue
+    const expanded = expandWindowsShimToken(assignment[1], shimDir, null)
+    if (expanded) programs.push(expanded)
+  }
+
+  const resolveProgram = (): string | null => {
+    for (const candidate of programs) {
+      const resolved = candidate.includes('\\') || candidate.includes('/')
+        ? candidate
+        : resolveWindowsExecutable(candidate, env, exists)
+      if (exists(resolved)) return resolved
+    }
+    return programs[0] ?? null
+  }
+
+  for (const line of source.split(/\r?\n/)) {
+    const tokens = parseWindowsShimInvocation(line)
+    if (!tokens) continue
+    const program = resolveProgram()
+    const expanded = tokens
+      .slice(0, -1)
+      .map((token) => expandWindowsShimToken(token, shimDir, program))
+    if (expanded.some((token) => token === null)) continue
+    const resolvedTokens = expanded as string[]
+    const executable = resolvedTokens[0]
+    if (!executable || executable.toLowerCase() === shimPath.toLowerCase()) continue
+    const resolvedExecutable = executable.includes('\\') || executable.includes('/')
+      ? executable
+      : resolveWindowsExecutable(executable, env, exists)
+    if (!exists(resolvedExecutable)) continue
+    return { executable: resolvedExecutable, args: [...resolvedTokens.slice(1), ...requestedArgs] }
+  }
+  return null
+}
+
+/** Resolve a Windows command and, when possible, bypass a simple batch shim.
+ * `resolveWindowsExecutable` remains the public lookup primitive; this richer
+ * result is used only by the PTY launch path because it may need to prepend
+ * the shim's static Node/script arguments. */
+export function resolveWindowsCommand(
+  executable: string,
+  args: string[],
+  env: Record<string, string>,
+  read: WindowsShimReader = (filePath) => readFileSync(filePath, 'utf8'),
+  exists: (candidate: string) => boolean = existsSync,
+): WindowsCommandResolution {
+  const resolvedExecutable = resolveWindowsExecutable(executable, env, exists)
+  if (!/\.(?:cmd|bat)$/i.test(resolvedExecutable)) {
+    return { executable: resolvedExecutable, args }
+  }
+  return resolveWindowsShim(resolvedExecutable, args, env, exists, read) ?? {
+    executable: resolvedExecutable,
+    args,
   }
 }
 
@@ -194,15 +456,21 @@ export interface ProcessDeps {
    * have no way to register one anyway).
    */
   agentPresence?: Pick<AgentPresenceTracker, 'presenceFor' | 'drop'>
+  /** Optional test/runtime override for whether tmux is installed on this host. */
+  tmuxAvailable?: () => Promise<boolean>
+  /** Optional test/runtime override for terminating an opted-in tmux session. */
+  killTmuxSession?: (sessionName: string) => void
+  /** Host platform, injectable for contract tests and alternate runtime hosts. */
+  platform?: NodeJS.Platform
 }
 
 /** The capability the daemon holds onto: the ProcessHost plus the concrete
  *  surface the daemon entry needs (group-kill of every live pty's process tree
  *  on shutdown), which isn't part of the portable ProcessHost interface. */
 export interface ProcessCapability extends ProcessHost {
-  /** SIGKILL every live pty's process GROUP synchronously (daemon shutdown), so
-   *  quitting the app (which kills the local daemon) doesn't orphan dev servers. */
-  killAllGroups(): void
+  /** Reap every live pty's process group during daemon shutdown, so quitting the
+   *  app does not orphan dev servers or Windows ConPTY helper processes. */
+  killAllGroups(): Promise<void>
   /** Enable/disable idle-suspend at runtime (mirrors the autoSuspendIdleTerminals
    *  setting). Enabling on a POSIX host starts the scanner; disabling stops it and
    *  SIGCONT-resumes any currently-suspended ptys so none are left frozen. win32 is
@@ -221,6 +489,11 @@ const IDLE_CHECK_INTERVAL_MS = 20_000
 
 export function createProcessCapability(deps: ProcessDeps): ProcessCapability {
   const ptys = new Map<string, IPty>()
+  const durableSessions = new Map<string, TerminalDurability>()
+  const platform = deps.platform ?? process.platform
+  const hasTmux = deps.tmuxAvailable ?? probeTmux
+  const stopTmuxSession = deps.killTmuxSession ?? terminateTmuxSession
+  let tmuxProbe: Promise<boolean> | null = null
   let seq = 0
 
   // Idle-suspend state (only populated when idleEnabled && POSIX). Tracks per-pty
@@ -273,9 +546,23 @@ export function createProcessCapability(deps: ProcessDeps): ProcessCapability {
       onExit: (id: string, exitCode: number) => void,
     ): Promise<PtyHandle> {
       const id = opts.id ?? `pty-${Date.now()}-${Math.round(seq++ + Math.random() * 1e6).toString(36)}`
+      const durability = opts.durability
+      if (durability) {
+        if (durability.mode !== 'tmux') {
+          throw new Error(`Unsupported terminal durability mode: ${durability.mode}`)
+        }
+        if (platform === 'win32') {
+          throw new Error('tmux terminal durability is available only on POSIX runtime hosts')
+        }
+        assertTmuxSessionName(durability.sessionName)
+        tmuxProbe ??= hasTmux()
+        if (!(await tmuxProbe)) {
+          throw new Error('tmux terminal durability was requested, but tmux is unavailable on this runtime host')
+        }
+      }
       const ptySpawn = await getPtySpawn()
       const shell = deps.resolveShell(opts.shell)
-      const executable = opts.command?.executable ?? shell.path
+      const requestedExecutable = opts.command?.executable ?? shell.path
       const args = opts.command?.args ?? shell.args
       const cwd = opts.cwd || os.homedir()
       // Merge caller env over the host env; when a CLI endpoint was injected
@@ -291,7 +578,22 @@ export function createProcessCapability(deps: ProcessDeps): ProcessCapability {
           await deps.hooks.prepareWorkspace(cwd, opts.agentHookConfig, opts.workspaceBaseCwd)
         } catch { /* hook injection unavailable */ }
       }
-      const pty = ptySpawn(executable, args, {
+      const windowsCommand = platform === 'win32'
+        ? resolveWindowsCommand(requestedExecutable, args, env)
+        : { executable: requestedExecutable, args }
+      const executable = windowsCommand.executable
+      const launchArgs = windowsCommand.args
+      const pty = ptySpawn(
+        durability ? 'tmux' : executable,
+        durability ? buildTmuxAttachArgs({
+          sessionName: durability.sessionName,
+          cwd,
+          cols: opts.cols,
+          rows: opts.rows,
+          executable,
+          args: launchArgs,
+        }) : launchArgs,
+        {
         name: 'xterm-256color',
         cols: opts.cols,
         rows: opts.rows,
@@ -299,8 +601,10 @@ export function createProcessCapability(deps: ProcessDeps): ProcessCapability {
         // capability runs on: the local machine or the remote daemon).
         cwd,
         env,
-      })
+        },
+      )
       ptys.set(id, pty)
+      if (durability) durableSessions.set(id, durability)
       if (idleEnabled) {
         idle.set(id, { lastOutputAt: Date.now(), visible: true, suspended: false })
         ensureScanner()
@@ -312,6 +616,7 @@ export function createProcessCapability(deps: ProcessDeps): ProcessCapability {
       })
       pty.onExit(({ exitCode }) => {
         ptys.delete(id)
+        durableSessions.delete(id)
         idle.delete(id)
         deps.agentPresence?.drop(id)
         onExit(id, exitCode)
@@ -321,6 +626,7 @@ export function createProcessCapability(deps: ProcessDeps): ProcessCapability {
         pid: pty.pid,
         notice: opts.command ? undefined : shell.notice,
         shell: executable,
+        durability,
       }
     },
 
@@ -339,15 +645,21 @@ export function createProcessCapability(deps: ProcessDeps): ProcessCapability {
       const pty = ptys.get(id)
       if (!pty) return
       if (idle.get(id)?.suspended) resume(id)
+      const durability = durableSessions.get(id)
+      if (durability) {
+        // User-initiated close owns the durable session as well as its client.
+        stopTmuxSession(durability.sessionName)
+      }
       // Kill the whole process GROUP so children (dev servers) don't linger,
       // then still call node-pty's own kill. POSIX-only (negative-pid group
       // signalling); on win32 keep node-pty's plain kill. Killing an already-
       // gone group is a caught no-op, so this stays idempotent.
-      if (process.platform !== 'win32') {
+      if (!durability && platform !== 'win32') {
         try { process.kill(-pty.pid, 'SIGTERM') } catch { /* group already gone */ }
       }
       try { pty.kill() } catch { /* already dead */ }
       ptys.delete(id)
+      durableSessions.delete(id)
       idle.delete(id)
       deps.agentPresence?.drop(id)
     },
@@ -469,23 +781,59 @@ export function createProcessCapability(deps: ProcessDeps): ProcessCapability {
       }
     },
 
-    killAllGroups(): void {
+    async killAllGroups(): Promise<void> {
       stopScanner()
-      if (process.platform === 'win32') {
-        for (const pty of ptys.values()) { try { pty.kill() } catch { /* gone */ } }
+      // node-pty tears down the Windows ConPTY helper from its asynchronous
+      // `onExit` callback. Collect those completions before signalling anything:
+      // a daemon-level process.exit() immediately after pty.kill() otherwise
+      // cuts the callback off and leaves conpty_console_list_agent orphaned.
+      // The waits are concurrent and bounded, so a broken PTY never wedges a
+      // host shutdown indefinitely.
+      const ptyExit = (pty: IPty, timeoutMs = 1_000): Promise<void> =>
+      new Promise((resolve) => {
+          let done = false
+          const finish = (): void => {
+            if (done) return
+            done = true
+            subscription.dispose()
+            clearTimeout(timer)
+            resolve()
+          }
+          const subscription = pty.onExit(finish)
+          const timer = setTimeout(finish, timeoutMs)
+          if (timer.unref) timer.unref()
+        })
+      const livePtys = [...ptys.values()]
+      const reaped = livePtys.map((pty) => ptyExit(pty))
+      if (platform === 'win32') {
+        for (const pty of livePtys) { try { pty.kill() } catch { /* gone */ } }
         ptys.clear()
+        durableSessions.clear()
         idle.clear()
+        // Start the helper cleanup after kill() has synchronously requested all
+        // console lists, while waiting for PTY exits in parallel. A bounded
+        // helper wait prevents both leaks and a wedged native PTY from blocking
+        // daemon shutdown indefinitely.
+        await Promise.all([Promise.all(reaped), reapConptyAgents()])
         return
       }
       // SIGKILL each live pty's whole process group so dev-server children die
-      // with the daemon. SIGCONT first so a SIGSTOP-suspended group can receive
-      // the kill (a stopped process won't act on a pending SIGKILL until resumed).
-      for (const pty of ptys.values()) {
+      // with the daemon. A durable pty is only the tmux client: close that
+      // client so the tmux server and its pane survive daemon shutdown.
+      for (const [id, pty] of ptys) {
+        if (durableSessions.has(id)) {
+          try { pty.kill() } catch { /* gone */ }
+          continue
+        }
+        // SIGCONT first so a SIGSTOP-suspended group can receive the kill (a
+        // stopped process won't act on a pending SIGKILL until resumed).
         try { process.kill(-pty.pid, 'SIGCONT') } catch { /* gone */ }
         try { process.kill(-pty.pid, 'SIGKILL') } catch { /* already gone */ }
       }
       ptys.clear()
+      durableSessions.clear()
       idle.clear()
+      await Promise.all(reaped)
     },
   }
 }

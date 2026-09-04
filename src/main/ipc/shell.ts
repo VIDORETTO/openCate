@@ -19,6 +19,7 @@ import {
 } from '../../shared/ipc-channels'
 import { getRuntimeForTerminal, getTerminalIds, getTerminalOwner, onTerminalSessionsChanged } from './terminal'
 import { sendToWindow, broadcastToAll, isAnyWindowFocused } from '../windowRegistry'
+import { countMonitorWork } from '../perf/perfMonitor'
 import type { Runtime, PtyActivity } from '../runtime/types'
 import type { TerminalActivity } from '../../shared/types'
 import { clearAgentSessionStamp, dropAgentSessionStampState } from './agentSessionStamps'
@@ -156,6 +157,7 @@ async function runActivityScan(): Promise<void> {
           log.debug('[shell] scanActivity failed: %s', err instanceof Error ? err.message : String(err))
           return
         }
+        if (Object.keys(results).length > 0) countMonitorWork('activity-scan')
 
         for (const terminalId of toScan) {
           const ownerWindowId = getTerminalOwner(terminalId)

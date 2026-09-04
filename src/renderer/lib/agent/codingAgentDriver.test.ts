@@ -78,6 +78,8 @@ vi.mock('./codingAgentIntegration', () => ({
 }))
 
 import { AGENTS } from '../../../shared/agents'
+import { useAgentAuditStore } from '../../stores/agentAuditStore'
+import { useProjectTaskStore } from '../../stores/projectTaskStore'
 import { codingAgentSnapshot, handleCodingAgentMethod, sendCodingAgentFollowUp } from './codingAgentDriver'
 
 describe('codingAgentDriver mission integration', () => {
@@ -89,6 +91,8 @@ describe('codingAgentDriver mission integration', () => {
     state.appSubscribers.clear()
     state.statusSubscribers.clear()
     state.failureSubscribers.clear()
+    useProjectTaskStore.setState({ tasksByRoot: {}, loadedRoots: {}, revisions: {} })
+    useAgentAuditStore.setState({ eventsByRoot: {}, loadedRoots: {}, revisions: {} })
     state.settings = { agentHookInjection: { ws: { codex: 'on' } } }
     const panels: Record<string, any> = {}
     state.app = {
@@ -110,6 +114,7 @@ describe('codingAgentDriver mission integration', () => {
           title?: string
           prompt: string
           ownerPanelId: string
+          taskId?: string
           ownsWorktree?: boolean
           background?: boolean
         },
@@ -128,6 +133,7 @@ describe('codingAgentDriver mission integration', () => {
             panelId: 'worker',
             ownerPanelId: launch.ownerPanelId,
             prompt: launch.prompt,
+            taskId: launch.taskId,
             ownsWorktree: launch.ownsWorktree,
             background: launch.background,
             createdAt: 1,
@@ -138,6 +144,9 @@ describe('codingAgentDriver mission integration', () => {
       setPanelWorktreeId: vi.fn(),
       setPanelCodingAgentRun: vi.fn((_ws: string, panelId: string, run: unknown) => {
         panels[panelId].codingAgentRun = run
+      }),
+      closePanel: vi.fn((_workspaceId: string, panelId: string) => {
+        delete panels[panelId]
       }),
       updatePanelTitle: vi.fn(),
     }
@@ -192,6 +201,60 @@ describe('codingAgentDriver mission integration', () => {
       cwd: '/repo',
       codingAgentLaunch: expect.objectContaining({ ownerPanelId: 'supervisor-1' }),
     }))
+  })
+
+  it('creates and links a durable task contract to the mission run', async () => {
+    const outcome = await handleCodingAgentMethod(
+      'ws',
+      'supervisor-1',
+      'cate.codingAgent.create',
+      {
+        prompt: 'Implement the persisted task contract',
+        constraints: ['Keep the IPC typed', 'Do not copy scrollback'],
+      },
+      {
+        kind: 'human',
+        id: 'local-user',
+        label: 'Mission sidebar',
+        origin: 'mission-sidebar',
+        sourcePanelId: 'supervisor-1',
+      },
+    )
+
+    expect(outcome.ok).toBe(true)
+    const run = state.app.workspaces[0].panels.worker.codingAgentRun
+    expect(run.taskId).toEqual(expect.any(String))
+    expect(useProjectTaskStore.getState().getTasks('/repo')).toEqual([
+      expect.objectContaining({
+        id: run.taskId,
+        objective: 'Implement the persisted task contract',
+        constraints: ['Keep the IPC typed', 'Do not copy scrollback'],
+        status: 'in-progress',
+        runId: run.id,
+        ownerPanelId: 'supervisor-1',
+        attempts: [expect.objectContaining({
+          id: run.id,
+          number: 1,
+          outcome: 'running',
+        })],
+      }),
+    ])
+    await vi.waitFor(() => {
+      expect(useAgentAuditStore.getState().getEvents('/repo')).toEqual([
+        expect.objectContaining({
+          kind: 'prompt',
+          outcome: 'sent',
+          actorKind: 'human',
+          actorId: 'local-user',
+          origin: 'mission-launch',
+          sourcePanelId: 'supervisor-1',
+          targetPanelId: 'worker',
+          targetRunId: run.id,
+          correlationId: run.id,
+          contentChars: 'Implement the persisted task contract'.length,
+        }),
+      ])
+    })
   })
 
   it('keeps a short responsibility title with the worker launch and snapshot', async () => {
@@ -479,6 +542,63 @@ describe('codingAgentDriver mission integration', () => {
       '/repo/.cate-wt/new',
       expect.any(Object),
     )
+  })
+
+  it('rolls back a newly-created worktree when the mission panel cannot be created', async () => {
+    const created = {
+      id: 'wt-panel-failure',
+      path: '/repo/.cate/worktrees/panel-failure',
+      color: '#123456',
+    }
+    state.app.workspaces[0].worktrees = [created]
+    createWorktreeForWorkspace.mockResolvedValue(created)
+    state.app.createTerminal.mockReturnValueOnce(undefined)
+
+    await expect(handleCodingAgentMethod(
+      'ws',
+      'supervisor-1',
+      'cate.codingAgent.create',
+      { prompt: 'Start in isolation', newWorktree: 'panel-failure' },
+    )).resolves.toEqual({ ok: false, error: 'panel-creation-failed' })
+
+    expect(discardCreatedWorktreeForWorkspace).toHaveBeenCalledWith(
+      '/repo',
+      'ws',
+      'panel-failure',
+      created,
+    )
+    expect(useProjectTaskStore.getState().tasksByRoot['/repo']?.[0]).toMatchObject({
+      status: 'failed',
+    })
+  })
+
+  it('rolls back a newly-created worktree when the mission terminal fails to start', async () => {
+    const created = {
+      id: 'wt-terminal-failure',
+      path: '/repo/.cate/worktrees/terminal-failure',
+      color: '#123456',
+    }
+    state.app.workspaces[0].worktrees = [created]
+    createWorktreeForWorkspace.mockResolvedValue(created)
+    getOrCreate.mockRejectedValueOnce(new Error('spawn failed'))
+
+    await expect(handleCodingAgentMethod(
+      'ws',
+      'supervisor-1',
+      'cate.codingAgent.create',
+      { prompt: 'Start in isolation', newWorktree: 'terminal-failure' },
+    )).resolves.toEqual({ ok: false, error: 'terminal-start-failed' })
+
+    expect(state.app.closePanel).toHaveBeenCalledWith('ws', 'worker')
+    expect(discardCreatedWorktreeForWorkspace).toHaveBeenCalledWith(
+      '/repo',
+      'ws',
+      'terminal-failure',
+      created,
+    )
+    expect(useProjectTaskStore.getState().tasksByRoot['/repo']?.[0]).toMatchObject({
+      status: 'failed',
+    })
   })
 
   it.each([

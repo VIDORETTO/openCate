@@ -6,7 +6,7 @@
 // ----------------
 // The renderer can only talk to main through three coordinated pieces:
 //   1. channel name constants            (src/shared/ipc-channels.ts)
-//   2. preload bridge methods            (src/preload/index.ts) that
+//   2. preload bridge methods            (src/preload/*.ts) that
 //      `ipcRenderer.invoke/send/on` those channels
 //   3. main-process registrations        (`ipcMain.handle/on`) and broadcasts
 //      (`webContents.send` / `broadcastToAll`) that answer them
@@ -95,7 +95,10 @@ function readMainSources(): string {
     .join('\n')
 }
 
-const PRELOAD = read('preload/index.ts')
+const PRELOAD = readdirSync(join(SRC, 'preload'), { encoding: 'utf8' })
+  .filter((f) => f.endsWith('.ts') && !/\.(test|itest)\.tsx?$/.test(f))
+  .map((f) => read(join('preload', f)))
+  .join('\n')
 const MAIN = readMainSources()
 
 // ---------------------------------------------------------------------------
@@ -125,6 +128,7 @@ function collectChannels(source: string, pattern: RegExp): Set<string> {
 // direct ipcRenderer.invoke(CHANNEL, ...).
 const preloadInvokes = new Set<string>([
   ...collectChannels(PRELOAD, /makeInvoker<[^>]*>\(\s*([A-Z_][A-Z0-9_]*)\s*\)/g),
+  ...collectChannels(PRELOAD, /forward\(\s*'[^']+'\s*,\s*(?:IPC\.)?([A-Z_][A-Z0-9_]*)/g),
   ...collectChannels(PRELOAD, /ipcRenderer\.invoke\(\s*([A-Z_][A-Z0-9_]*)/g),
 ])
 

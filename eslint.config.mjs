@@ -39,6 +39,18 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    // The companion service worker is plain browser JavaScript, not part of
+    // the renderer module graph. Give it the worker globals explicitly so the
+    // release hygiene gate checks the file instead of ignoring it or treating
+    // `self`/CacheStorage as accidental globals.
+    files: ['companion-web/public/sw.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'script',
+      globals: globals.serviceworker,
+    },
+  },
+  {
     // The codebase carries many intentional `eslint-disable @typescript-eslint/
     // no-explicit-any` (and similar) directives for rules relaxed below. Leave
     // them in place instead of reporting/stripping them as "unused".

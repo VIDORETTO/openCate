@@ -7,7 +7,8 @@
 // workspace is just `connect(LOCAL, localTransport, { install: true })`, kicked
 // off at startup by `ensureLocalRuntime`. The only things that differ between
 // local and remote are the `install` flag (local self-installs) and the
-// auto-reconnect on a LOCAL drop — both expressed inside this one pipeline.
+// reconnect policy: local always retries its daemon, while remote/WSL retries
+// only when the IPC caller supplies a fresh-transport factory.
 // `resolve` of an unknown id throws, which surfaces as a normal IPC error.
 // =============================================================================
 
@@ -21,13 +22,48 @@ import { LocalSubprocessTransport } from './transports/localTransport'
 import type { RuntimeTransport, RuntimeChannel } from './transports/transport'
 import { RUNTIME_VERSION } from '../../runtime/version'
 import { RUNTIME_PROTOCOL_VERSION } from '../../runtime/protocol'
-import type { RuntimePhase } from '../../shared/types'
+import type { RuntimePhase, RuntimeTelemetryEvent, RuntimeTransportKind } from '../../shared/types'
+
+export interface RuntimeConnectOptions {
+  install?: boolean
+  force?: boolean
+  /** Keep a live remote/WSL connection reconnectable after a transport drop. */
+  autoReconnect?: boolean
+  /** Build a fresh transport for each automatic reconnect attempt. */
+  reconnectFactory?: () => Promise<RuntimeTransport>
+  /** 1-based attempt number used only by the automatic reconnect loop. */
+  reconnectAttempt?: number
+}
 
 interface Connection {
   transport: RuntimeTransport
   channel: RuntimeChannel
   client: RuntimeRpcClient
   runtime: RemoteRuntime
+  autoReconnect: boolean
+  reconnectFactory?: () => Promise<RuntimeTransport>
+  reconnectAttempt: number
+}
+
+interface ReconnectPlan {
+  factory: () => Promise<RuntimeTransport>
+  transport: RuntimeTransport['kind']
+  attempt: number
+  timer: ReturnType<typeof setTimeout>
+}
+
+export interface LocalRuntimeTransportOptions {
+  root: string
+  id: string
+  exclusions?: string[]
+  env?: NodeJS.ProcessEnv
+  idleSuspend?: boolean
+}
+
+export interface RuntimeManagerOptions {
+  /** Test/host seam for exercising the real LOCAL lifecycle with a controlled
+   *  tarball and install root. Production uses forLocalHost by default. */
+  localTransportFactory?: (options: LocalRuntimeTransportOptions) => RuntimeTransport | null
 }
 
 export class RuntimeManager {
@@ -36,6 +72,7 @@ export class RuntimeManager {
   /** Dedupe concurrent connects to the same id (mirrors CodingManager.withLock). */
   private readonly connecting = new Map<RuntimeId, Promise<Runtime>>()
   private statusListener: ((id: RuntimeId, state: RuntimePhase, message?: string) => void) | null = null
+  private readonly telemetryListeners = new Set<(event: RuntimeTelemetryEvent) => void>()
   /** Fired when a runtime reaches the fully-`connected` step (a live
    *  RemoteRuntime). Used to eagerly provision enabled extensions onto a newly
    *  reachable host. Separate from the single statusListener so it can have many
@@ -62,13 +99,20 @@ export class RuntimeManager {
    *  can never start (e.g. a corrupt runtime bundle) would otherwise loop forever;
    *  past the cap we leave `unreachable` so the UI's Retry is the way forward. */
   private static readonly LOCAL_MAX_RETRIES = 4
+  /** Bound remote reconnect work so an offline host never creates an endless
+   *  background loop. A later explicit ensure/retry starts a fresh budget. */
+  private static readonly REMOTE_MAX_RETRIES = 5
+  private readonly reconnectPlans = new Map<RuntimeId, ReconnectPlan>()
   /** Last status emitted for the LOCAL runtime, so a window that subscribes to
    *  RUNTIME_STATUS after the startup connect already finished can still seed
    *  its loading blocker. Defaults to `connecting` — ensureLocalRuntime runs at
    *  every app launch, so LOCAL is always coming up until proven otherwise. */
   private lastLocalStatus: { phase: RuntimePhase; message?: string } = { phase: 'connecting' }
+  private readonly localTransportFactory: NonNullable<RuntimeManagerOptions['localTransportFactory']>
 
-  constructor() {
+  constructor(options: RuntimeManagerOptions = {}) {
+    this.localTransportFactory = options.localTransportFactory
+      ?? ((transportOptions) => LocalSubprocessTransport.forLocalHost(transportOptions))
     // The LOCAL workspace runs as the runtime daemon subprocess. It's NOT
     // registered here — `ensureLocalRuntime` (called once at startup) provisions
     // and connects it, so resolve() works only once the daemon is online.
@@ -109,7 +153,7 @@ export class RuntimeManager {
     const hint = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV
       ? ' In dev, build it first: `npm run runtime:tarball`.'
       : ''
-    const transport = LocalSubprocessTransport.forLocalHost({
+    const transport = this.localTransportFactory({
       root: opts.root,
       id: LOCAL_RUNTIME_ID,
       exclusions: opts.exclusions,
@@ -193,6 +237,88 @@ export class RuntimeManager {
     if (this.localReconnectTimer.unref) this.localReconnectTimer.unref()
   }
 
+  private clearReconnectPlan(id: RuntimeId): void {
+    const plan = this.reconnectPlans.get(id)
+    if (!plan) return
+    clearTimeout(plan.timer)
+    this.reconnectPlans.delete(id)
+  }
+
+  /** Schedule a bounded reconnect for a remote/WSL transport. The factory is
+   * deliberately called per attempt: SSH and WSL transports own processes and
+   * sockets that cannot safely be reused after a channel drop. */
+  private scheduleRemoteReconnect(
+    id: RuntimeId,
+    factory: () => Promise<RuntimeTransport>,
+    transport: RuntimeTransport['kind'],
+    attempt: number,
+  ): void {
+    if (id === LOCAL_RUNTIME_ID || this.connections.has(id) || this.connecting.has(id) || this.reconnectPlans.has(id)) return
+    if (attempt > RuntimeManager.REMOTE_MAX_RETRIES) {
+      this.emitTelemetry(id, transport, 'reconnect-give-up', {
+        attempt: RuntimeManager.REMOTE_MAX_RETRIES,
+        message: 'Automatic reconnect stopped',
+      })
+      this.emitStatus(id, 'unreachable', 'Automatic reconnect stopped. Use Retry to reconnect.')
+      log.warn('[runtime] automatic reconnect exhausted for %s (%s)', id, transport)
+      return
+    }
+
+    const delayMs = Math.min(15000, 1000 * 2 ** (attempt - 1))
+    this.emitTelemetry(id, transport, 'reconnect-scheduled', {
+      attempt,
+      delayMs,
+      message: 'Automatic reconnect scheduled',
+    })
+    const timer = setTimeout(() => {
+      this.reconnectPlans.delete(id)
+      if (this.connections.has(id) || this.connecting.has(id)) return
+      this.emitStatus(id, 'connecting', `Reconnecting remote runtime (attempt ${attempt}/${RuntimeManager.REMOTE_MAX_RETRIES})…`)
+      let connectStarted = false
+      const startedAt = Date.now()
+      void factory()
+        .then((nextTransport) => {
+          connectStarted = true
+          return this.connect(id, nextTransport, {
+            autoReconnect: true,
+            reconnectFactory: factory,
+            reconnectAttempt: attempt,
+          })
+        })
+        .catch((err) => {
+          // connect() already emitted its own failure telemetry/status. A
+          // factory failure happens before a transport exists, so emit only a
+          // bounded lifecycle event here and keep the detailed error in log.
+          if (!connectStarted) {
+            this.emitTelemetry(id, transport, 'connect-failure', {
+              attempt,
+              durationMs: Date.now() - startedAt,
+              message: 'Reconnect transport creation failed',
+            })
+            this.emitStatus(id, 'unreachable', 'Automatic reconnect could not reach the host.')
+          }
+          if (this.connections.has(id) || this.connecting.has(id)) return
+          if (this.isTerminalReconnectError(err)) {
+            this.emitTelemetry(id, transport, 'reconnect-give-up', {
+              attempt,
+              message: 'Automatic reconnect requires user action',
+            })
+            return
+          }
+          log.warn('[runtime] automatic reconnect attempt %d for %s failed: %s', attempt, id, err instanceof Error ? err.message : String(err))
+          this.scheduleRemoteReconnect(id, factory, transport, attempt + 1)
+        })
+    }, delayMs)
+    this.reconnectPlans.set(id, { factory, transport, attempt, timer })
+    if (timer.unref) timer.unref()
+  }
+
+  private isTerminalReconnectError(err: unknown): boolean {
+    if (err instanceof RuntimeManager.NotInstalled) return true
+    const message = err instanceof Error ? err.message : String(err)
+    return /runtime (protocol|version) mismatch/i.test(message)
+  }
+
   /**
    * Re-attempt the LOCAL connect on demand — the renderer's Retry path after the
    * startup connect (or a crash relaunch) failed and left every local op dying
@@ -223,6 +349,14 @@ export class RuntimeManager {
   /** Wire a status sink (the IPC layer broadcasts these to the renderer). */
   setStatusListener(fn: (id: RuntimeId, state: RuntimePhase, message?: string) => void): void {
     this.statusListener = fn
+  }
+
+  /** Subscribe to bounded runtime lifecycle telemetry. Detailed transport
+   * errors remain in the main-process log; this stream is safe to broadcast to
+   * renderer windows and diagnostics panels. */
+  onTelemetry(cb: (event: RuntimeTelemetryEvent) => void): () => void {
+    this.telemetryListeners.add(cb)
+    return () => { this.telemetryListeners.delete(cb) }
   }
 
   /** Subscribe to runtime `connected` events (live RemoteRuntime). Fires for
@@ -259,6 +393,26 @@ export class RuntimeManager {
   private emitStatus(id: RuntimeId, state: RuntimePhase, message?: string): void {
     if (id === LOCAL_RUNTIME_ID) this.lastLocalStatus = { phase: state, ...(message != null ? { message } : {}) }
     try { this.statusListener?.(id, state, message) } catch { /* listener must not break connect */ }
+  }
+
+  private emitTelemetry(
+    runtimeId: RuntimeId,
+    transport: RuntimeTransportKind,
+    kind: RuntimeTelemetryEvent['kind'],
+    details: Omit<RuntimeTelemetryEvent, 'runtimeId' | 'transport' | 'kind' | 'timestamp'> = {},
+  ): void {
+    const event: RuntimeTelemetryEvent = {
+      runtimeId,
+      transport,
+      kind,
+      timestamp: Date.now(),
+      ...details,
+    }
+    for (const cb of this.telemetryListeners) {
+      try { cb(event) } catch (err) {
+        log.warn('[runtime] telemetry subscriber failed: %O', err)
+      }
+    }
   }
 
   /** Last status emitted for the LOCAL runtime. Seeds the renderer's startup
@@ -323,13 +477,19 @@ export class RuntimeManager {
    * daemon isn't installed: a plain probe (install=false — reconnect / restore /
    * retry) STOPS at the `missing` phase; only an explicit install (install=true)
    * runs bootstrap. `opts.force` wipes any existing install first (clean
-   * reinstall). The phase is driven entirely from here, step by step.
+   * reinstall). `opts.autoReconnect` enables a bounded remote/WSL reconnect
+   * loop, using `opts.reconnectFactory` to create a new transport per attempt.
+   * The phase is driven entirely from here, step by step.
    */
   connect(
     id: RuntimeId,
     transport: RuntimeTransport,
-    opts: { install?: boolean; force?: boolean } = {},
+    opts: RuntimeConnectOptions = {},
   ): Promise<Runtime> {
+    // A user-triggered ensure/retry takes ownership of the next attempt and
+    // cancels a pending automatic timer. Reconnect attempts themselves already
+    // removed their timer before calling this method.
+    if ((opts.reconnectAttempt ?? 0) < 1) this.clearReconnectPlan(id)
     // Dedupe an in-flight connect FIRST, so concurrent callers share one attempt
     // AND the DeferredRuntime this connect registers below can't short-circuit
     // its own in-flight connect via the existing-entry check.
@@ -354,10 +514,21 @@ export class RuntimeManager {
     ready.catch(() => {})
     this.runtimes.set(id, new DeferredRuntime(id, ready))
 
+    const startedAt = Date.now()
+    const attempt = opts.reconnectAttempt != null && opts.reconnectAttempt > 0 ? opts.reconnectAttempt : undefined
+    this.emitTelemetry(id, transport.kind, 'connect-start', {
+      ...(attempt != null ? { attempt } : {}),
+      message: attempt != null ? 'Automatic reconnect started' : 'Connection started',
+    })
     const promise = this.doConnect(id, transport, opts)
       .then((real) => {
         // doConnect already replaced the deferred with the real runtime.
         resolveReady(real)
+        this.emitTelemetry(id, transport.kind, 'connect-success', {
+          ...(attempt != null ? { attempt } : {}),
+          durationMs: Date.now() - startedAt,
+          message: 'Connection established',
+        })
         return real
       })
       .catch((err) => {
@@ -368,6 +539,11 @@ export class RuntimeManager {
         const cur = this.runtimes.get(id)
         if (cur instanceof DeferredRuntime) this.runtimes.delete(id)
         rejectReady(err)
+        this.emitTelemetry(id, transport.kind, 'connect-failure', {
+          ...(attempt != null ? { attempt } : {}),
+          durationMs: Date.now() - startedAt,
+          message: attempt != null ? 'Automatic reconnect failed' : 'Connection failed',
+        })
         throw err
       })
       .finally(() => {
@@ -427,7 +603,7 @@ export class RuntimeManager {
   private async doConnect(
     id: RuntimeId,
     transport: RuntimeTransport,
-    { install = false, force = false }: { install?: boolean; force?: boolean },
+    { install = false, force = false, autoReconnect = false, reconnectFactory, reconnectAttempt = 0 }: RuntimeConnectOptions,
   ): Promise<Runtime> {
     // Step 1: reach the host and probe whether the daemon is installed. A
     // transport without isInstalled (local subprocess / in-proc fakes) is
@@ -492,7 +668,15 @@ export class RuntimeManager {
     // Step 5: connected.
     const { channel, client, hello } = attempt
     const runtime = new RemoteRuntime(id, client)
-    const conn: Connection = { transport, channel, client, runtime }
+    const conn: Connection = {
+      transport,
+      channel,
+      client,
+      runtime,
+      autoReconnect,
+      reconnectFactory,
+      reconnectAttempt,
+    }
     channel.onClose(({ code }) => {
       client.dispose('Runtime connection closed')
       // A *live* drop is the interesting one; an intentional teardown already
@@ -514,6 +698,16 @@ export class RuntimeManager {
       // extension layer release the stranded server sessions / reverse endpoints
       // that were bound to this now-dead runtime handle.
       this.emitDisconnected(id)
+      this.emitTelemetry(id, transport.kind, 'disconnect', {
+        ...(conn.reconnectAttempt > 0 ? { attempt: conn.reconnectAttempt } : {}),
+        code,
+        message: 'Transport closed',
+      })
+      // Release SSH/WSL child processes and ask the factory for a fresh
+      // transport on the next attempt. This is intentionally best-effort: the
+      // channel has already reported its close and a reconnect must not wait on
+      // cleanup of a dead process.
+      void transport.dispose().catch(() => {})
       // The LOCAL workspace runs as a daemon subprocess. A remote drop is the
       // user's to reconnect, but a LOCAL crash leaves the whole workspace dead
       // (resolve(LOCAL) throws) until app restart — so auto-reconnect it. The
@@ -522,6 +716,11 @@ export class RuntimeManager {
       // crash.
       if (id === LOCAL_RUNTIME_ID) {
         this.scheduleLocalReconnect()
+        return
+      }
+      if (conn.autoReconnect && conn.reconnectFactory) {
+        this.emitStatus(id, 'disconnected', 'Connection lost. Retrying automatically.')
+        this.scheduleRemoteReconnect(id, conn.reconnectFactory, transport.kind, 1)
         return
       }
       this.emitStatus(id, 'disconnected')
@@ -563,6 +762,7 @@ export class RuntimeManager {
 
   /** Tear down a remote connection and unregister it. */
   async disposeConnection(id: RuntimeId): Promise<void> {
+    this.clearReconnectPlan(id)
     const conn = this.connections.get(id)
     if (!conn) return
     this.connections.delete(id)
@@ -599,6 +799,7 @@ export class RuntimeManager {
       clearTimeout(this.localReconnectTimer)
       this.localReconnectTimer = null
     }
+    for (const id of this.reconnectPlans.keys()) this.clearReconnectPlan(id)
     await Promise.all([...this.connections.keys()].map((id) => this.disposeConnection(id)))
   }
 }

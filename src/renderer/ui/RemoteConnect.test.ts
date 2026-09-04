@@ -48,6 +48,26 @@ describe('buildConnectSpec', () => {
     expect(spec).toEqual({ kind: 'wsl', distro: 'Ubuntu-22.04', distroPath: '/home/me/proj' })
   })
 
+  test('builds a container spec with an explicit mount and network policy', () => {
+    expect(buildConnectSpec('container', {
+      ...base,
+      image: ' ghcr.io/acme/cate:stable ',
+      hostPath: ' C:/projects/cate ',
+      containerPath: ' /workspace ',
+      engine: 'docker',
+      workspaceReadOnly: true,
+      networkMode: 'none',
+    })).toEqual({
+      kind: 'container',
+      image: 'ghcr.io/acme/cate:stable',
+      hostPath: 'C:/projects/cate',
+      containerPath: '/workspace',
+      engine: 'docker',
+      workspaceReadOnly: true,
+      networkMode: 'none',
+    })
+  })
+
   test.each(['~/project', 'home/user/project', 'cwd'])(
     'rejects a relative WSL path (%s)',
     (distroPath) => {

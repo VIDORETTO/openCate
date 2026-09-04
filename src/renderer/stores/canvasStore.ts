@@ -28,6 +28,7 @@ import { createPlacementSlice } from './canvas/placementSlice'
 import { createNavigationSlice } from './canvas/navigationSlice'
 import { createSelectionSlice } from './canvas/selectionSlice'
 import { createArrangeSlice } from './canvas/arrangeSlice'
+import { createMemorySlice, sanitizeCanvasMemory } from './canvas/memorySlice'
 import { focusedNodeId as focusedNodeIdOf } from './canvas/selectionModel'
 
 // Re-export the store types so existing importers (`from '.../canvasStore'`)
@@ -66,6 +67,9 @@ export function createCanvasStore(): UseBoundStore<StoreApi<CanvasStore>> {
       history: [],
       future: [],
       pendingPlacement: null,
+      waypoints: [],
+      decorations: [],
+      layoutHistory: [],
 
       // --- Actions (composed from focused slices) ---
       ...createHistorySlice(set, get),
@@ -75,9 +79,10 @@ export function createCanvasStore(): UseBoundStore<StoreApi<CanvasStore>> {
       ...createNavigationSlice(set, get, ctx),
       ...createSelectionSlice(set, get),
       ...createArrangeSlice(set, get),
+      ...createMemorySlice(set, get),
 
       // --- Lifecycle / bulk reset (counterpart to the initial state above) ---
-      loadWorkspaceCanvas(nodes, viewportOffset, zoomLevel) {
+      loadWorkspaceCanvas(nodes, viewportOffset, zoomLevel, memory) {
         // Persisted geometry from `.cate` is untrusted: repair/drop invalid nodes
         // so one corrupt entry (e.g. a node missing `size`) can't crash the whole
         // canvas render. See sanitizeLoadedCanvasNodes.
@@ -98,6 +103,7 @@ export function createCanvasStore(): UseBoundStore<StoreApi<CanvasStore>> {
         const nodeList = Object.values(cleanNodes)
         const maxZOrder = nodeList.reduce((max, n) => Math.max(max, n.zOrder), -1)
         const maxCreationIndex = nodeList.reduce((max, n) => Math.max(max, n.creationIndex), -1)
+        const cleanMemory = sanitizeCanvasMemory(memory)
 
         // Ensure all loaded nodes have animationState: 'idle' so they don't animate on restore
         const idleNodes: Record<string, CanvasNodeState> = {}
@@ -118,6 +124,9 @@ export function createCanvasStore(): UseBoundStore<StoreApi<CanvasStore>> {
           history: [],
           future: [],
           pendingPlacement: null,
+          waypoints: cleanMemory.waypoints,
+          decorations: cleanMemory.decorations,
+          layoutHistory: cleanMemory.layoutHistory,
         })
       },
     }

@@ -51,6 +51,7 @@ export function setWindowPanels(windowId: number, report: WindowPanelReport[]): 
       hasPorts: p.hasPorts,
       codingAgentRunId: p.codingAgentRunId,
       codingAgentOwnerPanelId: p.codingAgentOwnerPanelId,
+      codingAgentTaskId: p.codingAgentTaskId,
       codingAgentStatus: p.codingAgentStatus,
       codingAgentLastTool: p.codingAgentLastTool,
       codingAgentFilesTouchedCount: p.codingAgentFilesTouchedCount,
@@ -84,6 +85,7 @@ export function upsertWindowPanel(windowId: number, panel: WindowPanelReport): v
     hasPorts: panel.hasPorts,
     codingAgentRunId: panel.codingAgentRunId,
     codingAgentOwnerPanelId: panel.codingAgentOwnerPanelId,
+    codingAgentTaskId: panel.codingAgentTaskId,
     codingAgentStatus: panel.codingAgentStatus,
     codingAgentLastTool: panel.codingAgentLastTool,
     codingAgentFilesTouchedCount: panel.codingAgentFilesTouchedCount,
@@ -143,7 +145,7 @@ let lastWindowPanelSignature = ''
 export function broadcastWindowPanels(): void {
   const panels = getWindowPanels()
   const signature = panels
-    .map((p) => `${p.ownerWindowId}:${p.panelId}:${p.type}:${p.title}:${p.workspaceId}:${p.filePath ?? ''}:${p.url ?? ''}:${p.focused ? 1 : 0}:${p.parentCanvasId ?? ''}:${p.worktreeId ?? ''}:${p.agentState ?? ''}:${p.agentName ?? ''}:${p.hasPorts ? 1 : 0}:${p.codingAgentRunId ?? ''}:${p.codingAgentOwnerPanelId ?? ''}:${p.codingAgentStatus ?? ''}:${p.codingAgentLastTool ?? ''}:${p.codingAgentFilesTouchedCount ?? ''}`)
+    .map((p) => `${p.ownerWindowId}:${p.panelId}:${p.type}:${p.title}:${p.workspaceId}:${p.filePath ?? ''}:${p.url ?? ''}:${p.focused ? 1 : 0}:${p.parentCanvasId ?? ''}:${p.worktreeId ?? ''}:${p.agentState ?? ''}:${p.agentName ?? ''}:${p.hasPorts ? 1 : 0}:${p.codingAgentRunId ?? ''}:${p.codingAgentOwnerPanelId ?? ''}:${p.codingAgentTaskId ?? ''}:${p.codingAgentStatus ?? ''}:${p.codingAgentLastTool ?? ''}:${p.codingAgentFilesTouchedCount ?? ''}`)
     .sort()
     .join('|')
   if (signature === lastWindowPanelSignature) return

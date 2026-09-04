@@ -8,6 +8,10 @@ import type { StoreApi } from 'zustand'
 import type {
   CanvasNodeId,
   CanvasNodeState,
+  CanvasDecoration,
+  CanvasLayoutHistoryEntry,
+  CanvasMemorySnapshot,
+  CanvasWaypoint,
   DockLayoutNode,
   PanelState,
   Point,
@@ -83,6 +87,10 @@ export interface CanvasStoreState {
   future: CanvasHistoryEntry[]
   /** Interactive ghost placement in progress (null when idle). */
   pendingPlacement: PendingPlacement | null
+  /** Named camera locations and visual context stored with this canvas. */
+  waypoints: CanvasWaypoint[]
+  decorations: CanvasDecoration[]
+  layoutHistory: CanvasLayoutHistoryEntry[]
 }
 
 export interface CanvasHistoryEntry {
@@ -236,7 +244,21 @@ export interface CanvasStoreActions {
     nodes: Record<CanvasNodeId, CanvasNodeState>,
     viewportOffset: Point,
     zoomLevel: number,
+    memory?: CanvasMemorySnapshot,
   ) => void
+
+  // Persistent spatial memory — intentionally separate from the short undo
+  // stack so named checkpoints survive a restart.
+  addWaypoint: (name: string, point: Point) => string | null
+  removeWaypoint: (id: string) => void
+  jumpToWaypoint: (id: string) => boolean
+  addNoteDecoration: (text: string, point: Point) => string | null
+  addArrowDecoration: (from: Point, to: Point, label?: string) => string | null
+  addGroupDecoration: (label: string, point?: Point) => string | null
+  removeDecoration: (id: string) => void
+  saveLayoutSnapshot: (name: string) => string | null
+  restoreLayoutSnapshot: (id: string) => boolean
+  removeLayoutSnapshot: (id: string) => void
 }
 
 export type CanvasStore = CanvasStoreState & CanvasStoreActions

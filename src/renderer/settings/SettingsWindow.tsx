@@ -31,6 +31,7 @@ import { AgentHooksSettings } from './AgentHooksSettings'
 import { CanvasCateAgentSettings } from './CanvasCateAgentSettings'
 import { SkillsSettings } from './SkillsSettings'
 import { ExtensionsSettings } from './ExtensionsSettings'
+import { CompanionSettings } from './CompanionSettings'
 import { SettingsSearchContext } from './SettingsSearchContext'
 import { TextInput } from './SettingsComponents'
 
@@ -49,6 +50,7 @@ const SECTIONS = [
   { title: 'Cate Agent', component: CanvasCateAgentSettings },
   { title: 'Skills', component: SkillsSettings },
   { title: 'Extensions', component: ExtensionsSettings },
+  { title: 'Companion', component: CompanionSettings },
   { title: 'Updates', component: UpdatesSettings },
   { title: 'Shortcuts', component: ShortcutSettings },
 ] as const

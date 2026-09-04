@@ -33,6 +33,7 @@ import {
   GIT_WORKTREE_PRUNE,
   GIT_WORKTREE_STATUS,
   GIT_WORKTREE_REVIEW,
+  GIT_WORKTREE_APPLY_SELECTION,
   GIT_WORKTREE_MERGE_TO,
   GIT_WORKTREE_ADD_FROM_PR,
   GIT_WORKTREE_UPDATE_FROM,
@@ -144,6 +145,7 @@ export function registerHandlers(): void {
   route(GIT_WORKTREE_PRUNE, 'worktreePrune')
   route(GIT_WORKTREE_STATUS, 'worktreeStatus')
   route(GIT_WORKTREE_REVIEW, 'worktreeReview')
+  route(GIT_WORKTREE_APPLY_SELECTION, 'worktreeApplySelection')
   route(GIT_WORKTREE_MERGE_TO, 'worktreeMergeTo')
   route(GIT_WORKTREE_UPDATE_FROM, 'worktreeUpdateFrom')
   route(GIT_CREATE_PR, 'createPr')

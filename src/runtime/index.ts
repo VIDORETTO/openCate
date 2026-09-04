@@ -79,11 +79,18 @@ async function main(): Promise<void> {
   // Reap every live pty's process group + every server child / tunnel socket so
   // quitting the app (which kills this daemon) doesn't orphan dev-server or
   // extension-server children. Run before exit on every path.
+  let shuttingDown = false
   const shutdown = (): void => {
-    proc.killAllGroups()
-    killAll()
+    if (shuttingDown) return
+    shuttingDown = true
+    // Stop accepting RPC work first, then await the bounded PTY reap. On Windows
+    // this waits for node-pty's ConPTY helper callback rather than guessing at a
+    // delay, so daemon exit cannot leave console-list agents behind.
     server.dispose()
-    process.exit(0)
+    void proc.killAllGroups().finally(() => {
+      killAll()
+      process.exit(0)
+    })
   }
 
   process.stdin.setEncoding('utf-8')

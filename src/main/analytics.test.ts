@@ -27,7 +27,39 @@ vi.mock('./logger', () => ({
   default: { warn: () => {}, info: () => {}, error: () => {}, debug: () => {} },
 }))
 
-const { decideUpdateAction, decideCensusAction, sanitizeFeedbackPayload, sanitizeUsageProps } = await import('./analytics')
+const {
+  decideUpdateAction,
+  decideCensusAction,
+  resolveAnalyticsEndpoint,
+  sanitizeFeatureName,
+  sanitizeFeedbackPayload,
+  sanitizeLinkName,
+  sanitizeUsageProps,
+  telemetryConsentAllowsSend,
+} = await import('./analytics')
+
+describe('telemetry consent', () => {
+  test('requires both a packaged build and explicit opt-in', () => {
+    expect(telemetryConsentAllowsSend(false, false)).toBe(false)
+    expect(telemetryConsentAllowsSend(false, true)).toBe(false)
+    expect(telemetryConsentAllowsSend(true, false)).toBe(false)
+    expect(telemetryConsentAllowsSend(true, true)).toBe(true)
+  })
+
+  test('allows a loopback endpoint override only in explicit smoke mode', () => {
+    const endpoint = 'http://127.0.0.1:43210/events'
+    expect(resolveAnalyticsEndpoint({ CATE_SMOKE_TEST: '1', CATE_TELEMETRY_SMOKE_ENDPOINT: endpoint }))
+      .toBe(endpoint)
+    expect(resolveAnalyticsEndpoint({ CATE_TELEMETRY_SMOKE: '1', CATE_TELEMETRY_SMOKE_ENDPOINT: endpoint }))
+      .toBe(endpoint)
+    expect(resolveAnalyticsEndpoint({ CATE_TELEMETRY_SMOKE_ENDPOINT: endpoint }))
+      .toBe('https://analytics.cero-ai.com/api/app-events')
+    expect(resolveAnalyticsEndpoint({
+      CATE_SMOKE_TEST: '1',
+      CATE_TELEMETRY_SMOKE_ENDPOINT: 'https://example.com/events',
+    })).toBe('https://analytics.cero-ai.com/api/app-events')
+  })
+})
 
 describe('sanitizeUsageProps', () => {
   test('keeps small primitives and drops everything else', () => {
@@ -46,6 +78,32 @@ describe('sanitizeUsageProps', () => {
   test('returns an empty object for non-object input', () => {
     expect(sanitizeUsageProps(null)).toEqual({})
     expect(sanitizeUsageProps('nope')).toEqual({})
+  })
+
+  test('drops unsafe keys and string values that could contain paths or free text', () => {
+    expect(sanitizeUsageProps({
+      path: 'C:\\Users\\gabri\\project',
+      note: 'free form text',
+      safe: 'terminal-mode',
+    })).toEqual({ safe: 'terminal-mode' })
+  })
+})
+
+describe('sanitizeFeatureName', () => {
+  test('accepts bounded keys and rejects paths, URLs, and free text', () => {
+    expect(sanitizeFeatureName('terminal.open')).toBe('terminal.open')
+    expect(sanitizeFeatureName('C:\\Users\\gabri\\project')).toBeNull()
+    expect(sanitizeFeatureName('https://example.test')).toBeNull()
+    expect(sanitizeFeatureName('free form')).toBeNull()
+  })
+})
+
+describe('sanitizeLinkName', () => {
+  test('allows known labels and rejects arbitrary URLs or text', () => {
+    expect(sanitizeLinkName('full_changelog')).toBe('full_changelog')
+    expect(sanitizeLinkName('newsletter')).toBe('newsletter')
+    expect(sanitizeLinkName('https://example.test/private?token=secret')).toBeNull()
+    expect(sanitizeLinkName({ label: 'newsletter' })).toBeNull()
   })
 })
 

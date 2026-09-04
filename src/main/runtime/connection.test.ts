@@ -382,7 +382,7 @@ describe('RuntimeManager retryLocal', () => {
 })
 
 // FIX [4]: a LOCAL daemon crash auto-reconnects (the whole workspace is dead
-// otherwise), while REMOTE drops stay the user's to reconnect.
+// otherwise), and remote/WSL drops can opt into the same bounded recovery loop.
 describe('RuntimeManager LOCAL auto-reconnect (FIX 4)', () => {
   afterEach(() => { vi.useRealTimers() })
 
@@ -471,6 +471,55 @@ describe('RuntimeManager LOCAL auto-reconnect (FIX 4)', () => {
     expect(seen).not.toContain('connecting')
   })
 
+  test('a remote drop reconnects with a fresh transport when enabled', async () => {
+    vi.useFakeTimers()
+    const mgr = new RuntimeManager()
+    const first = new FakeTransport()
+    const replacement = new FakeTransport()
+    const reconnectFactory = vi.fn(async () => replacement)
+    const seen: string[] = []
+    const telemetry: string[] = []
+    mgr.setStatusListener((_id, state) => seen.push(state))
+    mgr.onTelemetry((event) => telemetry.push(event.kind))
+
+    await mgr.connect('wsl_remote', first, { autoReconnect: true, reconnectFactory })
+    first.triggerClose()
+    expect(seen).toContain('disconnected')
+    expect(reconnectFactory).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(reconnectFactory).toHaveBeenCalledTimes(1)
+    expect(mgr.isConnected('wsl_remote')).toBe(true)
+    expect(seen).toContain('connected')
+    expect(telemetry).toEqual(expect.arrayContaining([
+      'disconnect',
+      'reconnect-scheduled',
+      'connect-start',
+      'connect-success',
+    ]))
+  })
+
+  test('remote reconnect stops after its bounded retry budget', async () => {
+    vi.useFakeTimers()
+    const mgr = new RuntimeManager()
+    const first = new FakeTransport()
+    const reconnectFactory = vi.fn(async () => {
+      throw new Error('host offline')
+    })
+    const telemetry: string[] = []
+    mgr.onTelemetry((event) => telemetry.push(event.kind))
+
+    await mgr.connect('wsl_remote', first, { autoReconnect: true, reconnectFactory })
+    first.triggerClose()
+    for (const delay of [1000, 2000, 4000, 8000, 15000]) {
+      await vi.advanceTimersByTimeAsync(delay)
+    }
+
+    expect(reconnectFactory).toHaveBeenCalledTimes(5)
+    expect(telemetry).toContain('reconnect-give-up')
+    expect(mgr.isConnected('wsl_remote')).toBe(false)
+  })
+
   test('a REMOTE drop still reports disconnected (no reconnect)', async () => {
     vi.useFakeTimers()
     const mgr = new RuntimeManager()
@@ -482,6 +531,6 @@ describe('RuntimeManager LOCAL auto-reconnect (FIX 4)', () => {
     transport.triggerClose()
     expect(seen).toContain('disconnected')
     await vi.advanceTimersByTimeAsync(1100)
-    expect(seen).not.toContain('connecting') // REMOTE never auto-reconnects
+    expect(seen).not.toContain('connecting') // opt-in keeps manual reconnect compatible
   })
 })

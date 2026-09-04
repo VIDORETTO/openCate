@@ -42,13 +42,35 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify repository secret and local-state boundaries
+        run: npm run verify:repository-boundaries
+
+      - name: Verify release workflow contract
+        run: npm run verify:release-workflow
+
       - name: Build
         run: npm run build
         env:
           NODE_OPTIONS: --max-old-space-size=4096
 
+      - name: Build TypeScript SDK
+        run: npm run build:sdk
+
+      - name: Build companion web
+        run: npm run build:companion
+
+      - name: Verify companion deployment examples
+        run: npm run verify:companion-deployment
+
+      - name: Validate companion web package
+        if: runner.os == 'Linux'
+        run: npm run package:companion
+
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
 
       # The extensions catalog is its own repo (0-AI-UG/cate-extensions). Check
       # it out + build so the catalog/distribution and kitchensink-server tests
@@ -71,6 +93,21 @@ jobs:
       - name: Unit tests
         run: npm run test
 
+      - name: Install tmux for POSIX durability smoke
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y tmux
+          elif [ "$RUNNER_OS" = "macOS" ] && ! command -v tmux >/dev/null 2>&1; then
+            brew install tmux
+          fi
+
+      - name: tmux durability smoke (macOS/Linux)
+        if: runner.os != 'Windows'
+        run: npm run test:tmux:live
+
       - name: Install OpenSSH server for loopback E2E
         if: runner.os == 'Linux'
         run: |
@@ -84,13 +121,126 @@ jobs:
         if: runner.os != 'Windows'
         run: npm run test:ssh:loopback
 
-      - name: Electron smoke test (macOS only)
-        if: matrix.os == 'macos-latest'
+      - name: Install virtual display (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xauth x11-utils
+
+      - name: Electron smoke test (Linux)
+        if: runner.os == 'Linux'
+        env:
+          DISPLAY: ':99'
+        run: node scripts/run-with-xvfb.mjs npm run test:smoke:electron
+
+      - name: Electron smoke test (macOS/Windows)
+        if: runner.os != 'Linux'
         run: npm run test:smoke:electron
 
-      # NOTE: the Playwright e2e suite is intentionally NOT run here. The content-
-      # search specs drive the real local runtime daemon, whose ripgrep ships in
-      # the runtime tarball — building that tarball (node-pty compile + node/rg
-      # download + pi bundle) adds ~5min to every PR. The release workflow builds
-      # the tarball anyway, so e2e runs there instead (see release.yml). Keep this
-      # PR gate fast: build + typecheck + unit + smoke.
+  e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+    # E2E launches a real Electron window and a local runtime daemon. Keep the
+    # job bounded so a wedged child cannot consume a runner indefinitely.
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install setuptools (needed by node-gyp)
+        run: pip install setuptools
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Content-search E2E needs the same bundled runtime artifact used by the
+      # app. Building it here makes this matrix exercise the real daemon path,
+      # instead of silently falling back to skipped runtime-dependent checks.
+      - name: Build local runtime tarball
+        run: npm run runtime:tarball
+
+      - name: Build app
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Install virtual display (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xauth x11-utils
+
+      - name: Playwright E2E (Linux)
+        if: runner.os == 'Linux'
+        env:
+          DISPLAY: ':99'
+        run: node scripts/run-with-xvfb.mjs npm run test:e2e:ci
+
+      - name: Playwright E2E (macOS/Windows)
+        if: runner.os != 'Linux'
+        run: npm run test:e2e:ci
+
+      # The ordinary E2E gate intentionally skips hardware-sensitive perf
+      # specs. Run the live 50+ PTY/resize/territory measurements on the two
+      # POSIX hosts that still need cross-platform evidence; the runtime
+      # tarball and app were built natively earlier in this job.
+      - name: Playwright performance stress (Linux)
+        if: runner.os == 'Linux'
+        env:
+          DISPLAY: ':99'
+          CATE_PERF_50: '1'
+        run: node scripts/run-with-xvfb.mjs npm run test:e2e -- e2e/perf-stress.spec.ts e2e/worktree-territory-perf.spec.ts
+
+      - name: Playwright performance stress (macOS)
+        if: runner.os == 'macOS'
+        run: npm run test:e2e -- e2e/perf-stress.spec.ts e2e/worktree-territory-perf.spec.ts
+        env:
+          CATE_PERF_50: '1'
+
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [docker, podman]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install setuptools (needed by node-gyp)
+        run: pip install setuptools
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Podman
+        if: matrix.engine == 'podman'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+      - name: Container runtime smoke
+        run: npm run test:container:runtime
+        env:
+          CATE_CONTAINER_ENGINE: ${{ matrix.engine }}

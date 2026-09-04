@@ -90,6 +90,19 @@ function isAllowedGuestUrl(url: string): boolean {
   }
 }
 
+/** Popups are used for OAuth/sign-in flows, not for opening local documents.
+ * Keep local/data navigation available in the main browser guest while
+ * preventing remote content from spawning a privileged-looking local popup. */
+function isAllowedPopupUrl(url: string): boolean {
+  if (url === 'about:blank') return true
+  try {
+    const protocol = new URL(url).protocol
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 function headerName(headers: Record<string, string[] | string>, wanted: string): string {
   return Object.keys(headers).find((name) => name.toLowerCase() === wanted.toLowerCase()) ?? wanted
 }
@@ -161,7 +174,7 @@ export function configureBrowserGuestSession(targetSession: Session): void {
 
 function installBrowserPopupHandler(contents: WebContents): void {
   contents.setWindowOpenHandler(({ url }) => {
-    if (!isBrowserGuestSession(contents.session) || !isAllowedGuestUrl(url)) {
+    if (!isBrowserGuestSession(contents.session) || !isAllowedPopupUrl(url)) {
       log.warn('[browser] Blocked popup navigation to %s', url)
       return { action: 'deny' }
     }

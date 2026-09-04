@@ -102,6 +102,50 @@ Agent actions display a persistent cursor/highlight in the browser panel. User
 input immediately takes control back. Screenshots are saved to a Cate-managed
 temporary path and the CLI prints that path.
 
+## Project data
+
+The CLI endpoint is scoped to the workspace that created the terminal. Use the
+project/task/context/result commands to inspect and update the durable records
+under `.cate/`; these commands never copy terminal scrollback implicitly:
+
+```bash
+cate project get
+cate task list
+cate task create "Document the release decision"
+cate task update <task-id> --data '{"status":"completed","validatedResult":"Verified"}'
+cate context list
+cate context create "Release decision" "Keep the rollout staged"
+cate result list
+cate result get <task-id>
+```
+
+`--data` accepts one JSON object for complete task/context drafts or partial
+updates. Task and context writes have their own Settings → CLI **Project data →
+Control** permission; reads use the **Read** cell. Result records are a
+read-only projection of task state, and the API returns `{ items, total }` for
+all list commands.
+
+## TypeScript integrations
+
+Node/Bun integrations can import the same typed client from `cate/sdk` after
+the SDK artifact has been built:
+
+```ts
+import { createCateApiClient } from 'cate/sdk'
+
+const cate = createCateApiClient({
+  baseUrl: process.env.CATE_API!,
+  token: process.env.CATE_TOKEN!,
+})
+
+const project = await cate.project.get()
+const tasks = await cate.tasks.list()
+```
+
+The client uses the workspace bearer token and is intentionally free of
+Electron dependencies. Keep the token in the process environment and do not
+log it; it grants the same first-party capabilities as the calling terminal.
+
 ## Other surfaces
 
 ```bash

@@ -49,6 +49,7 @@ describe.skipIf(!hasTarball)('extension install/serve over a real daemon subproc
   let installRoot: string
   let workspace: string
   let hostExtRoot: string
+  let serverExtensionRoot: string
   let entry: CatalogEntry
   let runtime: Runtime
 
@@ -58,6 +59,23 @@ describe.skipIf(!hasTarball)('extension install/serve over a real daemon subproc
     // The daemon resolves its extensions root from CATE_EXTENSIONS_ROOT (env),
     // pointed at a temp dir so the test never touches the real ~/.cate.
     hostExtRoot = await fs.realpath(await fs.mkdtemp(path.join(process.cwd(), 'cate-exte2e-hostext-')))
+    serverExtensionRoot = path.join(hostExtRoot, 'server-backed')
+    await fs.mkdir(serverExtensionRoot, { recursive: true })
+    await fs.writeFile(
+      path.join(serverExtensionRoot, 'server.js'),
+      `const http = require('node:http')
+const server = http.createServer((request, response) => {
+  if (request.url !== '/health') {
+    response.writeHead(404)
+    response.end('not found')
+    return
+  }
+  response.writeHead(200, { 'content-type': 'application/json' })
+  response.end(JSON.stringify({ ready: true, token: Boolean(process.env.CATE_TOKEN), workspace: process.env.WORKSPACE_ROOT }))
+})
+server.listen(Number(process.env.PORT), process.env.HOST || '127.0.0.1')
+`,
+    )
     h.userData = await fs.mkdtemp(path.join(process.cwd(), 'cate-exte2e-userdata-')) // client staging cache
     h.appPath = process.cwd()
 
@@ -137,5 +155,53 @@ describe.skipIf(!hasTarball)('extension install/serve over a real daemon subproc
     await runtime.file.writeFile(file, JSON.stringify({ note: 'persisted-remotely' }))
     const back = JSON.parse(await runtime.file.readFile(file))
     expect(back.note).toBe('persisted-remotely')
+  }, 30_000)
+
+  test('runs a server-backed extension child through the real daemon', async () => {
+    const serverId = 'server-backed-e2e'
+    let handle: { id: string; pid: number; port: number } | undefined
+    let exitCode: number | null | undefined
+    const exited = new Promise<void>((resolve) => {
+      void runtime.server.start(
+        {
+          id: serverId,
+          command: ['node', 'server.js'],
+          cwd: serverExtensionRoot,
+          env: {
+            CATE_TOKEN: 'e2e-token',
+            HOST: '127.0.0.1',
+            WORKSPACE_ROOT: workspace,
+          },
+          portEnv: 'PORT',
+          readyPath: '/health',
+          readyTimeoutMs: 10_000,
+        },
+        () => { /* output asserted through the ready response */ },
+        (_id, code) => {
+          exitCode = code
+          resolve()
+        },
+      ).then((started) => { handle = started }).catch(() => resolve())
+    })
+
+    try {
+      await expect.poll(() => handle?.port ?? 0, { timeout: 15_000 }).toBeGreaterThan(0)
+      const response = await fetch(`http://127.0.0.1:${handle!.port}/health`)
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({
+        ready: true,
+        token: true,
+        workspace,
+      })
+    } finally {
+      if (handle) {
+        runtime.server.stop(handle.id)
+        await Promise.race([
+          exited,
+          new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
+        ])
+        expect(exitCode === null || exitCode === 0).toBe(true)
+      }
+    }
   }, 30_000)
 })
