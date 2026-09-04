@@ -2048,7 +2048,15 @@ essas validações continuam abertas sem marcar caixas por inferência.
 
 ## Plano de retomada - 2026-09-04 (commit e push da implementação)
 
-- [ ] revisar o escopo atual e os checks antes do stage;
-- [ ] criar um commit único com a implementação e documentação pendentes;
-- [ ] enviar a branch `product/agent-canvas` para `origin`;
-- [ ] confirmar o SHA remoto e registrar o resultado sem publicar uma release.
+- [x] revisar o escopo atual e os checks antes do stage;
+- [x] criar um commit único com a implementação e documentação pendentes;
+- [x] enviar a branch `product/agent-canvas` para `origin`;
+- [x] confirmar o SHA remoto e registrar o resultado sem publicar uma release.
+
+### Review - 2026-09-04 (publicação inicial no openCate)
+
+- O clone shallow foi completado a partir do repositório de origem para
+  incluir o pai ausente do histórico; `git fsck --full --no-dangling` passou.
+- O commit `b4cf963f20e69ba79ae9408d5a334eb97bfd75e1` foi enviado com sucesso
+  para `VIDORETTO/openCate` em `product/agent-canvas`.
+- A branch remota foi confirmada pelo SHA; nenhuma release ou tag foi criada.
